@@ -1,0 +1,569 @@
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+import { ProductMediaUpload } from './ProductMediaUpload';
+import { ProductSEOFields } from './ProductSEOFields';
+import { Category } from '@/types/database';
+
+interface MediaItem {
+  id: string;
+  url: string;
+  alt_text: string | null;
+  display_order: number;
+  is_primary: boolean;
+  media_type: string;
+}
+
+interface ProductFormData {
+  name: string;
+  slug: string;
+  description: string;
+  base_price: string;
+  sale_price: string;
+  category_id: string;
+  sku: string;
+  is_active: boolean;
+  is_featured: boolean;
+  is_new: boolean;
+  // Shipping & dimensions
+  weight: string;
+  width: string;
+  height: string;
+  depth: string;
+  // Google Merchant
+  gtin: string;
+  mpn: string;
+  brand: string;
+  condition: string;
+  google_product_category: string;
+  age_group: string;
+  gender: string;
+  material: string;
+  pattern: string;
+  // SEO
+  seo_title: string;
+  seo_description: string;
+  seo_keywords: string;
+}
+
+interface ProductFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editingProduct?: any | null;
+}
+
+const initialFormData: ProductFormData = {
+  name: '',
+  slug: '',
+  description: '',
+  base_price: '',
+  sale_price: '',
+  category_id: '',
+  sku: '',
+  is_active: true,
+  is_featured: false,
+  is_new: false,
+  weight: '',
+  width: '',
+  height: '',
+  depth: '',
+  gtin: '',
+  mpn: '',
+  brand: '',
+  condition: 'new',
+  google_product_category: '',
+  age_group: '',
+  gender: '',
+  material: '',
+  pattern: '',
+  seo_title: '',
+  seo_description: '',
+  seo_keywords: '',
+};
+
+export function ProductFormDialog({ open, onOpenChange, editingProduct }: ProductFormDialogProps) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [formData, setFormData] = useState<ProductFormData>(initialFormData);
+  const [media, setMedia] = useState<MediaItem[]>([]);
+
+  const { data: categories } = useQuery({
+    queryKey: ['admin-categories'],
+    queryFn: async () => {
+      const { data } = await supabase.from('categories').select('*').order('name');
+      return data as Category[];
+    },
+  });
+
+  // Get category name for SEO
+  const selectedCategory = categories?.find(c => c.id === formData.category_id);
+
+  useEffect(() => {
+    if (editingProduct) {
+      setFormData({
+        name: editingProduct.name || '',
+        slug: editingProduct.slug || '',
+        description: editingProduct.description || '',
+        base_price: String(editingProduct.base_price || ''),
+        sale_price: editingProduct.sale_price ? String(editingProduct.sale_price) : '',
+        category_id: editingProduct.category_id || '',
+        sku: editingProduct.sku || '',
+        is_active: editingProduct.is_active ?? true,
+        is_featured: editingProduct.is_featured ?? false,
+        is_new: editingProduct.is_new ?? false,
+        weight: editingProduct.weight ? String(editingProduct.weight) : '',
+        width: editingProduct.width ? String(editingProduct.width) : '',
+        height: editingProduct.height ? String(editingProduct.height) : '',
+        depth: editingProduct.depth ? String(editingProduct.depth) : '',
+        gtin: editingProduct.gtin || '',
+        mpn: editingProduct.mpn || '',
+        brand: editingProduct.brand || '',
+        condition: editingProduct.condition || 'new',
+        google_product_category: editingProduct.google_product_category || '',
+        age_group: editingProduct.age_group || '',
+        gender: editingProduct.gender || '',
+        material: editingProduct.material || '',
+        pattern: editingProduct.pattern || '',
+        seo_title: editingProduct.seo_title || '',
+        seo_description: editingProduct.seo_description || '',
+        seo_keywords: editingProduct.seo_keywords || '',
+      });
+      // Load existing media
+      if (editingProduct.images) {
+        setMedia(editingProduct.images.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          alt_text: img.alt_text,
+          display_order: img.display_order || 0,
+          is_primary: img.is_primary || false,
+          media_type: img.media_type || 'image',
+        })));
+      }
+    } else {
+      setFormData(initialFormData);
+      setMedia([]);
+    }
+  }, [editingProduct, open]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: ProductFormData) => {
+      const productData = {
+        name: data.name,
+        slug: data.slug || data.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        description: data.description || null,
+        base_price: parseFloat(data.base_price),
+        sale_price: data.sale_price ? parseFloat(data.sale_price) : null,
+        category_id: data.category_id || null,
+        sku: data.sku || null,
+        is_active: data.is_active,
+        is_featured: data.is_featured,
+        is_new: data.is_new,
+        weight: data.weight ? parseFloat(data.weight) : null,
+        width: data.width ? parseFloat(data.width) : null,
+        height: data.height ? parseFloat(data.height) : null,
+        depth: data.depth ? parseFloat(data.depth) : null,
+        gtin: data.gtin || null,
+        mpn: data.mpn || null,
+        brand: data.brand || null,
+        condition: data.condition || 'new',
+        google_product_category: data.google_product_category || null,
+        age_group: data.age_group || null,
+        gender: data.gender || null,
+        material: data.material || null,
+        pattern: data.pattern || null,
+        seo_title: data.seo_title || null,
+        seo_description: data.seo_description || null,
+        seo_keywords: data.seo_keywords || null,
+      };
+
+      let productId = editingProduct?.id;
+
+      if (editingProduct) {
+        const { error } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProduct.id);
+        if (error) throw error;
+      } else {
+        const { data: newProduct, error } = await supabase
+          .from('products')
+          .insert(productData)
+          .select('id')
+          .single();
+        if (error) throw error;
+        productId = newProduct.id;
+      }
+
+      // Handle media - delete old and insert new
+      if (productId) {
+        // Delete existing images
+        await supabase.from('product_images').delete().eq('product_id', productId);
+        
+        // Insert new media
+        if (media.length > 0) {
+          const mediaInserts = media.map((m, index) => ({
+            product_id: productId,
+            url: m.url,
+            alt_text: m.alt_text,
+            display_order: index,
+            is_primary: m.is_primary,
+            media_type: m.media_type,
+          }));
+          
+          const { error: mediaError } = await supabase
+            .from('product_images')
+            .insert(mediaInserts);
+          
+          if (mediaError) throw mediaError;
+        }
+      }
+
+      return productId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      onOpenChange(false);
+      toast({ title: editingProduct ? 'Produto atualizado!' : 'Produto criado!' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate(formData);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[95vh] p-0">
+        <DialogHeader className="p-6 pb-0">
+          <DialogTitle>{editingProduct ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit}>
+          <Tabs defaultValue="basic" className="w-full">
+            <div className="px-6">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="basic">Básico</TabsTrigger>
+                <TabsTrigger value="media">Mídia</TabsTrigger>
+                <TabsTrigger value="shipping">Frete & GMC</TabsTrigger>
+                <TabsTrigger value="seo">SEO</TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <ScrollArea className="h-[60vh] px-6">
+              <TabsContent value="basic" className="mt-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nome *</Label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Slug</Label>
+                    <Input
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      placeholder="gerado-automaticamente"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label>Descrição</Label>
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>Preço Base *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.base_price}
+                      onChange={(e) => setFormData({ ...formData, base_price: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Preço Promocional</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.sale_price}
+                      onChange={(e) => setFormData({ ...formData, sale_price: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>SKU</Label>
+                    <Input
+                      value={formData.sku}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Categoria</Label>
+                    <Select
+                      value={formData.category_id}
+                      onValueChange={(value) => setFormData({ ...formData, category_id: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Marca</Label>
+                    <Input
+                      value={formData.brand}
+                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                      placeholder="Ex: Nike, Adidas"
+                    />
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.is_active}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                    />
+                    <Label>Ativo</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.is_featured}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_featured: checked })}
+                    />
+                    <Label>Destaque</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={formData.is_new}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_new: checked })}
+                    />
+                    <Label>Lançamento</Label>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="media" className="mt-4">
+                <ProductMediaUpload
+                  productId={editingProduct?.id}
+                  media={media}
+                  onChange={setMedia}
+                />
+              </TabsContent>
+              
+              <TabsContent value="shipping" className="mt-4 space-y-6">
+                {/* Dimensions for shipping */}
+                <div>
+                  <h3 className="font-medium mb-3">Dimensões & Peso (para cálculo de frete)</h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <Label>Peso (kg)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.weight}
+                        onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                        placeholder="0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Largura (cm)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={formData.width}
+                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                        placeholder="20"
+                      />
+                    </div>
+                    <div>
+                      <Label>Altura (cm)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={formData.height}
+                        onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                        placeholder="10"
+                      />
+                    </div>
+                    <div>
+                      <Label>Profundidade (cm)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={formData.depth}
+                        onChange={(e) => setFormData({ ...formData, depth: e.target.value })}
+                        placeholder="30"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                {/* Google Merchant Center fields */}
+                <div>
+                  <h3 className="font-medium mb-3">Google Merchant Center</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>GTIN / EAN / Código de Barras</Label>
+                      <Input
+                        value={formData.gtin}
+                        onChange={(e) => setFormData({ ...formData, gtin: e.target.value })}
+                        placeholder="7891234567890"
+                      />
+                    </div>
+                    <div>
+                      <Label>MPN (Número do Fabricante)</Label>
+                      <Input
+                        value={formData.mpn}
+                        onChange={(e) => setFormData({ ...formData, mpn: e.target.value })}
+                        placeholder="ABC123"
+                      />
+                    </div>
+                    <div>
+                      <Label>Condição</Label>
+                      <Select
+                        value={formData.condition}
+                        onValueChange={(value) => setFormData({ ...formData, condition: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new">Novo</SelectItem>
+                          <SelectItem value="refurbished">Recondicionado</SelectItem>
+                          <SelectItem value="used">Usado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Categoria Google</Label>
+                      <Input
+                        value={formData.google_product_category}
+                        onChange={(e) => setFormData({ ...formData, google_product_category: e.target.value })}
+                        placeholder="Vestuário e acessórios > Sapatos"
+                      />
+                    </div>
+                    <div>
+                      <Label>Faixa Etária</Label>
+                      <Select
+                        value={formData.age_group}
+                        onValueChange={(value) => setFormData({ ...formData, age_group: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="adult">Adulto</SelectItem>
+                          <SelectItem value="kids">Infantil</SelectItem>
+                          <SelectItem value="toddler">Bebê</SelectItem>
+                          <SelectItem value="infant">Recém-nascido</SelectItem>
+                          <SelectItem value="newborn">Neonato</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Gênero</Label>
+                      <Select
+                        value={formData.gender}
+                        onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="female">Feminino</SelectItem>
+                          <SelectItem value="male">Masculino</SelectItem>
+                          <SelectItem value="unisex">Unissex</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Material</Label>
+                      <Input
+                        value={formData.material}
+                        onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                        placeholder="Couro, Camurça"
+                      />
+                    </div>
+                    <div>
+                      <Label>Padrão / Estampa</Label>
+                      <Input
+                        value={formData.pattern}
+                        onChange={(e) => setFormData({ ...formData, pattern: e.target.value })}
+                        placeholder="Liso, Listrado, Animal Print"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="seo" className="mt-4">
+                <ProductSEOFields
+                  productData={{
+                    name: formData.name,
+                    description: formData.description,
+                    base_price: formData.base_price,
+                    sale_price: formData.sale_price,
+                    brand: formData.brand,
+                    category_name: selectedCategory?.name || '',
+                  }}
+                  seoData={{
+                    seo_title: formData.seo_title,
+                    seo_description: formData.seo_description,
+                    seo_keywords: formData.seo_keywords,
+                  }}
+                  onChange={(seo) => setFormData({ ...formData, ...seo })}
+                />
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
+          
+          <div className="flex justify-end gap-2 p-6 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
