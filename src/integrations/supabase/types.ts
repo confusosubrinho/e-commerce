@@ -312,6 +312,7 @@ export type Database = {
           display_order: number | null
           id: string
           is_primary: boolean | null
+          media_type: string | null
           product_id: string
           url: string
         }
@@ -321,6 +322,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_primary?: boolean | null
+          media_type?: string | null
           product_id: string
           url: string
         }
@@ -330,6 +332,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_primary?: boolean | null
+          media_type?: string | null
           product_id?: string
           url?: string
         }
@@ -442,49 +445,97 @@ export type Database = {
       }
       products: {
         Row: {
+          age_group: string | null
           base_price: number
+          brand: string | null
           category_id: string | null
+          condition: string | null
           created_at: string
+          depth: number | null
           description: string | null
+          gender: string | null
+          google_product_category: string | null
+          gtin: string | null
+          height: number | null
           id: string
           is_active: boolean | null
           is_featured: boolean | null
           is_new: boolean | null
+          material: string | null
+          mpn: string | null
           name: string
+          pattern: string | null
           sale_price: number | null
+          seo_description: string | null
+          seo_keywords: string | null
+          seo_title: string | null
           sku: string | null
           slug: string
           updated_at: string
+          weight: number | null
+          width: number | null
         }
         Insert: {
+          age_group?: string | null
           base_price: number
+          brand?: string | null
           category_id?: string | null
+          condition?: string | null
           created_at?: string
+          depth?: number | null
           description?: string | null
+          gender?: string | null
+          google_product_category?: string | null
+          gtin?: string | null
+          height?: number | null
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
           is_new?: boolean | null
+          material?: string | null
+          mpn?: string | null
           name: string
+          pattern?: string | null
           sale_price?: number | null
+          seo_description?: string | null
+          seo_keywords?: string | null
+          seo_title?: string | null
           sku?: string | null
           slug: string
           updated_at?: string
+          weight?: number | null
+          width?: number | null
         }
         Update: {
+          age_group?: string | null
           base_price?: number
+          brand?: string | null
           category_id?: string | null
+          condition?: string | null
           created_at?: string
+          depth?: number | null
           description?: string | null
+          gender?: string | null
+          google_product_category?: string | null
+          gtin?: string | null
+          height?: number | null
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
           is_new?: boolean | null
+          material?: string | null
+          mpn?: string | null
           name?: string
+          pattern?: string | null
           sale_price?: number | null
+          seo_description?: string | null
+          seo_keywords?: string | null
+          seo_title?: string | null
           sku?: string | null
           slug?: string
           updated_at?: string
+          weight?: number | null
+          width?: number | null
         }
         Relationships: [
           {
