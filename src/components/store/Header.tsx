@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, ShoppingBag, Menu, X, Phone, MessageCircle, ChevronDown, Trash2, Plus, Minus, Tag } from 'lucide-react';
+import { User, ShoppingBag, Menu, X, Phone, MessageCircle, ChevronDown, Trash2, Plus, Minus, HelpCircle, Percent, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useCart } from '@/contexts/CartContext';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import logo from '@/assets/logo.png';
@@ -10,12 +11,15 @@ import { ShippingCalculator } from './ShippingCalculator';
 import { CouponInput } from './CouponInput';
 import { SearchPreview } from './SearchPreview';
 
+const FREE_SHIPPING_THRESHOLD = 399;
+
 export function Header() {
   const navigate = useNavigate();
   const { itemCount, items, subtotal, removeItem, updateQuantity, isCartOpen, setIsCartOpen, discount, selectedShipping, total } = useCart();
   const { data: categories } = useCategories();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
+  const [couponOpen, setCouponOpen] = useState(false);
   const megaMenuRef = useRef<HTMLDivElement>(null);
 
   // Fetch products for each category for mega menu
@@ -50,33 +54,23 @@ export function Header() {
     return allProducts?.filter(p => p.category_id === categoryId)?.slice(0, 4) || [];
   };
 
+  // Free shipping progress
+  const remainingForFreeShipping = FREE_SHIPPING_THRESHOLD - subtotal;
+  const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+
   return (
     <header className="sticky top-0 z-50 bg-background shadow-sm">
-      {/* Top bar */}
+      {/* Top bar - Promo */}
       <div className="bg-primary text-primary-foreground text-sm py-2">
-        <div className="container-custom flex items-center justify-between">
-          <div className="hidden md:flex items-center gap-4">
-            <a href="tel:42991120205" className="flex items-center gap-1 hover:underline">
-              <Phone className="h-3 w-3" />
-              42 99112-0205
-            </a>
-            <a href="https://wa.me/5542991120205" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:underline">
-              <MessageCircle className="h-3 w-3" />
-              WhatsApp
-            </a>
-          </div>
-          <div className="text-center flex-1 md:flex-none">
-            <span className="font-medium">Frete grátis para compras acima de R$ 399*</span>
-          </div>
-          <div className="hidden md:block">
-            <span>Parcelamos em até 6x sem juros</span>
-          </div>
+        <div className="container-custom flex items-center justify-end">
+          <span className="font-medium">Frete grátis para as compras acima de R$ 399*</span>
         </div>
       </div>
 
       {/* Main header */}
       <div className="container-custom py-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-6">
           {/* Mobile menu */}
           <Button
             variant="ghost"
@@ -92,36 +86,51 @@ export function Header() {
             <img src={logo} alt="Vanessa Lima Shoes" className="h-10 md:h-14" />
           </Link>
 
-          {/* Search with Preview */}
-          <SearchPreview onSearch={handleSearch} className="hidden md:flex flex-1 max-w-lg" />
+          {/* Search with Preview - FULL WIDTH */}
+          <div className="hidden md:flex flex-1">
+            <SearchPreview onSearch={handleSearch} className="w-full" />
+          </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1">
-            <div className="hidden md:flex items-center gap-1 text-sm mr-2">
-              <MessageCircle className="h-4 w-4" />
-              <span className="text-muted-foreground">Atendimento</span>
-            </div>
-            <Link to="/conta" className="hidden md:flex items-center gap-1 text-sm mr-2 hover:text-primary transition-colors">
-              <User className="h-4 w-4" />
-              <span>Minha Conta</span>
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://wa.me/5542991120205" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hidden md:flex items-center gap-2 text-sm hover:text-primary transition-colors"
+            >
+              <HelpCircle className="h-5 w-5" />
+              <div className="text-left">
+                <span className="text-xs text-muted-foreground block">Precisa de Ajuda?</span>
+                <span className="font-medium">Atendimento</span>
+              </div>
+            </a>
+            
+            <Link to="/auth" className="hidden md:flex items-center gap-2 text-sm hover:text-primary transition-colors">
+              <User className="h-5 w-5" />
+              <div className="text-left">
+                <span className="text-xs text-muted-foreground block">Minha Conta</span>
+                <span className="font-medium">Acessar</span>
+              </div>
             </Link>
 
             <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button variant="outline" size="icon" className="relative rounded-full border-2 border-primary bg-primary text-primary-foreground hover:bg-primary/90">
                   <ShoppingBag className="h-5 w-5" />
                   {itemCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                    <span className="absolute -top-2 -right-2 bg-secondary text-secondary-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
                       {itemCount}
                     </span>
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-lg">
+              <SheetContent className="w-full sm:max-w-lg flex flex-col">
                 <SheetHeader>
                   <SheetTitle>Carrinho de Compras</SheetTitle>
                 </SheetHeader>
-                <div className="mt-4 flex flex-col h-[calc(100vh-8rem)]">
+                
+                <div className="flex-1 flex flex-col min-h-0">
                   {items.length === 0 ? (
                     <div className="text-center py-8">
                       <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -132,9 +141,31 @@ export function Header() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                      {/* Free shipping progress bar */}
+                      <div className="bg-muted/50 rounded-lg p-3 mb-4">
+                        {hasFreeShipping ? (
+                          <p className="text-sm text-primary font-medium text-center">
+                            🎉 Parabéns! Você ganhou frete grátis!
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm text-center mb-2">
+                              Faltam <span className="font-bold text-primary">{formatPrice(remainingForFreeShipping)}</span> para frete grátis
+                            </p>
+                            <div className="w-full bg-muted rounded-full h-2">
+                              <div
+                                className="bg-primary h-2 rounded-full transition-all"
+                                style={{ width: `${freeShippingProgress}%` }}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Cart items - scrollable */}
+                      <div className="flex-1 overflow-y-auto space-y-3 pr-2 min-h-0">
                         {items.map((item) => (
-                          <div key={item.variant.id} className="flex gap-3 border-b pb-4">
+                          <div key={item.variant.id} className="flex gap-3 border-b pb-3">
                             <img
                               src={item.product.images?.[0]?.url || '/placeholder.svg'}
                               alt={item.product.name}
@@ -143,8 +174,8 @@ export function Header() {
                             <div className="flex-1">
                               <div className="flex justify-between">
                                 <div>
-                                  <p className="font-medium">{item.product.name}</p>
-                                  <p className="text-sm text-muted-foreground">
+                                  <p className="font-medium text-sm">{item.product.name}</p>
+                                  <p className="text-xs text-muted-foreground">
                                     Tamanho: {item.variant.size}
                                   </p>
                                 </div>
@@ -162,22 +193,22 @@ export function Header() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8"
+                                    className="h-7 w-7"
                                     onClick={() => updateQuantity(item.variant.id, item.quantity - 1)}
                                   >
                                     <Minus className="h-3 w-3" />
                                   </Button>
-                                  <span className="w-8 text-center text-sm">{item.quantity}</span>
+                                  <span className="w-6 text-center text-sm">{item.quantity}</span>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8"
+                                    className="h-7 w-7"
                                     onClick={() => updateQuantity(item.variant.id, item.quantity + 1)}
                                   >
                                     <Plus className="h-3 w-3" />
                                   </Button>
                                 </div>
-                                <p className="font-bold">
+                                <p className="font-bold text-sm">
                                   {formatPrice(Number(item.product.sale_price || item.product.base_price) * item.quantity)}
                                 </p>
                               </div>
@@ -185,18 +216,27 @@ export function Header() {
                           </div>
                         ))}
                       </div>
+
+                      {/* Footer section - fixed */}
                       <div className="border-t pt-4 space-y-3 mt-auto">
-                        {/* Coupon Input */}
-                        <CouponInput compact />
-                        
                         {/* Shipping Calculator */}
-                        <div className="pt-2 border-t">
-                          <div className="flex items-center gap-2 text-sm font-medium mb-2">
-                            <Tag className="h-4 w-4 text-primary" />
-                            <span>Calcular Frete</span>
-                          </div>
-                          <ShippingCalculator compact />
-                        </div>
+                        <ShippingCalculator compact />
+                        
+                        {/* Coupon - Collapsible */}
+                        <Collapsible open={couponOpen} onOpenChange={setCouponOpen}>
+                          <CollapsibleTrigger asChild>
+                            <button className="flex items-center justify-between w-full p-2 text-sm font-medium hover:bg-muted/50 rounded-lg transition-colors">
+                              <div className="flex items-center gap-2">
+                                <Percent className="h-4 w-4 text-primary" />
+                                <span>Cupom de Desconto</span>
+                              </div>
+                              {couponOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-2">
+                            <CouponInput compact />
+                          </CollapsibleContent>
+                        </Collapsible>
                         
                         {/* Totals */}
                         <div className="pt-3 border-t space-y-2">
@@ -357,9 +397,9 @@ export function Header() {
                 );
               })}
             </div>
-            <Link to="/outlet" className="bg-secondary text-secondary-foreground px-4 py-2 my-2 rounded-full text-sm font-medium hover:bg-secondary/90 transition-colors flex items-center gap-1">
-              <span className="text-lg">✨</span>
-              ✨ Outlet
+            <Link to="/outlet" className="bg-secondary text-secondary-foreground px-4 py-2 my-2 rounded-full text-sm font-medium hover:bg-secondary/90 transition-colors flex items-center gap-2">
+              <Percent className="h-4 w-4" />
+              Outlet
             </Link>
           </div>
         </div>
@@ -367,20 +407,13 @@ export function Header() {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t bg-background animate-slide-up">
+        <div className="md:hidden bg-background border-t animate-fade-in">
           <div className="container-custom py-4 space-y-2">
-            <Link
-              to="/categorias"
-              className="block py-2 nav-link"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Todas Categorias
-            </Link>
             {categories?.map((category) => (
               <Link
                 key={category.id}
                 to={`/categoria/${category.slug}`}
-                className="block py-2 nav-link"
+                className="block py-2 hover:text-primary transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {category.name}
@@ -391,14 +424,7 @@ export function Header() {
               className="block py-2 text-primary font-medium"
               onClick={() => setMobileMenuOpen(false)}
             >
-              ✨ Outlet
-            </Link>
-            <Link
-              to="/conta"
-              className="block py-2 nav-link"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Minha Conta
+              Outlet
             </Link>
           </div>
         </div>

@@ -11,24 +11,43 @@
    updated_at: string;
  }
  
- export interface Product {
-   id: string;
-   name: string;
-   slug: string;
-   description: string | null;
-   base_price: number;
-   sale_price: number | null;
-   sku: string | null;
-   category_id: string | null;
-   is_active: boolean;
-   is_featured: boolean;
-   is_new: boolean;
-   created_at: string;
-   updated_at: string;
-   category?: Category;
-   images?: ProductImage[];
-   variants?: ProductVariant[];
- }
+export interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  base_price: number;
+  sale_price: number | null;
+  sku: string | null;
+  category_id: string | null;
+  is_active: boolean;
+  is_featured: boolean;
+  is_new: boolean;
+  created_at: string;
+  updated_at: string;
+  // Google Merchant Center & Shipping fields
+  weight: number | null;
+  width: number | null;
+  height: number | null;
+  depth: number | null;
+  gtin: string | null;
+  mpn: string | null;
+  brand: string | null;
+  condition: string | null;
+  google_product_category: string | null;
+  age_group: string | null;
+  gender: string | null;
+  material: string | null;
+  pattern: string | null;
+  // SEO fields
+  seo_title: string | null;
+  seo_description: string | null;
+  seo_keywords: string | null;
+  // Relations
+  category?: Category;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
+}
  
  export interface ProductImage {
    id: string;

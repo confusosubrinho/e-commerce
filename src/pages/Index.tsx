@@ -4,6 +4,7 @@ import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
 import { HighlightBanners } from '@/components/store/HighlightBanners';
+import { InstagramFeed } from '@/components/store/InstagramFeed';
 import { useFeaturedProducts, useProducts } from '@/hooks/useProducts';
 
 const Index = () => {
@@ -53,6 +54,9 @@ const Index = () => {
         showViewAll
         viewAllLink="/novidades"
       />
+
+      {/* Instagram Feed Section */}
+      <InstagramFeed />
     </StoreLayout>
   );
 };

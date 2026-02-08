@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Truck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +43,16 @@ export function ShippingCalculator({ compact = false }: ShippingCalculatorProps)
   const [localCep, setLocalCep] = useState(shippingZip);
   const [isLoading, setIsLoading] = useState(false);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[]>([]);
-  const [hasCalculated, setHasCalculated] = useState(!!shippingZip && shippingOptions.length > 0);
+  const [hasCalculated, setHasCalculated] = useState(false);
+
+  // Load shipping options if there's already a saved CEP
+  useEffect(() => {
+    if (shippingZip && shippingZip.replace(/\D/g, '').length === 8 && !hasCalculated) {
+      const options = getShippingOptions(shippingZip.replace(/\D/g, ''));
+      setShippingOptions(options);
+      setHasCalculated(true);
+    }
+  }, [shippingZip, hasCalculated]);
 
   const formatCep = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -81,17 +90,22 @@ export function ShippingCalculator({ compact = false }: ShippingCalculatorProps)
 
   const freeShippingEligible = subtotal >= 399;
 
-  // Modern inline design (like the reference image)
+  // Compact design for cart sidebar
   if (compact) {
     return (
       <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Truck className="h-4 w-4 text-primary" />
+          <span>Calcular Frete</span>
+        </div>
+        
         <div className="flex gap-2">
           <Input
             placeholder="00000-000"
             value={localCep}
             onChange={(e) => setLocalCep(formatCep(e.target.value))}
             maxLength={9}
-            className="h-9 text-sm"
+            className="h-9 text-sm bg-background"
           />
           <Button 
             onClick={handleCalculate} 
@@ -149,10 +163,10 @@ export function ShippingCalculator({ compact = false }: ShippingCalculatorProps)
     );
   }
 
-  // Full design (like the reference image - inline with icon)
+  // Full design for product page - with white input
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+      <div className="flex items-center gap-4 p-4 border rounded-lg bg-background">
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
             <Truck className="h-5 w-5 text-primary" />
@@ -169,7 +183,7 @@ export function ShippingCalculator({ compact = false }: ShippingCalculatorProps)
             value={localCep}
             onChange={(e) => setLocalCep(formatCep(e.target.value))}
             maxLength={9}
-            className="border-0 bg-transparent focus-visible:ring-0 text-sm"
+            className="bg-background border text-sm"
           />
           <Button 
             onClick={handleCalculate} 
