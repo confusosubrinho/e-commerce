@@ -79,26 +79,26 @@ export function SearchPreview({ onSearch, className }: SearchPreviewProps) {
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
-      <form onSubmit={handleSubmit}>
-        <div className="relative">
+      <form onSubmit={handleSubmit} className="w-full">
+        <div className="relative w-full">
           <Input
             type="search"
-            placeholder="O que você procura?"
+            placeholder="O que deseja procurar?"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => query.length >= 2 && results.length > 0 && setIsOpen(true)}
-            className="input-search w-full pr-10"
+            className="w-full h-12 pl-5 pr-12 text-base rounded-full border-2 border-muted bg-muted/50 focus:bg-background focus:border-primary"
           />
           <Button
             type="submit"
             variant="ghost"
             size="icon"
-            className="absolute right-0 top-0 h-full"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full"
           >
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
-              <Search className="h-4 w-4" />
+              <Search className="h-5 w-5" />
             )}
           </Button>
         </div>

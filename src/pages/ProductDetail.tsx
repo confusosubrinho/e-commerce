@@ -4,6 +4,7 @@ import { ChevronRight, Minus, Plus, ShoppingBag, Heart, MessageCircle, Truck } f
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProduct } from '@/hooks/useProducts';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,7 @@ import { ShippingCalculator } from '@/components/store/ShippingCalculator';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
 import { ProductReviews } from '@/components/store/ProductReviews';
 import { PaymentMethodsModal } from '@/components/store/PaymentMethodsModal';
+import { BuyTogether } from '@/components/store/BuyTogether';
 import { useRecentProducts, useRelatedProducts } from '@/hooks/useRecentProducts';
 
 export default function ProductDetail() {
@@ -98,6 +100,19 @@ export default function ProductDetail() {
     });
   };
 
+  // Build product characteristics from available fields
+  const characteristics = [
+    { label: 'Material', value: product.material },
+    { label: 'Marca', value: product.brand },
+    { label: 'Peso', value: product.weight ? `${product.weight}g` : null },
+    { label: 'Altura', value: product.height ? `${product.height}cm` : null },
+    { label: 'Largura', value: product.width ? `${product.width}cm` : null },
+    { label: 'Profundidade', value: product.depth ? `${product.depth}cm` : null },
+    { label: 'Condição', value: product.condition === 'new' ? 'Novo' : product.condition },
+    { label: 'Gênero', value: product.gender },
+    { label: 'Padrão', value: product.pattern },
+  ].filter(c => c.value);
+
   return (
     <StoreLayout>
       {/* Breadcrumb */}
@@ -127,17 +142,17 @@ export default function ProductDetail() {
               {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                 {product.is_new && (
-                  <Badge className="bg-blue-500 text-white border-0 px-3 py-1">
+                  <Badge className="bg-primary text-primary-foreground border-0 px-3 py-1">
                     Lançamento
                   </Badge>
                 )}
                 {hasDiscount && (
-                  <Badge className="bg-red-500 text-white border-0 px-3 py-1">
+                  <Badge className="bg-destructive text-destructive-foreground border-0 px-3 py-1">
                     -{discountPercentage}% OFF
                   </Badge>
                 )}
                 {product.is_featured && !product.is_new && !hasDiscount && (
-                  <Badge className="bg-yellow-500 text-white border-0 px-3 py-1">
+                  <Badge className="bg-warning text-warning-foreground border-0 px-3 py-1">
                     Destaque
                   </Badge>
                 )}
@@ -168,13 +183,98 @@ export default function ProductDetail() {
               </div>
             )}
 
-            {/* Description below images */}
-            {product.description && (
-              <div className="border rounded-lg p-6 bg-muted/30">
-                <h2 className="font-bold text-lg mb-3">Descrição</h2>
-                <p className="text-muted-foreground whitespace-pre-line">{product.description}</p>
-              </div>
-            )}
+            {/* Tabs for Description, Characteristics, Warranty, Payment */}
+            <Tabs defaultValue="description" className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="description">Descrição</TabsTrigger>
+                <TabsTrigger value="characteristics">Características</TabsTrigger>
+                <TabsTrigger value="warranty">Garantia</TabsTrigger>
+                <TabsTrigger value="payment">Pagamento</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="description" className="mt-4">
+                <div className="prose prose-sm max-w-none">
+                  {product.description ? (
+                    <p className="text-muted-foreground whitespace-pre-line">{product.description}</p>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhuma descrição disponível.</p>
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="characteristics" className="mt-4">
+                {characteristics.length > 0 ? (
+                  <div className="space-y-2">
+                    {characteristics.map((char, index) => (
+                      <div key={index} className="flex justify-between py-2 border-b last:border-0">
+                        <span className="text-muted-foreground">{char.label}</span>
+                        <span className="font-medium">{char.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Nenhuma característica disponível.</p>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="warranty" className="mt-4">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Truck className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">Garantia de 30 dias</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Todos os nossos produtos possuem garantia de 30 dias contra defeitos de fabricação.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">Trocas e Devoluções</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Primeira troca gratuita em até 7 dias após o recebimento.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="payment" className="mt-4">
+                <div className="space-y-4">
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-medium text-primary mb-2">PIX</h4>
+                    <p className="text-2xl font-bold">{formatPrice(currentPrice)}</p>
+                    <p className="text-sm text-muted-foreground">À vista com 5% de desconto</p>
+                  </div>
+                  
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="font-medium mb-2">Cartão de Crédito</h4>
+                    <p className="text-lg font-bold">até 6x de R$ {installmentPrice}</p>
+                    <p className="text-sm text-muted-foreground">Sem juros no cartão</p>
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-sm text-muted-foreground mb-2">Parcelas disponíveis:</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <span>1x de {formatPrice(currentPrice)}</span>
+                        <span>2x de {formatPrice(currentPrice / 2)}</span>
+                        <span>3x de {formatPrice(currentPrice / 3)}</span>
+                        <span>4x de {formatPrice(currentPrice / 4)}</span>
+                        <span>5x de {formatPrice(currentPrice / 5)}</span>
+                        <span>6x de {formatPrice(currentPrice / 6)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 justify-center">
+                    <img src="https://images.tcdn.com.br/files/1313274/themes/5/img/settings/stripe-new-card.png" alt="Cartões aceitos" className="h-8" />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Product info */}
@@ -271,7 +371,7 @@ export default function ProductDetail() {
               href={`https://wa.me/5542991120205?text=Olá, gostei deste produto: ${product.name}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-3 px-6 border-2 border-green-500 text-green-600 rounded-full hover:bg-green-50 transition-colors font-medium"
+              className="flex items-center justify-center gap-2 py-3 px-6 border-2 border-success text-success rounded-full hover:bg-success/10 transition-colors font-medium"
             >
               <MessageCircle className="h-5 w-5" />
               Comprar pelo WhatsApp
@@ -284,6 +384,11 @@ export default function ProductDetail() {
           </div>
         </div>
       </div>
+
+      {/* Buy Together Section */}
+      {relatedProducts && relatedProducts.length > 0 && (
+        <BuyTogether currentProduct={product} relatedProducts={relatedProducts.slice(0, 3)} />
+      )}
 
       {/* Reviews Section */}
       <ProductReviews productId={product.id} productName={product.name} />

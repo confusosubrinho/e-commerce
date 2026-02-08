@@ -6,17 +6,10 @@ import {
   ShoppingCart, 
   Users, 
   Tags, 
-  Image, 
   Settings, 
   LogOut,
-  FolderOpen,
   ChevronDown,
-  Store,
-  Code,
-  Palette,
-  Truck,
-  CreditCard,
-  Mail
+  Plug
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -68,6 +61,7 @@ const menuItems: MenuItem[] = [
       { title: 'Banners Destaque', url: '/admin/banners-destaque' },
     ]
   },
+  { title: 'Integrações', url: '/admin/integracoes', icon: Plug },
   { 
     title: 'Configurações', 
     icon: Settings,
