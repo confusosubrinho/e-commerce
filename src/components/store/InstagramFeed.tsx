@@ -40,12 +40,16 @@ export function InstagramFeed() {
     },
   });
 
-  // Auto-play active video, pause others
+  // Auto-play active video, pause others - also set src when needed
   useEffect(() => {
     if (!videos) return;
     videoRefs.current.forEach((video, id) => {
       const idx = videos.findIndex(v => v.id === id);
       if (idx === activeIndex) {
+        // Set src if not loaded yet
+        if (!video.src && video.dataset.src) {
+          video.src = video.dataset.src;
+        }
         video.play().catch(() => {});
       } else {
         video.pause();
@@ -141,13 +145,14 @@ export function InstagramFeed() {
                     ref={(el) => {
                       if (el) videoRefs.current.set(video.id, el);
                     }}
-                    src={video.video_url}
+                    src={isActive ? video.video_url : undefined}
+                    data-src={video.video_url}
                     poster={video.thumbnail_url || undefined}
                     className="w-full h-full object-cover"
                     loop
                     muted
                     playsInline
-                    preload="metadata"
+                    preload="none"
                   />
 
                   {/* Username overlay */}

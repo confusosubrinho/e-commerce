@@ -75,6 +75,10 @@ export function CategoryGrid() {
                     src={category.image_url || '/placeholder.svg'}
                     alt={category.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    loading="lazy"
+                    decoding="async"
+                    width={150}
+                    height={150}
                   />
                 </div>
                 <h3 className="font-medium text-foreground group-hover:text-primary transition-colors text-xs sm:text-sm md:text-base">

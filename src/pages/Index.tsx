@@ -1,17 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
-import { ProductGrid } from '@/components/store/ProductGrid';
-import { HighlightBanners } from '@/components/store/HighlightBanners';
-import { InstagramFeed } from '@/components/store/InstagramFeed';
-import { ShopBySize } from '@/components/store/ShopBySize';
-import { Newsletter } from '@/components/store/Newsletter';
-import { BijuteriasSection } from '@/components/store/BijuteriasSection';
 import { useFeaturedProducts, useProducts } from '@/hooks/useProducts';
 import { trackSession } from '@/lib/utmTracker';
+
+// Lazy load below-the-fold sections
+const ProductGrid = lazy(() => import('@/components/store/ProductGrid').then(m => ({ default: m.ProductGrid })));
+const HighlightBanners = lazy(() => import('@/components/store/HighlightBanners').then(m => ({ default: m.HighlightBanners })));
+const InstagramFeed = lazy(() => import('@/components/store/InstagramFeed').then(m => ({ default: m.InstagramFeed })));
+const ShopBySize = lazy(() => import('@/components/store/ShopBySize').then(m => ({ default: m.ShopBySize })));
+const Newsletter = lazy(() => import('@/components/store/Newsletter').then(m => ({ default: m.Newsletter })));
+const BijuteriasSection = lazy(() => import('@/components/store/BijuteriasSection').then(m => ({ default: m.BijuteriasSection })));
+
+const SectionFallback = () => <div className="py-12" />;
 
 const Index = () => {
   const { data: featuredProducts, isLoading: featuredLoading } = useFeaturedProducts();
@@ -21,10 +25,7 @@ const Index = () => {
     trackSession();
   }, []);
 
-  // Filter products on sale
   const saleProducts = allProducts?.filter(p => p.sale_price && p.sale_price < p.base_price).slice(0, 10) || [];
-  
-  // Filter new products - limit to 8 for 2x4 grid
   const newProducts = allProducts?.filter(p => p.is_new).slice(0, 8) || [];
 
   return (
@@ -33,7 +34,6 @@ const Index = () => {
       <FeaturesBar />
       <CategoryGrid />
       
-      {/* Mais Vendidos section */}
       <ProductCarousel
         products={(featuredProducts || []).slice(0, 10)}
         title="Mais Vendidos"
@@ -44,16 +44,18 @@ const Index = () => {
         cardBg
       />
 
-      {/* Bijuterias Section */}
-      <BijuteriasSection />
+      <Suspense fallback={<SectionFallback />}>
+        <BijuteriasSection />
+      </Suspense>
 
-      {/* Highlight Banners Section */}
-      <HighlightBanners />
+      <Suspense fallback={<SectionFallback />}>
+        <HighlightBanners />
+      </Suspense>
 
-      {/* Shop by Size */}
-      <ShopBySize />
+      <Suspense fallback={<SectionFallback />}>
+        <ShopBySize />
+      </Suspense>
 
-      {/* Sale products */}
       {saleProducts.length > 0 && (
         <ProductCarousel
           products={saleProducts}
@@ -65,21 +67,24 @@ const Index = () => {
         />
       )}
 
-      {/* New arrivals - 2x4 grid */}
-      <ProductGrid
-        products={newProducts}
-        title="Novidades"
-        subtitle="Acabou de chegar na loja"
-        isLoading={productsLoading}
-        showViewAll
-        viewAllLink="/novidades"
-      />
+      <Suspense fallback={<SectionFallback />}>
+        <ProductGrid
+          products={newProducts}
+          title="Novidades"
+          subtitle="Acabou de chegar na loja"
+          isLoading={productsLoading}
+          showViewAll
+          viewAllLink="/novidades"
+        />
+      </Suspense>
 
-      {/* Instagram Feed Section */}
-      <InstagramFeed />
+      <Suspense fallback={<SectionFallback />}>
+        <InstagramFeed />
+      </Suspense>
 
-      {/* Newsletter */}
-      <Newsletter />
+      <Suspense fallback={<SectionFallback />}>
+        <Newsletter />
+      </Suspense>
     </StoreLayout>
   );
 };

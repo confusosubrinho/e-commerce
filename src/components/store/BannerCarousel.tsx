@@ -44,7 +44,7 @@ export function BannerCarousel() {
         className="flex transition-transform duration-500 ease-in-out"
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
       >
-        {displayBanners.map((banner: any) => {
+        {displayBanners.map((banner: any, index: number) => {
           const imageUrl = isMobile && banner.mobile_image_url 
             ? banner.mobile_image_url 
             : banner.image_url;
@@ -54,9 +54,14 @@ export function BannerCarousel() {
               <a href={banner.cta_url || '#'} className="block">
                 <img
                   src={imageUrl}
-                  alt={banner.title || 'Banner'}
+                  alt={banner.title || 'Banner promocional'}
                   className="w-full h-auto object-cover"
                   style={{ maxHeight: isMobile ? '400px' : '500px' }}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={index === 0 ? 'high' : 'auto'}
+                  decoding={index === 0 ? 'sync' : 'async'}
+                  width={isMobile ? 768 : 1440}
+                  height={isMobile ? 400 : 500}
                 />
               </a>
             </div>
