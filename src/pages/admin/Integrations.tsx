@@ -483,8 +483,32 @@ function BlingPanel() {
 
   const [syncing, setSyncing] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<any>(null);
+  const [blingStores, setBlingStores] = useState<{id: string; name: string; type: string}[]>([]);
+  const [loadingStores, setLoadingStores] = useState(false);
 
   const isConnected = !!(settings as any)?.bling_access_token;
+
+  const fetchStores = useCallback(async () => {
+    if (!isConnected) return;
+    setLoadingStores(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('bling-sync', {
+        body: { action: 'list_stores' },
+      });
+      if (error) throw error;
+      if (data?.stores?.length) {
+        setBlingStores(data.stores);
+      }
+    } catch (err: any) {
+      console.error('Error fetching stores:', err);
+    } finally {
+      setLoadingStores(false);
+    }
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (isConnected) fetchStores();
+  }, [isConnected, fetchStores]);
   const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bling-oauth`;
 
   const handleSync = async (action: string, label: string) => {
@@ -564,8 +588,27 @@ function BlingPanel() {
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">ID da Loja Virtual (opcional)</Label>
-          <Input value={form.bling_store_id} onChange={(e) => setForm({ ...form, bling_store_id: e.target.value })} placeholder="ID numérico da loja no Bling" />
+          <Label className="text-xs">Loja Virtual (filtra produtos vinculados)</Label>
+          {blingStores.length > 0 ? (
+            <Select value={form.bling_store_id || 'all'} onValueChange={(v) => setForm({ ...form, bling_store_id: v === 'all' ? '' : v })}>
+              <SelectTrigger><SelectValue placeholder="Selecione a loja" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as lojas (sem filtro)</SelectItem>
+                {blingStores.map((store) => (
+                  <SelectItem key={store.id} value={String(store.id)}>{store.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex gap-2">
+              <Input value={form.bling_store_id} onChange={(e) => setForm({ ...form, bling_store_id: e.target.value })} placeholder="ID numérico da loja no Bling" />
+              {isConnected && (
+                <Button size="sm" variant="outline" onClick={fetchStores} disabled={loadingStores} className="shrink-0">
+                  {loadingStores ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Buscar'}
+                </Button>
+              )}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">Se preenchido, sincroniza apenas os produtos vinculados a essa loja. Deixe vazio para importar todos.</p>
         </div>
       </div>
