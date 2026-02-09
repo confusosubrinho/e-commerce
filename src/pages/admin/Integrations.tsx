@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ExternalLink, Check, AlertCircle, Settings2, Plug, CreditCard, Package, Truck, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Store, Link2, Loader2 } from 'lucide-react';
+import { ExternalLink, Check, AlertCircle, Settings2, Plug, CreditCard, Package, Truck, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Store, Link2, Loader2, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -480,8 +480,31 @@ function BlingPanel() {
     }
   };
 
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<any>(null);
+
   const isConnected = !!(settings as any)?.bling_access_token;
   const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bling-oauth`;
+
+  const handleSync = async (action: string, label: string) => {
+    setSyncing(action);
+    setSyncResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('bling-sync', {
+        body: { action },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setSyncResult(data);
+      toast({ title: `${label} concluída!`, description: JSON.stringify(data) });
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    } catch (err: any) {
+      toast({ title: 'Erro na sincronização', description: err.message, variant: 'destructive' });
+    } finally {
+      setSyncing(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -564,11 +587,57 @@ function BlingPanel() {
       {isConnected && (
         <>
           <Separator />
+          
+          {/* Sync Actions */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">🔄 Sincronização</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                onClick={() => handleSync('sync_products', 'Importação de produtos')}
+                disabled={!!syncing}
+                className="h-auto py-3 flex flex-col items-center gap-1"
+              >
+                {syncing === 'sync_products' ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Package className="h-5 w-5" />
+                )}
+                <span className="text-xs font-medium">Importar Produtos</span>
+                <span className="text-[10px] text-muted-foreground">Bling → Loja</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleSync('sync_stock', 'Sincronização de estoque')}
+                disabled={!!syncing}
+                className="h-auto py-3 flex flex-col items-center gap-1"
+              >
+                {syncing === 'sync_stock' ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <ArrowUpDown className="h-5 w-5" />
+                )}
+                <span className="text-xs font-medium">Sincronizar Estoque</span>
+                <span className="text-[10px] text-muted-foreground">Bling → Loja</span>
+              </Button>
+            </div>
+            {syncResult && (
+              <div className="bg-muted/50 rounded-lg p-3 text-xs">
+                <p className="font-medium mb-1">Resultado:</p>
+                <pre className="text-muted-foreground whitespace-pre-wrap">{JSON.stringify(syncResult, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
           <div className="space-y-2">
             <h4 className="font-medium text-sm">✅ Funcionalidades ativas</h4>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• Pedidos da loja serão enviados automaticamente ao Bling</li>
-              <li>• NF-e será gerada e transmitida à SEFAZ automaticamente</li>
+              <li>• Importar todos os produtos do Bling com fotos, variantes e estoque</li>
+              <li>• Pedidos da loja são enviados automaticamente ao Bling</li>
+              <li>• NF-e é gerada e transmitida à SEFAZ automaticamente</li>
+              <li>• Estoque sincronizado: venda aqui baixa no Bling e vice-versa</li>
               <li>• O token é renovado automaticamente a cada 6 horas</li>
             </ul>
           </div>

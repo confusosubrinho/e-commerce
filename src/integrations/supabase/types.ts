@@ -807,6 +807,7 @@ export type Database = {
       }
       product_variants: {
         Row: {
+          bling_variant_id: number | null
           color: string | null
           color_hex: string | null
           created_at: string
@@ -819,6 +820,7 @@ export type Database = {
           stock_quantity: number
         }
         Insert: {
+          bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
           created_at?: string
@@ -831,6 +833,7 @@ export type Database = {
           stock_quantity?: number
         }
         Update: {
+          bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
           created_at?: string
@@ -856,6 +859,7 @@ export type Database = {
         Row: {
           age_group: string | null
           base_price: number
+          bling_product_id: number | null
           brand: string | null
           category_id: string | null
           condition: string | null
@@ -888,6 +892,7 @@ export type Database = {
         Insert: {
           age_group?: string | null
           base_price: number
+          bling_product_id?: number | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
@@ -920,6 +925,7 @@ export type Database = {
         Update: {
           age_group?: string | null
           base_price?: number
+          bling_product_id?: number | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
