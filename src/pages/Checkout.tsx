@@ -151,6 +151,14 @@ export default function Checkout() {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) throw itemsError;
 
+      // Sync with Bling ERP (non-blocking)
+      supabase.functions.invoke('bling-sync', {
+        body: { action: 'order_to_nfe', order_id: order.id },
+      }).then((res) => {
+        if (res.error) console.warn('Bling sync warning:', res.error);
+        else console.log('Bling sync ok:', res.data);
+      }).catch((err) => console.warn('Bling sync failed:', err));
+
       clearCart();
       navigate('/pedido-confirmado', {
         state: { orderNumber: order.order_number, paymentMethod: formData.paymentMethod },
