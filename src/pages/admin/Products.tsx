@@ -65,7 +65,7 @@ interface Product {
   bling_product_id: number | null;
   category?: { id: string; name: string } | null;
   images?: { id: string; url: string; alt_text: string | null; display_order: number; is_primary: boolean; media_type: string }[];
-  variants?: { id: string; stock_quantity: number }[];
+  variants?: { id: string; size: string; color: string | null; color_hex: string | null; sku: string | null; stock_quantity: number; price_modifier: number | null; is_active: boolean; bling_variant_id: number | null }[];
 }
 
 export default function Products() {
@@ -92,7 +92,7 @@ export default function Products() {
           *,
           category:categories(*),
           images:product_images(*),
-          variants:product_variants(id, stock_quantity)
+          variants:product_variants(id, size, color, color_hex, sku, stock_quantity, price_modifier, is_active, bling_variant_id)
         `)
         .order('created_at', { ascending: false });
       if (error) throw error;
