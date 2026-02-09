@@ -64,6 +64,18 @@ interface ProductFormDialogProps {
   editingProduct?: any | null;
 }
 
+function generateProductSku(name: string): string {
+  const words = name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2)
+    .slice(0, 3);
+  const base = words.map(w => w.substring(0, 3)).join('');
+  const num = String(Math.floor(Math.random() * 900) + 100);
+  return `VLS-${base}-${num}`;
+}
+
 const initialFormData: ProductFormData = {
   name: '',
   slug: '',
@@ -81,7 +93,7 @@ const initialFormData: ProductFormData = {
   depth: '',
   gtin: '',
   mpn: '',
-  brand: '',
+  brand: 'Vanessa Lima Shoes',
   condition: 'new',
   google_product_category: 'Vestuário e acessórios > Sapatos',
   age_group: 'adult',
@@ -307,7 +319,15 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                     <Label>Nome *</Label>
                     <Input
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                        const updates: Partial<ProductFormData> = { name, slug };
+                        if (!editingProduct && !formData.sku) {
+                          updates.sku = name.length > 3 ? generateProductSku(name) : '';
+                        }
+                        setFormData(prev => ({ ...prev, ...updates }));
+                      }}
                       required
                     />
                   </div>
@@ -599,6 +619,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                     sale_price: formData.sale_price,
                     brand: formData.brand,
                     category_name: selectedCategory?.name || '',
+                    material: formData.material,
                   }}
                   seoData={{
                     seo_title: formData.seo_title,
