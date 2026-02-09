@@ -88,11 +88,9 @@ const Index = () => {
         </Suspense>
       </div>
 
-      <div className="content-lazy">
-        <Suspense fallback={<SectionFallback />}>
-          <InstagramFeed />
-        </Suspense>
-      </div>
+      <Suspense fallback={<SectionFallback />}>
+        <InstagramFeed />
+      </Suspense>
 
       <div className="content-lazy">
         <Suspense fallback={<SectionFallback />}>
