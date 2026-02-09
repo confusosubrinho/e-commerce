@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 
 export function ShopBySize() {
+  // Standard shoe sizes to display
+  const STANDARD_SIZES = ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
+
   const { data: sizes } = useQuery({
     queryKey: ['available-sizes'],
     queryFn: async () => {
@@ -14,15 +17,14 @@ export function ShopBySize() {
       
       if (error) throw error;
       
-      const uniqueSizes = [...new Set(data.map(v => v.size))]
-        .sort((a, b) => {
-          const numA = parseFloat(a);
-          const numB = parseFloat(b);
-          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-          return a.localeCompare(b);
-        });
+      const rawSizes = [...new Set(data.map(v => v.size))];
       
-      return uniqueSizes;
+      // Only keep sizes that match standard numeric shoe sizes
+      const validSizes = STANDARD_SIZES.filter(std =>
+        rawSizes.some(raw => raw.trim() === std)
+      );
+      
+      return validSizes;
     },
   });
 
