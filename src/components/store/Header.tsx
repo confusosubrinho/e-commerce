@@ -10,6 +10,7 @@ import logo from '@/assets/logo.png';
 import { ShippingCalculator } from './ShippingCalculator';
 import { CouponInput } from './CouponInput';
 import { SearchPreview } from './SearchPreview';
+import { CartProductSuggestions } from './CartProductSuggestions';
 
 const FREE_SHIPPING_THRESHOLD = 399;
 
@@ -234,6 +235,10 @@ export function Header() {
                         ))}
                       </div>
 
+                      {/* Product suggestions */}
+                      <div className="pt-3 border-t">
+                        <CartProductSuggestions compact />
+                      </div>
                       {/* Footer section - fixed */}
                       <div className="border-t pt-4 space-y-3 mt-auto">
                         {/* Shipping Calculator */}

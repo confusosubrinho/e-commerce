@@ -192,7 +192,7 @@ interface ProductCarouselProps {
                         {hasDiscount && (
                           <p className="text-muted-foreground line-through text-sm">{formatPrice(Number(product.base_price))}</p>
                         )}
-                        <p className="text-xl font-bold">{formatPrice(currentPrice)}</p>
+                        <p className="text-xl font-bold text-foreground">{formatPrice(currentPrice)}</p>
                         <p className="text-sm text-muted-foreground">
                           ou <span className="font-medium">12x</span> de <span className="font-medium">R$ {installmentPrice}</span> com juros
                         </p>

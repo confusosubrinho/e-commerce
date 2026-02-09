@@ -15,7 +15,7 @@ type Step = 'identification' | 'shipping' | 'payment';
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { items, subtotal, clearCart, updateQuantity } = useCart();
+  const { items, subtotal, clearCart, updateQuantity, selectedShipping, shippingZip, discount } = useCart();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>('identification');
   const [isLoading, setIsLoading] = useState(false);
@@ -163,9 +163,19 @@ export default function Checkout() {
     }
   };
 
-  const shippingCost = subtotal >= 399 ? 0 : formData.shippingMethod === 'express' ? 25 : 15;
-  const total = subtotal + shippingCost;
+  // Use shipping from cart context if available
+  const shippingCost = selectedShipping 
+    ? selectedShipping.price 
+    : subtotal >= 399 ? 0 : formData.shippingMethod === 'express' ? 25 : 15;
+  const total = subtotal - discount + shippingCost;
   const finalTotal = formData.paymentMethod === 'pix' ? total * 0.95 : total;
+
+  // Pre-fill CEP from cart context
+  useEffect(() => {
+    if (shippingZip && !formData.cep) {
+      setFormData(prev => ({ ...prev, cep: shippingZip }));
+    }
+  }, [shippingZip]);
 
   if (items.length === 0) {
     return (
@@ -504,7 +514,20 @@ export default function Checkout() {
                       />
                       <div className="flex-1 text-sm space-y-1">
                         <p className="font-medium line-clamp-1">{item.product.name}</p>
-                        <p className="text-muted-foreground">Tam: {item.variant.size}</p>
+                        <p className="text-muted-foreground">
+                          Tam: {item.variant.size}
+                          {item.variant.color && ` | Cor: ${item.variant.color}`}
+                        </p>
+                        {/* Variant change link */}
+                        <button
+                          onClick={() => {
+                            // Open product page for variant change
+                            window.open(`/produto/${item.product.slug}`, '_blank');
+                          }}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Alterar variante
+                        </button>
                         <div className="flex items-center gap-2">
                           <button
                             id={`btn-checkout-qty-minus-${item.variant.id}`}

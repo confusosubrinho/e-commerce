@@ -1,5 +1,6 @@
- import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
- import { CartItem, Product, ProductVariant, Coupon, ShippingOption } from '@/types/database';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { CartItem, Product, ProductVariant, Coupon, ShippingOption } from '@/types/database';
+import { saveAbandonedCart } from '@/lib/utmTracker';
  
  interface CartContextType {
    items: CartItem[];
@@ -43,9 +44,30 @@
      return localStorage.getItem('shippingZip') || '';
    });
  
-   useEffect(() => {
-     localStorage.setItem('cart', JSON.stringify(items));
-   }, [items]);
+  // Save cart to localStorage
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(items));
+  }, [items]);
+
+  // Track abandoned carts (debounced)
+  const abandonedTimeout = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (items.length === 0) return;
+    if (abandonedTimeout.current) clearTimeout(abandonedTimeout.current);
+    abandonedTimeout.current = setTimeout(() => {
+      const cartData = items.map(i => ({
+        product: { id: i.product.id, name: i.product.name, slug: i.product.slug },
+        variant: { id: i.variant.id, size: i.variant.size, color: i.variant.color },
+        quantity: i.quantity,
+        price: Number(i.product.sale_price || i.product.base_price),
+      }));
+      const sub = items.reduce((sum, item) => {
+        return sum + (Number(item.product.sale_price || item.product.base_price) + Number(item.variant.price_modifier || 0)) * item.quantity;
+      }, 0);
+      saveAbandonedCart(cartData, sub);
+    }, 30000); // Save after 30s of inactivity
+    return () => { if (abandonedTimeout.current) clearTimeout(abandonedTimeout.current); };
+  }, [items]);
  
    useEffect(() => {
      if (appliedCoupon) {
