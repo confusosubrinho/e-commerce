@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronRight, Minus, Plus, ShoppingBag, Heart, MessageCircle, Truck } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function ProductDetail() {
+  const isMobile = useIsMobile();
   const { slug } = useParams<{ slug: string }>();
   const { data: product, isLoading } = useProduct(slug || '');
   const { addItem } = useCart();
@@ -27,6 +29,10 @@ export default function ProductDetail() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [activeTab, setActiveTab] = useState('description');
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   const { data: recentProducts } = useRecentProducts(product?.id);
   const { data: relatedProducts } = useRelatedProducts(product?.category_id, product?.id);
@@ -158,6 +164,115 @@ export default function ProductDetail() {
   // Use configured products if available, otherwise fall back to related
   const buyTogetherList = configuredRelatedProducts.length > 0 ? configuredRelatedProducts : (relatedProducts?.slice(0, 3) || []);
 
+  const tabKeys = ['description', 'characteristics', 'warranty', 'payment'] as const;
+  const tabLabels: Record<string, string> = { description: 'Descrição', characteristics: 'Detalhes', warranty: 'Garantia', payment: 'Pagamento' };
+
+  const handleTabSwipe = (direction: 'left' | 'right') => {
+    const idx = tabKeys.indexOf(activeTab as any);
+    if (direction === 'left' && idx < tabKeys.length - 1) setActiveTab(tabKeys[idx + 1]);
+    if (direction === 'right' && idx > 0) setActiveTab(tabKeys[idx - 1]);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.touches[0].clientX; };
+  const onTouchEnd = () => {
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 50) handleTabSwipe(diff > 0 ? 'left' : 'right');
+  };
+
+  const renderTabsContent = () => (
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <TabsList className="grid w-full grid-cols-4 h-auto">
+        {tabKeys.map(key => (
+          <TabsTrigger key={key} value={key} className="text-xs sm:text-sm py-2">{tabLabels[key]}</TabsTrigger>
+        ))}
+      </TabsList>
+      
+      <div
+        ref={tabsContainerRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className="min-h-[120px]"
+      >
+        <TabsContent value="description" className="mt-4">
+          <div className="prose prose-sm max-w-none">
+            {product.description ? (
+              <p className="text-muted-foreground whitespace-pre-line">{product.description}</p>
+            ) : (
+              <p className="text-muted-foreground">Nenhuma descrição disponível.</p>
+            )}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="characteristics" className="mt-4">
+          {characteristics.length > 0 ? (
+            <div className="space-y-2">
+              {characteristics.map((char, index) => (
+                <div key={index} className="flex justify-between py-2 border-b last:border-0">
+                  <span className="text-muted-foreground">{char.label}</span>
+                  <span className="font-medium">{char.value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Nenhuma característica disponível.</p>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="warranty" className="mt-4">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                <Truck className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-medium">Garantia de 30 dias</h4>
+                <p className="text-sm text-muted-foreground">Todos os nossos produtos possuem garantia de 30 dias contra defeitos de fabricação.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                <ShoppingBag className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-medium">Trocas e Devoluções</h4>
+                <p className="text-sm text-muted-foreground">Primeira troca gratuita em até 7 dias após o recebimento.</p>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="payment" className="mt-4">
+          <div className="space-y-4">
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-medium text-primary mb-2">PIX</h4>
+              <p className="text-2xl font-bold">{formatPrice(currentPrice * 0.95)}</p>
+              <p className="text-sm text-muted-foreground">À vista com 5% de desconto</p>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <h4 className="font-medium mb-2">Cartão de Crédito</h4>
+              <p className="text-lg font-bold">até 6x de R$ {installmentPrice}</p>
+              <p className="text-sm text-muted-foreground">Sem juros no cartão</p>
+              <div className="mt-3 pt-3 border-t">
+                <p className="text-sm text-muted-foreground mb-2">Parcelas disponíveis:</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {[1,2,3,4,5,6].map(n => (
+                    <span key={n}>{n}x de {formatPrice(currentPrice / n)}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-center">
+              <img src="https://images.tcdn.com.br/files/1313274/themes/5/img/settings/stripe-new-card.png" alt="Cartões aceitos" className="h-8" />
+            </div>
+          </div>
+        </TabsContent>
+      </div>
+      <p className="text-xs text-muted-foreground text-center mt-2 md:hidden">← Arraste para trocar de aba →</p>
+    </Tabs>
+  );
+
   return (
     <StoreLayout>
       {/* Floating Video */}
@@ -222,88 +337,8 @@ export default function ProductDetail() {
               </div>
             )}
 
-            <Tabs defaultValue="description" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
-                <TabsTrigger value="description" className="text-xs sm:text-sm py-2">Descrição</TabsTrigger>
-                <TabsTrigger value="characteristics" className="text-xs sm:text-sm py-2">Detalhes</TabsTrigger>
-                <TabsTrigger value="warranty" className="text-xs sm:text-sm py-2">Garantia</TabsTrigger>
-                <TabsTrigger value="payment" className="text-xs sm:text-sm py-2">Pagamento</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="description" className="mt-4">
-                <div className="prose prose-sm max-w-none">
-                  {product.description ? (
-                    <p className="text-muted-foreground whitespace-pre-line">{product.description}</p>
-                  ) : (
-                    <p className="text-muted-foreground">Nenhuma descrição disponível.</p>
-                  )}
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="characteristics" className="mt-4">
-                {characteristics.length > 0 ? (
-                  <div className="space-y-2">
-                    {characteristics.map((char, index) => (
-                      <div key={index} className="flex justify-between py-2 border-b last:border-0">
-                        <span className="text-muted-foreground">{char.label}</span>
-                        <span className="font-medium">{char.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">Nenhuma característica disponível.</p>
-                )}
-              </TabsContent>
-              
-              <TabsContent value="warranty" className="mt-4">
-                <div className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Truck className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Garantia de 30 dias</h4>
-                      <p className="text-sm text-muted-foreground">Todos os nossos produtos possuem garantia de 30 dias contra defeitos de fabricação.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                      <ShoppingBag className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Trocas e Devoluções</h4>
-                      <p className="text-sm text-muted-foreground">Primeira troca gratuita em até 7 dias após o recebimento.</p>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="payment" className="mt-4">
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium text-primary mb-2">PIX</h4>
-                    <p className="text-2xl font-bold">{formatPrice(currentPrice * 0.95)}</p>
-                    <p className="text-sm text-muted-foreground">À vista com 5% de desconto</p>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <h4 className="font-medium mb-2">Cartão de Crédito</h4>
-                    <p className="text-lg font-bold">até 6x de R$ {installmentPrice}</p>
-                    <p className="text-sm text-muted-foreground">Sem juros no cartão</p>
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-sm text-muted-foreground mb-2">Parcelas disponíveis:</p>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {[1,2,3,4,5,6].map(n => (
-                          <span key={n}>{n}x de {formatPrice(currentPrice / n)}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-center">
-                    <img src="https://images.tcdn.com.br/files/1313274/themes/5/img/settings/stripe-new-card.png" alt="Cartões aceitos" className="h-8" />
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
+            {/* Tabs on desktop only */}
+            {!isMobile && renderTabsContent()}
           </div>
 
           {/* Product info */}
@@ -423,6 +458,13 @@ export default function ProductDetail() {
             )}
           </div>
         </div>
+
+        {/* Tabs on mobile - below buy together */}
+        {isMobile && (
+          <div className="mt-8">
+            {renderTabsContent()}
+          </div>
+        )}
       </div>
 
       <ProductReviews productId={product.id} productName={product.name} />
