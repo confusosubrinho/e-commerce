@@ -671,9 +671,72 @@ function BlingPanel() {
               </Button>
             </div>
             {syncResult && (
-              <div className="bg-muted/50 rounded-lg p-3 text-xs">
-                <p className="font-medium mb-1">Resultado:</p>
-                <pre className="text-muted-foreground whitespace-pre-wrap">{JSON.stringify(syncResult, null, 2)}</pre>
+              <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-3">
+                <p className="font-medium">Resultado da Sincronização:</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {syncResult.imported != null && (
+                    <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded p-2 text-center">
+                      <p className="text-lg font-bold text-green-700 dark:text-green-400">{syncResult.imported}</p>
+                      <p className="text-[10px] text-green-600 dark:text-green-500">Importados</p>
+                    </div>
+                  )}
+                  {syncResult.updated != null && (
+                    <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded p-2 text-center">
+                      <p className="text-lg font-bold text-blue-700 dark:text-blue-400">{syncResult.updated}</p>
+                      <p className="text-[10px] text-blue-600 dark:text-blue-500">Atualizados</p>
+                    </div>
+                  )}
+                  {syncResult.variants != null && (
+                    <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded p-2 text-center">
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-400">{syncResult.variants}</p>
+                      <p className="text-[10px] text-purple-600 dark:text-purple-500">Variações</p>
+                    </div>
+                  )}
+                  {syncResult.errors != null && syncResult.errors > 0 && (
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded p-2 text-center">
+                      <p className="text-lg font-bold text-red-700 dark:text-red-400">{syncResult.errors}</p>
+                      <p className="text-[10px] text-red-600 dark:text-red-500">Erros</p>
+                    </div>
+                  )}
+                </div>
+                {syncResult.totalBlingListItems != null && (
+                  <p className="text-muted-foreground">Total de itens no Bling: <strong>{syncResult.totalBlingListItems}</strong> | Produtos processados: <strong>{syncResult.totalProcessed}</strong> | Ignorados (variações): <strong>{syncResult.skipped || 0}</strong> | Limpos: <strong>{syncResult.cleaned || 0}</strong></p>
+                )}
+                {syncResult.log?.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-medium text-xs hover:text-primary">
+                      📋 Log detalhado ({syncResult.log.length} itens)
+                    </summary>
+                    <div className="mt-2 max-h-64 overflow-y-auto border rounded">
+                      <table className="w-full text-[11px]">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="text-left p-1.5">Bling ID</th>
+                            <th className="text-left p-1.5">Nome</th>
+                            <th className="text-left p-1.5">Status</th>
+                            <th className="text-left p-1.5">Variações</th>
+                            <th className="text-left p-1.5">Mensagem</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {syncResult.log.map((entry: any, idx: number) => (
+                            <tr key={idx} className={`border-t ${entry.status === 'error' ? 'bg-red-50 dark:bg-red-950/20' : entry.status === 'imported' ? 'bg-green-50 dark:bg-green-950/20' : entry.status === 'updated' ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}>
+                              <td className="p-1.5 font-mono">{entry.bling_id}</td>
+                              <td className="p-1.5 max-w-[200px] truncate">{entry.name}</td>
+                              <td className="p-1.5">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${entry.status === 'imported' ? 'bg-green-200 text-green-800' : entry.status === 'updated' ? 'bg-blue-200 text-blue-800' : entry.status === 'error' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'}`}>
+                                  {entry.status === 'imported' ? '✅ Novo' : entry.status === 'updated' ? '🔄 Atualizado' : entry.status === 'error' ? '❌ Erro' : '⏭ Ignorado'}
+                                </span>
+                              </td>
+                              <td className="p-1.5 text-center">{entry.variants || '-'}</td>
+                              <td className="p-1.5 max-w-[250px] truncate text-muted-foreground">{entry.message}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
               </div>
             )}
           </div>

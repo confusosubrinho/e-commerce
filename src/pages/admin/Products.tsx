@@ -80,6 +80,8 @@ export default function Products() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('active-stock');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 25;
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['admin-products'],
@@ -156,7 +158,7 @@ export default function Products() {
     };
   }, [products]);
 
-  // Filter products
+  // Filter products - reset page when search changes
   let filteredProducts = products?.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
@@ -219,6 +221,10 @@ export default function Products() {
       break;
   }
 
+  // Reset page when filters change
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
   const clearFilters = () => {
     setSortBy('newest');
     setCategoryFilter('all');
@@ -226,6 +232,7 @@ export default function Products() {
     setSourceFilter('all');
     setActiveTab('active-stock');
     setSearchQuery('');
+    setCurrentPage(1);
   };
 
   const hasActiveFilters = categoryFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all' || activeTab !== 'active-stock';
@@ -386,6 +393,7 @@ export default function Products() {
       {/* Results count */}
       <p className="text-sm text-muted-foreground">
         {filteredProducts.length} produto{filteredProducts.length !== 1 ? 's' : ''} encontrado{filteredProducts.length !== 1 ? 's' : ''}
+        {totalPages > 1 && ` — Página ${currentPage} de ${totalPages}`}
       </p>
 
       <div className="bg-background rounded-lg border">
@@ -404,14 +412,14 @@ export default function Products() {
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8">Carregando...</TableCell>
               </TableRow>
-            ) : filteredProducts?.length === 0 ? (
+            ) : paginatedProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   Nenhum produto encontrado
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProducts?.map((product) => (
+              paginatedProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -488,6 +496,69 @@ export default function Products() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+          >
+            «
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            ‹ Anterior
+          </Button>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum: number;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              return (
+                <Button
+                  key={pageNum}
+                  variant={currentPage === pageNum ? 'default' : 'outline'}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                  onClick={() => setCurrentPage(pageNum)}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Próxima ›
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+          >
+            »
+          </Button>
+        </div>
+      )}
 
       <ProductFormDialog
         open={isDialogOpen}
