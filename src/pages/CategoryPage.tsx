@@ -16,6 +16,7 @@ export default function CategoryPage() {
   const [filters, setFilters] = useState<FilterState>({
     priceRange: [0, 1000],
     sizes: [],
+    colors: [],
     sortBy: 'newest',
     onSale: false,
     isNew: false,
@@ -31,6 +32,20 @@ export default function CategoryPage() {
       });
     });
     return Array.from(sizes).sort((a, b) => Number(a) - Number(b));
+  }, [products]);
+
+  // Calculate available colors from products
+  const availableColors = useMemo(() => {
+    if (!products) return [];
+    const colorMap = new Map<string, string | null>();
+    products.forEach(p => {
+      p.variants?.forEach(v => {
+        if (v.color && v.is_active) {
+          colorMap.set(v.color, v.color_hex || null);
+        }
+      });
+    });
+    return Array.from(colorMap.entries()).map(([name, hex]) => ({ name, hex }));
   }, [products]);
 
   // Calculate max price
@@ -62,6 +77,13 @@ export default function CategoryPage() {
     if (filters.sizes.length > 0) {
       result = result.filter(p =>
         p.variants?.some(v => filters.sizes.includes(v.size) && v.is_active)
+      );
+    }
+
+    // Filter by color
+    if (filters.colors.length > 0) {
+      result = result.filter(p =>
+        p.variants?.some(v => v.color && filters.colors.includes(v.color) && v.is_active)
       );
     }
 
@@ -124,6 +146,16 @@ export default function CategoryPage() {
       </div>
 
       <div className="container-custom">
+        {/* Sort bar */}
+        <CategoryFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableSizes={availableSizes}
+          availableColors={availableColors}
+          maxPrice={maxPrice}
+          productCount={filteredProducts.length}
+        />
+
         <div className="flex flex-col lg:flex-row gap-8 py-8">
           {/* Desktop Sidebar Filters */}
           <aside className="hidden lg:block w-64 flex-shrink-0">
@@ -131,24 +163,15 @@ export default function CategoryPage() {
               filters={filters}
               onFiltersChange={setFilters}
               availableSizes={availableSizes}
+              availableColors={availableColors}
               maxPrice={maxPrice}
               productCount={filteredProducts.length}
+              isSidebar
             />
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1">
-            {/* Mobile Filters */}
-            <div className="lg:hidden mb-4">
-              <CategoryFilters
-                filters={filters}
-                onFiltersChange={setFilters}
-                availableSizes={availableSizes}
-                maxPrice={maxPrice}
-                productCount={filteredProducts.length}
-              />
-            </div>
-
+          <main className="flex-1 min-w-0">
             <ProductGrid
               products={filteredProducts}
               isLoading={isLoading}

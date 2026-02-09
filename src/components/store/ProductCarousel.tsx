@@ -170,57 +170,90 @@
                          {product.is_featured && (
                            <Badge className="bg-secondary text-secondary-foreground">DESTAQUE</Badge>
                          )}
-                         {hasDiscount && (
-                           <Badge className="bg-destructive text-destructive-foreground">-{discountPercentage}%</Badge>
-                         )}
-                       </div>
-                     </div>
-                   </Link>
- 
-                   <div className="text-center space-y-3">
-                     <Link to={`/produto/${product.slug}`}>
-                       <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                         {product.name}
-                       </h3>
-                     </Link>
- 
-                     <div>
-                       {hasDiscount && (
-                         <p className="text-muted-foreground line-through text-sm">{formatPrice(Number(product.base_price))}</p>
-                       )}
-                       <p className="text-xl font-bold">{formatPrice(currentPrice)}</p>
-                       <p className="text-sm text-muted-foreground">
-                         ou <span className="font-medium">12x</span> de <span className="font-medium">R$ {installmentPrice}</span> com juros
-                       </p>
-                     </div>
- 
-                     <div className="space-y-2">
-                       <Button
-                         className="w-full"
-                         onClick={(e) => handleQuickBuy(product, e)}
-                       >
-                         Comprar
-                       </Button>
-                       <Button
-                         variant="outline"
-                         className="w-full text-primary border-primary hover:bg-primary/5"
-                         asChild
-                       >
-                         <a
-                           href={`https://wa.me/5542991120205?text=Olá, gostei deste produto: ${product.name}`}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           onClick={(e) => e.stopPropagation()}
-                         >
-                           <MessageCircle className="h-4 w-4 mr-2" />
-                           Comprar pelo Whats
-                         </a>
-                       </Button>
-                     </div>
-                   </div>
-                 </div>
-               );
-             })}
+                          {hasDiscount && (
+                            <Badge className="badge-sale">-{discountPercentage}%</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+
+                    <div className="text-center space-y-3">
+                      <Link to={`/produto/${product.slug}`}>
+                        <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                          {product.name}
+                        </h3>
+                      </Link>
+
+                      <div>
+                        {hasDiscount && (
+                          <p className="text-muted-foreground line-through text-sm">{formatPrice(Number(product.base_price))}</p>
+                        )}
+                        <p className="text-xl font-bold">{formatPrice(currentPrice)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          ou <span className="font-medium">12x</span> de <span className="font-medium">R$ {installmentPrice}</span> com juros
+                        </p>
+                      </div>
+
+                      {/* Size variants */}
+                      {(() => {
+                        const sizes = product.variants
+                          ?.filter(v => v.is_active)
+                          .map(v => ({ size: v.size, inStock: v.stock_quantity > 0 }))
+                          .filter((v, i, arr) => arr.findIndex(a => a.size === v.size) === i)
+                          .sort((a, b) => {
+                            const numA = parseFloat(a.size);
+                            const numB = parseFloat(b.size);
+                            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                            return a.size.localeCompare(b.size);
+                          }) || [];
+                        return sizes.length > 0 ? (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1.5 font-medium">Tamanho</p>
+                            <div className="flex gap-1 justify-center overflow-x-auto touch-pan-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                              {sizes.map(({ size, inStock }) => (
+                                <span
+                                  key={size}
+                                  className={`inline-flex items-center justify-center min-w-[28px] h-7 px-1.5 text-xs border rounded flex-shrink-0 ${
+                                    inStock
+                                      ? 'border-border text-foreground bg-background'
+                                      : 'border-border/50 text-muted-foreground/50 line-through bg-muted/50'
+                                  }`}
+                                >
+                                  {size}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      <div className="space-y-2">
+                        <Button
+                          className="w-full"
+                          onClick={(e) => handleQuickBuy(product, e)}
+                        >
+                          Comprar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="w-full text-primary border-primary hover:bg-primary/5"
+                          asChild
+                        >
+                          <a
+                            href={`https://wa.me/5542991120205?text=Olá, gostei deste produto: ${product.name}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Comprar pelo Whats
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
            </div>
          </div>
        </div>

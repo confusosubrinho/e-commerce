@@ -26,6 +26,7 @@ import {
 export interface FilterState {
   priceRange: [number, number];
   sizes: string[];
+  colors: string[];
   sortBy: string;
   onSale: boolean;
   isNew: boolean;
@@ -35,8 +36,10 @@ interface CategoryFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   availableSizes: string[];
+  availableColors: { name: string; hex: string | null }[];
   maxPrice: number;
   productCount: number;
+  isSidebar?: boolean;
 }
 
 const sortOptions = [
@@ -52,8 +55,10 @@ export function CategoryFilters({
   filters,
   onFiltersChange,
   availableSizes,
+  availableColors,
   maxPrice,
   productCount,
+  isSidebar = false,
 }: CategoryFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -71,10 +76,18 @@ export function CategoryFilters({
     onFiltersChange({ ...filters, sizes: newSizes });
   };
 
+  const handleColorToggle = (color: string) => {
+    const newColors = filters.colors.includes(color)
+      ? filters.colors.filter(c => c !== color)
+      : [...filters.colors, color];
+    onFiltersChange({ ...filters, colors: newColors });
+  };
+
   const handleClearFilters = () => {
     onFiltersChange({
       priceRange: [0, maxPrice],
       sizes: [],
+      colors: [],
       sortBy: 'newest',
       onSale: false,
       isNew: false,
@@ -83,6 +96,7 @@ export function CategoryFilters({
 
   const hasActiveFilters = 
     filters.sizes.length > 0 || 
+    filters.colors.length > 0 ||
     filters.onSale || 
     filters.isNew || 
     filters.priceRange[0] > 0 || 
@@ -141,6 +155,39 @@ export function CategoryFilters({
         </Collapsible>
       )}
 
+      {/* Colors */}
+      {availableColors.length > 0 && (
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="flex items-center justify-between w-full py-2 font-medium">
+            Cor
+            <ChevronDown className="h-4 w-4" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-4">
+            <div className="flex flex-wrap gap-2">
+              {availableColors.map(({ name, hex }) => (
+                <button
+                  key={name}
+                  onClick={() => handleColorToggle(name)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    filters.colors.includes(name)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:border-primary'
+                  }`}
+                >
+                  {hex && (
+                    <span
+                      className="w-4 h-4 rounded-full border border-border flex-shrink-0"
+                      style={{ backgroundColor: hex }}
+                    />
+                  )}
+                  {name}
+                </button>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       {/* Promotions */}
       <Collapsible defaultOpen>
         <CollapsibleTrigger className="flex items-center justify-between w-full py-2 font-medium">
@@ -180,6 +227,12 @@ export function CategoryFilters({
     </div>
   );
 
+  // Sidebar mode: just render filter content
+  if (isSidebar) {
+    return <FilterContent />;
+  }
+
+  // Toolbar mode: sort bar + mobile filter trigger
   return (
     <div className="flex items-center justify-between gap-4 py-4 border-b">
       <div className="flex items-center gap-4">
@@ -191,7 +244,7 @@ export function CategoryFilters({
               Filtros
               {hasActiveFilters && (
                 <span className="ml-2 bg-primary text-primary-foreground w-5 h-5 rounded-full text-xs flex items-center justify-center">
-                  {filters.sizes.length + (filters.onSale ? 1 : 0) + (filters.isNew ? 1 : 0)}
+                  {filters.sizes.length + filters.colors.length + (filters.onSale ? 1 : 0) + (filters.isNew ? 1 : 0)}
                 </span>
               )}
             </Button>
@@ -206,33 +259,26 @@ export function CategoryFilters({
           </SheetContent>
         </Sheet>
 
-        {/* Desktop filters */}
-        <div className="hidden lg:block w-64 border-r pr-6">
-          <FilterContent />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <span className="text-sm text-muted-foreground hidden sm:block">
+        <span className="text-sm text-muted-foreground">
           {productCount} produto{productCount !== 1 ? 's' : ''}
         </span>
-        
-        <Select
-          value={filters.sortBy}
-          onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value })}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Ordenar por" />
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
+
+      <Select
+        value={filters.sortBy}
+        onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value })}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Ordenar por" />
+        </SelectTrigger>
+        <SelectContent>
+          {sortOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

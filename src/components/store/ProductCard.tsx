@@ -92,7 +92,7 @@ export function ProductCard({ product }: ProductCardProps) {
         {sizes.length > 0 && (
           <div className="mt-3">
             <p className="text-xs text-muted-foreground mb-1.5 font-medium">Tamanho</p>
-            <div className="flex gap-1 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className="flex gap-1 overflow-x-auto touch-pan-x cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
               {sizes.map(({ size, inStock }) => (
                 <span
                   key={size}
