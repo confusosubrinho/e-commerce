@@ -687,6 +687,51 @@ serve(async (req) => {
     let result: any;
 
     switch (action) {
+      case "list_stores": {
+        // Fetch virtual stores / sales channels from Bling
+        const storesHeaders = blingHeaders(token);
+        const stores: any[] = [];
+        
+        // Try canais-de-venda (sales channels) endpoint
+        try {
+          const res = await fetch(`${BLING_API_URL}/canais-de-venda`, { headers: storesHeaders });
+          const json = await res.json();
+          if (res.ok && json?.data?.length) {
+            for (const channel of json.data) {
+              stores.push({
+                id: channel.id,
+                name: channel.descricao || channel.nome || `Canal ${channel.id}`,
+                type: channel.tipo || 'loja_virtual',
+              });
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching canais-de-venda:", e);
+        }
+
+        // Also try lojas-virtuais endpoint as fallback
+        if (stores.length === 0) {
+          try {
+            const res = await fetch(`${BLING_API_URL}/lojas-virtuais`, { headers: storesHeaders });
+            const json = await res.json();
+            if (res.ok && json?.data?.length) {
+              for (const store of json.data) {
+                stores.push({
+                  id: store.id,
+                  name: store.descricao || store.nome || `Loja ${store.id}`,
+                  type: 'loja_virtual',
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Error fetching lojas-virtuais:", e);
+          }
+        }
+
+        result = { stores };
+        break;
+      }
+
       case "sync_products":
         result = await syncProducts(supabase, token);
         break;
