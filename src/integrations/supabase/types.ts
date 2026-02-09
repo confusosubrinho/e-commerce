@@ -747,6 +747,9 @@ export type Database = {
           melhor_envio_token: string | null
           min_installment_value: number | null
           pix_discount: number | null
+          rede_environment: string | null
+          rede_merchant_id: string | null
+          rede_merchant_key: string | null
           store_name: string | null
           tiktok_pixel_id: string | null
           updated_at: string
@@ -774,6 +777,9 @@ export type Database = {
           melhor_envio_token?: string | null
           min_installment_value?: number | null
           pix_discount?: number | null
+          rede_environment?: string | null
+          rede_merchant_id?: string | null
+          rede_merchant_key?: string | null
           store_name?: string | null
           tiktok_pixel_id?: string | null
           updated_at?: string
@@ -801,6 +807,9 @@ export type Database = {
           melhor_envio_token?: string | null
           min_installment_value?: number | null
           pix_discount?: number | null
+          rede_environment?: string | null
+          rede_merchant_id?: string | null
+          rede_merchant_key?: string | null
           store_name?: string | null
           tiktok_pixel_id?: string | null
           updated_at?: string

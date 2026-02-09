@@ -83,9 +83,9 @@ const initialFormData: ProductFormData = {
   mpn: '',
   brand: '',
   condition: 'new',
-  google_product_category: '',
-  age_group: '',
-  gender: '',
+  google_product_category: 'Vestuário e acessórios > Sapatos',
+  age_group: 'adult',
+  gender: 'female',
   material: '',
   pattern: '',
   seo_title: '',
@@ -132,9 +132,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         mpn: editingProduct.mpn || '',
         brand: editingProduct.brand || '',
         condition: editingProduct.condition || 'new',
-        google_product_category: editingProduct.google_product_category || '',
-        age_group: editingProduct.age_group || '',
-        gender: editingProduct.gender || '',
+        google_product_category: editingProduct.google_product_category || 'Vestuário e acessórios > Sapatos',
+        age_group: editingProduct.age_group || 'adult',
+        gender: editingProduct.gender || 'female',
         material: editingProduct.material || '',
         pattern: editingProduct.pattern || '',
         seo_title: editingProduct.seo_title || '',
@@ -426,6 +426,19 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                   variants={variants}
                   onChange={setVariants}
                   productId={editingProduct?.id}
+                  parentSku={formData.sku}
+                  parentWeight={formData.weight}
+                  parentWidth={formData.width}
+                  parentHeight={formData.height}
+                  parentDepth={formData.depth}
+                  parentBasePrice={formData.base_price}
+                  parentSalePrice={formData.sale_price}
+                  productImages={media.filter(m => m.media_type === 'image').map(m => ({
+                    id: m.id,
+                    url: m.url,
+                    alt_text: m.alt_text,
+                    is_primary: m.is_primary,
+                  }))}
                 />
               </TabsContent>
               
