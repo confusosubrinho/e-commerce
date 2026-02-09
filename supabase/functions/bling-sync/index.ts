@@ -12,6 +12,14 @@ const BLING_TOKEN_URL = "https://bling.com.br/Api/v3/oauth/token";
 // Standard shoe sizes for normalization
 const STANDARD_SIZES = ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
 
+interface SyncLogEntry {
+  bling_id: number;
+  name: string;
+  status: 'imported' | 'updated' | 'skipped' | 'error';
+  message: string;
+  variants: number;
+}
+
 function createSupabase() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
@@ -70,18 +78,15 @@ function normalizeSize(raw: string): string {
   if (!raw) return "Único";
   const trimmed = raw.trim();
   
-  // Check if it's a standard numeric size
   const numMatch = trimmed.match(/^(\d+)/);
   if (numMatch) {
     const num = numMatch[1];
     if (STANDARD_SIZES.includes(num)) return num;
-    // Try parsing as float (e.g., "34.0" -> "34")
     const parsed = parseInt(num, 10);
     const str = String(parsed);
     if (STANDARD_SIZES.includes(str)) return str;
   }
 
-  // Common aliases
   const lower = trimmed.toLowerCase();
   if (lower === "único" || lower === "unico" || lower === "u" || lower === "un") return "Único";
   if (lower === "p" || lower === "pp" || lower === "m" || lower === "g" || lower === "gg" || lower === "xg") return trimmed.toUpperCase();
@@ -89,12 +94,10 @@ function normalizeSize(raw: string): string {
   return trimmed;
 }
 
-// Parse Bling variation attributes like "Tamanho:34;Cor:Marrom" or "Cor:Off white;Tamanho:35"
 function parseVariationAttributes(nome: string): { size: string; color: string | null } {
   if (!nome) return { size: "Único", color: null };
 
   const parts: Record<string, string> = {};
-  // Split by ";" and parse "key:value" pairs
   nome.split(";").forEach(part => {
     const sepIdx = part.indexOf(":");
     if (sepIdx > 0) {
@@ -107,7 +110,6 @@ function parseVariationAttributes(nome: string): { size: string; color: string |
   const rawSize = parts["tamanho"] || parts["tam"] || parts["size"] || parts["numero"] || parts["num"] || null;
   const color = parts["cor"] || parts["color"] || parts["colour"] || null;
 
-  // If no structured parsing worked, check if the whole string is a size
   if (!rawSize && !color) {
     const normalized = normalizeSize(nome);
     return { size: normalized, color: null };
@@ -120,7 +122,6 @@ function parseVariationAttributes(nome: string): { size: string; color: string |
 async function findOrCreateCategory(supabase: any, categoryName: string): Promise<string | null> {
   if (!categoryName) return null;
 
-  // 1. Exact match
   let { data: cat } = await supabase
     .from("categories")
     .select("id")
@@ -128,7 +129,6 @@ async function findOrCreateCategory(supabase: any, categoryName: string): Promis
     .maybeSingle();
   if (cat) return cat.id;
 
-  // 2. Case-insensitive / partial match
   const normalized = categoryName.toLowerCase().trim();
   const { data: allCats } = await supabase.from("categories").select("id, name");
   if (allCats?.length) {
@@ -139,7 +139,6 @@ async function findOrCreateCategory(supabase: any, categoryName: string): Promis
     if (match) return match.id;
   }
 
-  // 3. Auto-create
   const catSlug = slugify(categoryName);
   const { data: existingSlug } = await supabase.from("categories").select("id").eq("slug", catSlug).maybeSingle();
   const finalSlug = existingSlug ? `${catSlug}-${Date.now()}` : catSlug;
@@ -158,22 +157,19 @@ async function processParentProduct(
   detail: any,
   blingId: number,
   getCategoryId: (name: string) => Promise<string | null>
-): Promise<{ imported: boolean; updated: boolean; variantCount: number }> {
+): Promise<{ imported: boolean; updated: boolean; variantCount: number; error?: string }> {
   const slug = slugify(detail.nome || `produto-${blingId}`);
   const basePrice = detail.preco || 0;
   const salePrice = detail.precoPromocional && detail.precoPromocional < basePrice ? detail.precoPromocional : null;
 
-  // Smart category assignment
   const categoryId = await getCategoryId(detail.categoria?.descricao || "");
 
-  // Check if product exists
   const { data: existing } = await supabase
     .from("products")
     .select("id")
     .eq("bling_product_id", blingId)
     .maybeSingle();
 
-  // Build product data
   const productData: any = {
     name: detail.nome,
     base_price: basePrice,
@@ -212,8 +208,7 @@ async function processParentProduct(
       .select("id")
       .single();
     if (insertErr) {
-      console.error("Insert product error:", insertErr.message);
-      return { imported: false, updated: false, variantCount: 0 };
+      return { imported: false, updated: false, variantCount: 0, error: `Insert error: ${insertErr.message}` };
     }
     productId = newProd.id;
     imported = true;
@@ -269,7 +264,6 @@ async function processParentProduct(
       let varSku = v.codigo || null;
       let varActive = true;
 
-      // Fetch variation details
       try {
         const varDetailRes = await fetch(`${BLING_API_URL}/produtos/${v.id}`, { headers });
         const varDetailJson = await varDetailRes.json();
@@ -280,7 +274,6 @@ async function processParentProduct(
           varSku = varDetail.codigo || varSku;
           varActive = varDetail.situacao === "A";
 
-          // Add variation-specific images
           if (varDetail.midia?.imagens?.internas?.length) {
             const existingImages = await supabase
               .from("product_images")
@@ -389,7 +382,10 @@ async function syncProducts(supabase: any, token: string) {
   let totalImported = 0;
   let totalUpdated = 0;
   let totalVariants = 0;
+  let totalSkipped = 0;
+  let totalErrors = 0;
   let hasMore = true;
+  const syncLog: SyncLogEntry[] = [];
 
   // Get store ID filter from settings
   const { data: storeSettings } = await supabase
@@ -408,15 +404,14 @@ async function syncProducts(supabase: any, token: string) {
     return id;
   }
 
-  // Track which parent Bling IDs we've already processed (to avoid duplicates)
   const processedParentIds = new Set<number>();
-  // Track variation Bling IDs whose parents need fetching
   const orphanVariationParentIds = new Set<number>();
+  let totalBlingListItems = 0;
 
   // Phase 1: Fetch all products from Bling listing
+  // Fetch ALL types (S=simple, P=parent with variations, E=kit) - NOT just tipo=P
   while (hasMore) {
-    let url = `${BLING_API_URL}/produtos?pagina=${page}&limite=100&tipo=P`;
-    // Filter by store if configured
+    let url = `${BLING_API_URL}/produtos?pagina=${page}&limite=100`;
     if (blingStoreId) {
       url += `&idLoja=${blingStoreId}`;
       if (page === 1) console.log(`Filtering by Bling store ID: ${blingStoreId}`);
@@ -432,6 +427,8 @@ async function syncProducts(supabase: any, token: string) {
 
     const products = json?.data || [];
     if (products.length === 0) { hasMore = false; break; }
+    totalBlingListItems += products.length;
+    console.log(`Page ${page}: ${products.length} items (total so far: ${totalBlingListItems})`);
 
     for (const bp of products) {
       try {
@@ -439,30 +436,46 @@ async function syncProducts(supabase: any, token: string) {
         const detailRes = await fetch(`${BLING_API_URL}/produtos/${bp.id}`, { headers });
         const detailJson = await detailRes.json();
         const detail = detailJson?.data;
-        if (!detail) continue;
-
-        // If this is a variation (formato=V), find its parent and queue for processing
-        if (detail.formato === "V") {
-          // Check if this variation has a parent reference
-          const parentId = detail.produtoPai?.id || detail.idProdutoPai || null;
-          if (parentId && !processedParentIds.has(parentId)) {
-            orphanVariationParentIds.add(parentId);
-            console.log(`Variation ${bp.id} (${detail.nome}) -> parent ${parentId} queued`);
-          }
+        if (!detail) {
+          syncLog.push({ bling_id: bp.id, name: bp.descricao || bp.nome || `ID ${bp.id}`, status: 'skipped', message: 'Detalhes não encontrados na API', variants: 0 });
+          totalSkipped++;
           continue;
         }
 
-        // Process parent/simple product (formato=S or E)
+        // If this is a variation (formato=V), find its parent and queue for processing
+        if (detail.formato === "V") {
+          const parentId = detail.produtoPai?.id || detail.idProdutoPai || null;
+          if (parentId && !processedParentIds.has(parentId)) {
+            orphanVariationParentIds.add(parentId);
+          }
+          syncLog.push({ bling_id: bp.id, name: detail.nome, status: 'skipped', message: `Variação (parent: ${parentId || 'desconhecido'})`, variants: 0 });
+          totalSkipped++;
+          continue;
+        }
+
+        // Process parent/simple product (formato=S, P, or E)
         processedParentIds.add(bp.id);
-        orphanVariationParentIds.delete(bp.id); // Remove from orphan queue if present
+        orphanVariationParentIds.delete(bp.id);
 
         const result = await processParentProduct(supabase, headers, detail, bp.id, getCategoryId);
-        if (result.imported) totalImported++;
-        if (result.updated) totalUpdated++;
-        totalVariants += result.variantCount;
+        
+        if (result.error) {
+          syncLog.push({ bling_id: bp.id, name: detail.nome, status: 'error', message: result.error, variants: 0 });
+          totalErrors++;
+        } else if (result.imported) {
+          syncLog.push({ bling_id: bp.id, name: detail.nome, status: 'imported', message: `Importado com ${result.variantCount} variação(ões)`, variants: result.variantCount });
+          totalImported++;
+          totalVariants += result.variantCount;
+        } else if (result.updated) {
+          syncLog.push({ bling_id: bp.id, name: detail.nome, status: 'updated', message: `Atualizado com ${result.variantCount} variação(ões)`, variants: result.variantCount });
+          totalUpdated++;
+          totalVariants += result.variantCount;
+        }
 
       } catch (productError: any) {
         console.error(`Error syncing product ${bp.id}:`, productError.message);
+        syncLog.push({ bling_id: bp.id, name: bp.descricao || bp.nome || `ID ${bp.id}`, status: 'error', message: productError.message, variants: 0 });
+        totalErrors++;
         continue;
       }
     }
@@ -471,7 +484,7 @@ async function syncProducts(supabase: any, token: string) {
     if (products.length < 100) hasMore = false;
   }
 
-  // Phase 2: Fetch missing parent products that were only found through their variations
+  // Phase 2: Fetch missing parent products
   if (orphanVariationParentIds.size > 0) {
     console.log(`Fetching ${orphanVariationParentIds.size} missing parent products...`);
     for (const parentId of orphanVariationParentIds) {
@@ -481,27 +494,38 @@ async function syncProducts(supabase: any, token: string) {
         const detailJson = await detailRes.json();
         const detail = detailJson?.data;
         if (!detail) {
-          console.error(`Parent product ${parentId} not found in Bling`);
+          syncLog.push({ bling_id: parentId, name: `Parent ${parentId}`, status: 'error', message: 'Produto pai não encontrado na API', variants: 0 });
+          totalErrors++;
           continue;
         }
         if (detail.formato === "V") {
-          console.log(`Parent ${parentId} is actually a variation, skipping`);
+          syncLog.push({ bling_id: parentId, name: detail.nome, status: 'skipped', message: 'Pai é na verdade uma variação', variants: 0 });
+          totalSkipped++;
           continue;
         }
 
         processedParentIds.add(parentId);
-        console.log(`Processing missing parent: ${detail.nome} (${parentId})`);
         const result = await processParentProduct(supabase, headers, detail, parentId, getCategoryId);
-        if (result.imported) totalImported++;
-        if (result.updated) totalUpdated++;
-        totalVariants += result.variantCount;
+        if (result.error) {
+          syncLog.push({ bling_id: parentId, name: detail.nome, status: 'error', message: result.error, variants: 0 });
+          totalErrors++;
+        } else if (result.imported) {
+          syncLog.push({ bling_id: parentId, name: detail.nome, status: 'imported', message: `Importado (órfão) com ${result.variantCount} variação(ões)`, variants: result.variantCount });
+          totalImported++;
+          totalVariants += result.variantCount;
+        } else if (result.updated) {
+          syncLog.push({ bling_id: parentId, name: detail.nome, status: 'updated', message: `Atualizado (órfão) com ${result.variantCount} variação(ões)`, variants: result.variantCount });
+          totalUpdated++;
+          totalVariants += result.variantCount;
+        }
       } catch (e: any) {
-        console.error(`Error fetching parent ${parentId}:`, e.message);
+        syncLog.push({ bling_id: parentId, name: `Parent ${parentId}`, status: 'error', message: e.message, variants: 0 });
+        totalErrors++;
       }
     }
   }
 
-  // Phase 3: Clean up - remove products that were created from variations (formato=V)
+  // Phase 3: Clean up variation-as-product entries
   const { data: blingProducts } = await supabase
     .from("products")
     .select("id, bling_product_id, name")
@@ -514,18 +538,31 @@ async function syncProducts(supabase: any, token: string) {
         const checkRes = await fetch(`${BLING_API_URL}/produtos/${prod.bling_product_id}`, { headers });
         const checkJson = await checkRes.json();
         if (checkJson?.data?.formato === "V") {
-          console.log(`Cleaning up variation-as-product: ${prod.name} (bling_id: ${prod.bling_product_id})`);
           await supabase.from("product_images").delete().eq("product_id", prod.id);
           await supabase.from("product_variants").delete().eq("product_id", prod.id);
           await supabase.from("product_characteristics").delete().eq("product_id", prod.id);
           await supabase.from("products").delete().eq("id", prod.id);
           cleaned++;
         }
-      } catch (_) { /* ignore check errors */ }
+      } catch (_) { /* ignore */ }
     }
   }
 
-  return { imported: totalImported, updated: totalUpdated, variants: totalVariants, cleaned };
+  const summary = {
+    imported: totalImported,
+    updated: totalUpdated,
+    variants: totalVariants,
+    skipped: totalSkipped,
+    errors: totalErrors,
+    cleaned,
+    totalBlingListItems,
+    totalProcessed: processedParentIds.size,
+    log: syncLog,
+  };
+
+  console.log(`Sync complete: ${totalImported} imported, ${totalUpdated} updated, ${totalVariants} variants, ${totalSkipped} skipped, ${totalErrors} errors, ${cleaned} cleaned. Total Bling items: ${totalBlingListItems}`);
+
+  return summary;
 }
 
 // ─── Sync Stock from Bling ───
@@ -688,11 +725,9 @@ serve(async (req) => {
 
     switch (action) {
       case "list_stores": {
-        // Fetch virtual stores / sales channels from Bling
         const storesHeaders = blingHeaders(token);
         const stores: any[] = [];
         
-        // Try canais-de-venda (sales channels) endpoint
         try {
           const res = await fetch(`${BLING_API_URL}/canais-de-venda`, { headers: storesHeaders });
           const json = await res.json();
@@ -709,7 +744,6 @@ serve(async (req) => {
           console.error("Error fetching canais-de-venda:", e);
         }
 
-        // Also try lojas-virtuais endpoint as fallback
         if (stores.length === 0) {
           try {
             const res = await fetch(`${BLING_API_URL}/lojas-virtuais`, { headers: storesHeaders });
