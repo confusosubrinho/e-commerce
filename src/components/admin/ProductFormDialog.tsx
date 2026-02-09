@@ -3,7 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -113,6 +113,17 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [variants, setVariants] = useState<VariantItem[]>([]);
   const [characteristics, setCharacteristics] = useState<{ name: string; value: string }[]>([]);
+  const [buyTogetherItems, setBuyTogetherItems] = useState<{ product_id: string; discount_percent: number }[]>([]);
+  const [buyTogetherSearch, setBuyTogetherSearch] = useState('');
+
+  // Fetch all products for buy-together selection
+  const { data: allProducts } = useQuery({
+    queryKey: ['admin-all-products'],
+    queryFn: async () => {
+      const { data } = await supabase.from('products').select('id, name, base_price, sale_price, slug').eq('is_active', true).order('name');
+      return data || [];
+    },
+  });
 
   const { data: categories } = useQuery({
     queryKey: ['admin-categories'],
@@ -191,12 +202,26 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               setCharacteristics((chars as any[]).map((c: any) => ({ name: c.name, value: c.value })));
             }
           });
+        // Load buy together items
+        supabase
+          .from('buy_together_products')
+          .select('*')
+          .eq('product_id', editingProduct.id)
+          .then(({ data: btItems }) => {
+            if (btItems) {
+              setBuyTogetherItems((btItems as any[]).map((bt: any) => ({
+                product_id: bt.related_product_id,
+                discount_percent: bt.discount_percent || 5,
+              })));
+            }
+          });
       }
     } else {
       setFormData(initialFormData);
       setMedia([]);
       setVariants([]);
       setCharacteristics([]);
+      setBuyTogetherItems([]);
     }
   }, [editingProduct, open]);
 
@@ -305,8 +330,21 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               }));
             if (charInserts.length > 0) {
               await supabase.from('product_characteristics' as any).insert(charInserts);
-            }
-          }
+        }
+
+        // Handle buy together
+        await supabase.from('buy_together_products').delete().eq('product_id', productId);
+        if (buyTogetherItems.length > 0) {
+          const btInserts = buyTogetherItems.map((bt, i) => ({
+            product_id: productId,
+            related_product_id: bt.product_id,
+            discount_percent: bt.discount_percent,
+            display_order: i,
+            is_active: true,
+          }));
+          await supabase.from('buy_together_products').insert(btInserts);
+        }
+      }
         }
       }
 
@@ -337,11 +375,12 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         <form onSubmit={handleSubmit}>
           <Tabs defaultValue="basic" className="w-full">
             <div className="px-6">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
                 <TabsTrigger value="media">Mídia</TabsTrigger>
                 <TabsTrigger value="variants">Variantes</TabsTrigger>
-                <TabsTrigger value="characteristics">Características</TabsTrigger>
+                <TabsTrigger value="characteristics">Caract.</TabsTrigger>
+                <TabsTrigger value="buy-together">Compre Junto</TabsTrigger>
                 <TabsTrigger value="shipping">Frete & GMC</TabsTrigger>
                 <TabsTrigger value="seo">SEO</TabsTrigger>
               </TabsList>
@@ -719,6 +758,96 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                         </Button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="buy-together" className="mt-4 space-y-4">
+                <div>
+                  <h3 className="font-medium mb-2">Compre Junto</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Selecione produtos para oferecer como "Compre Junto" com desconto.</p>
+                </div>
+
+                {/* Search products */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar produto para adicionar..."
+                    value={buyTogetherSearch}
+                    onChange={(e) => setBuyTogetherSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Search results */}
+                {buyTogetherSearch.length > 1 && (
+                  <div className="border rounded-lg max-h-40 overflow-y-auto">
+                    {allProducts
+                      ?.filter(p => 
+                        p.name.toLowerCase().includes(buyTogetherSearch.toLowerCase()) &&
+                        p.id !== editingProduct?.id &&
+                        !buyTogetherItems.some(bt => bt.product_id === p.id)
+                      )
+                      .slice(0, 5)
+                      .map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex justify-between items-center"
+                          onClick={() => {
+                            setBuyTogetherItems([...buyTogetherItems, { product_id: p.id, discount_percent: 5 }]);
+                            setBuyTogetherSearch('');
+                          }}
+                        >
+                          <span>{p.name}</span>
+                          <Plus className="h-4 w-4 text-primary" />
+                        </button>
+                      ))}
+                  </div>
+                )}
+
+                {/* Selected items */}
+                {buyTogetherItems.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    Nenhum produto adicionado ao "Compre Junto".
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {buyTogetherItems.map((bt, index) => {
+                      const prod = allProducts?.find(p => p.id === bt.product_id);
+                      return (
+                        <div key={bt.product_id} className="flex gap-3 items-center border rounded-lg p-3">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{prod?.name || 'Produto não encontrado'}</p>
+                          </div>
+                          <div className="w-24">
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              max="100"
+                              value={bt.discount_percent}
+                              onChange={(e) => {
+                                const updated = [...buyTogetherItems];
+                                updated[index].discount_percent = Number(e.target.value);
+                                setBuyTogetherItems(updated);
+                              }}
+                              className="text-center"
+                            />
+                            <p className="text-xs text-muted-foreground text-center mt-1">% desc.</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive flex-shrink-0"
+                            onClick={() => setBuyTogetherItems(buyTogetherItems.filter((_, i) => i !== index))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
