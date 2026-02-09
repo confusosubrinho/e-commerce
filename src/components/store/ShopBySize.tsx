@@ -36,12 +36,12 @@ export function ShopBySize() {
           <p className="text-muted-foreground mt-1">Encontre seu número perfeito</p>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide justify-start md:justify-center pb-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {sizes.map((size) => (
             <Link
               key={size}
               to={`/tamanho/${size}`}
-              className="flex items-center justify-center w-16 h-16 rounded-full border-2 border-foreground text-foreground font-bold text-lg hover:bg-foreground hover:text-background transition-colors"
+              className="flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-full border-2 border-foreground text-foreground font-bold text-lg hover:bg-foreground hover:text-background transition-colors flex-shrink-0"
             >
               {size}
             </Link>

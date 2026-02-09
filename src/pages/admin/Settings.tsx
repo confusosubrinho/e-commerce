@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Store, Phone, Instagram, Facebook, Truck, CreditCard, Save, Upload, Image } from 'lucide-react';
@@ -27,6 +28,9 @@ interface StoreSettings {
   installment_interest_rate: number | null;
   min_installment_value: number | null;
   installments_without_interest: number | null;
+  rede_merchant_id: string | null;
+  rede_merchant_key: string | null;
+  rede_environment: string | null;
 }
 
 export default function Settings() {
@@ -50,6 +54,9 @@ export default function Settings() {
     installment_interest_rate: 0,
     min_installment_value: 30,
     installments_without_interest: 3,
+    rede_merchant_id: '',
+    rede_merchant_key: '',
+    rede_environment: 'sandbox',
   });
 
   const { data: settings, isLoading } = useQuery({
@@ -84,6 +91,9 @@ export default function Settings() {
         installment_interest_rate: (settings as any).installment_interest_rate ?? 0,
         min_installment_value: (settings as any).min_installment_value ?? 30,
         installments_without_interest: (settings as any).installments_without_interest ?? 3,
+        rede_merchant_id: (settings as any).rede_merchant_id || '',
+        rede_merchant_key: (settings as any).rede_merchant_key || '',
+        rede_environment: (settings as any).rede_environment || 'sandbox',
       });
     }
   }, [settings]);
@@ -161,6 +171,7 @@ export default function Settings() {
             <TabsTrigger value="social">Redes Sociais</TabsTrigger>
             <TabsTrigger value="shipping">Frete</TabsTrigger>
             <TabsTrigger value="payments">Pagamentos</TabsTrigger>
+            <TabsTrigger value="rede">Gateway Rede</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4">
@@ -410,6 +421,66 @@ export default function Settings() {
                     placeholder="30"
                   />
                   <p className="text-xs text-muted-foreground">Parcela mínima para habilitar parcelamento</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="rede" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Gateway de Pagamento - Rede (userede.com.br)
+                </CardTitle>
+                <CardDescription>Configure sua integração com a Rede para processar pagamentos com cartão de crédito e débito</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Merchant ID (PV)</Label>
+                    <Input
+                      value={formData.rede_merchant_id || ''}
+                      onChange={(e) => setFormData({ ...formData, rede_merchant_id: e.target.value })}
+                      placeholder="Seu PV (Ponto de Venda)"
+                    />
+                    <p className="text-xs text-muted-foreground">Número do estabelecimento fornecido pela Rede</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Chave de Integração (Token)</Label>
+                    <Input
+                      type="password"
+                      value={formData.rede_merchant_key || ''}
+                      onChange={(e) => setFormData({ ...formData, rede_merchant_key: e.target.value })}
+                      placeholder="Sua chave de integração"
+                    />
+                    <p className="text-xs text-muted-foreground">Token de autenticação gerado no portal da Rede</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ambiente</Label>
+                  <Select
+                    value={formData.rede_environment || 'sandbox'}
+                    onValueChange={(value) => setFormData({ ...formData, rede_environment: value })}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (Teste)</SelectItem>
+                      <SelectItem value="production">Produção</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Use Sandbox para testes antes de ir para produção</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 text-sm space-y-2">
+                  <p className="font-medium">Como obter suas credenciais:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Acesse o portal <a href="https://meu.userede.com.br" target="_blank" rel="noopener noreferrer" className="text-primary underline">meu.userede.com.br</a></li>
+                    <li>Vá em "e-Rede" → "Chave de Integração"</li>
+                    <li>Gere ou copie seu token de integração</li>
+                    <li>Seu PV está disponível na página inicial do portal</li>
+                  </ol>
                 </div>
               </CardContent>
             </Card>
