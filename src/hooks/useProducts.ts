@@ -32,14 +32,14 @@ import { logApiError } from '@/lib/errorLogger';
  
       const { data, error } = await query;
       if (error) {
-        logApiError('useProducts', error, { categorySlug });
-        // On JWT expired, try without auth by signing out
+        // On JWT expired, sign out and retry with anon key silently
         if (error.message?.includes('JWT expired')) {
           await supabase.auth.signOut();
           const { data: retryData, error: retryError } = await query;
           if (retryError) throw retryError;
           return retryData as Product[];
         }
+        logApiError('useProducts', error, { categorySlug });
         throw error;
       }
       return data as Product[];
