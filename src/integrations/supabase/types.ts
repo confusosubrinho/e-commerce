@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      abandoned_carts: {
+        Row: {
+          cart_data: Json
+          contacted_at: string | null
+          contacted_via: string | null
+          created_at: string
+          customer_name: string | null
+          email: string | null
+          id: string
+          page_url: string | null
+          phone: string | null
+          recovered: boolean | null
+          recovered_at: string | null
+          session_id: string
+          subtotal: number
+          updated_at: string
+          user_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          cart_data?: Json
+          contacted_at?: string | null
+          contacted_via?: string | null
+          created_at?: string
+          customer_name?: string | null
+          email?: string | null
+          id?: string
+          page_url?: string | null
+          phone?: string | null
+          recovered?: boolean | null
+          recovered_at?: string | null
+          session_id: string
+          subtotal?: number
+          updated_at?: string
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          cart_data?: Json
+          contacted_at?: string | null
+          contacted_via?: string | null
+          created_at?: string
+          customer_name?: string | null
+          email?: string | null
+          id?: string
+          page_url?: string | null
+          phone?: string | null
+          recovered?: boolean | null
+          recovered_at?: string | null
+          session_id?: string
+          subtotal?: number
+          updated_at?: string
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
+      }
       banners: {
         Row: {
           created_at: string
@@ -204,6 +273,7 @@ export type Database = {
       }
       customers: {
         Row: {
+          birthday: string | null
           created_at: string
           email: string
           full_name: string
@@ -215,6 +285,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          birthday?: string | null
           created_at?: string
           email: string
           full_name: string
@@ -226,6 +297,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          birthday?: string | null
           created_at?: string
           email?: string
           full_name?: string
@@ -235,6 +307,83 @@ export type Database = {
           total_spent?: number | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      email_automation_logs: {
+        Row: {
+          automation_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          recipient_email: string
+          recipient_name: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          automation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email: string
+          recipient_name?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          automation_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email?: string
+          recipient_name?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_automation_logs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "email_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_automations: {
+        Row: {
+          automation_type: string
+          created_at: string
+          delay_minutes: number | null
+          email_body: string
+          email_subject: string
+          id: string
+          is_active: boolean | null
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          automation_type: string
+          created_at?: string
+          delay_minutes?: number | null
+          email_body: string
+          email_subject: string
+          id?: string
+          is_active?: boolean | null
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          automation_type?: string
+          created_at?: string
+          delay_minutes?: number | null
+          email_body?: string
+          email_subject?: string
+          id?: string
+          is_active?: boolean | null
+          trigger_event?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -916,6 +1065,60 @@ export type Database = {
           store_name?: string | null
           tiktok_pixel_id?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      traffic_sessions: {
+        Row: {
+          created_at: string
+          device_type: string | null
+          id: string
+          ip_hash: string | null
+          landing_page: string | null
+          referrer: string | null
+          session_id: string
+          traffic_type: string | null
+          user_agent: string | null
+          user_id: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          referrer?: string | null
+          session_id: string
+          traffic_type?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_type?: string | null
+          id?: string
+          ip_hash?: string | null
+          landing_page?: string | null
+          referrer?: string | null
+          session_id?: string
+          traffic_type?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: []
       }

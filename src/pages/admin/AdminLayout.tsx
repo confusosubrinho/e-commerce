@@ -12,7 +12,10 @@ import {
   Plug,
   BarChart3,
   BookOpen,
-  PenSquare
+  PenSquare,
+  Globe,
+  Mail,
+  ShoppingBag
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -61,6 +64,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Análise de Vendas', url: '/admin/vendas' },
       { title: 'Registro Manual', url: '/admin/registro-manual' },
+      { title: 'Carrinhos Abandonados', url: '/admin/carrinhos-abandonados' },
     ]
   },
   { 
@@ -70,6 +74,14 @@ const menuItems: MenuItem[] = [
       { title: 'Cupons', url: '/admin/cupons' },
       { title: 'Banners Principais', url: '/admin/banners' },
       { title: 'Banners Destaque', url: '/admin/banners-destaque' },
+      { title: 'Email Automações', url: '/admin/email-automations' },
+    ]
+  },
+  { 
+    title: 'Analytics',
+    icon: Globe,
+    children: [
+      { title: 'Tráfego & UTM', url: '/admin/trafego' },
     ]
   },
   { title: 'Integrações', url: '/admin/integracoes', icon: Plug },

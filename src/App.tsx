@@ -43,6 +43,10 @@ import Integrations from "./pages/admin/Integrations";
 import SalesDashboard from "./pages/admin/SalesDashboard";
 import ManualRegistration from "./pages/admin/ManualRegistration";
 import ConversionManual from "./pages/admin/ConversionManual";
+import AbandonedCarts from "./pages/admin/AbandonedCarts";
+import EmailAutomations from "./pages/admin/EmailAutomations";
+import TrafficDashboard from "./pages/admin/TrafficDashboard";
+import { WhatsAppFloat } from "./components/store/WhatsAppFloat";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +70,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <WhatsAppFloat />
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Index />} />
@@ -106,6 +111,9 @@ const App = () => (
               <Route path="configuracoes" element={<Settings />} />
               <Route path="configuracoes/codigo" element={<CodeSettings />} />
               <Route path="configuracoes/conversoes" element={<ConversionManual />} />
+              <Route path="carrinhos-abandonados" element={<AbandonedCarts />} />
+              <Route path="email-automations" element={<EmailAutomations />} />
+              <Route path="trafego" element={<TrafficDashboard />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

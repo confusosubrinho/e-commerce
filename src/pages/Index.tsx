@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
@@ -7,11 +8,17 @@ import { HighlightBanners } from '@/components/store/HighlightBanners';
 import { InstagramFeed } from '@/components/store/InstagramFeed';
 import { ShopBySize } from '@/components/store/ShopBySize';
 import { Newsletter } from '@/components/store/Newsletter';
+import { BijuteriasSection } from '@/components/store/BijuteriasSection';
 import { useFeaturedProducts, useProducts } from '@/hooks/useProducts';
+import { trackSession } from '@/lib/utmTracker';
 
 const Index = () => {
   const { data: featuredProducts, isLoading: featuredLoading } = useFeaturedProducts();
   const { data: allProducts, isLoading: productsLoading } = useProducts();
+
+  useEffect(() => {
+    trackSession();
+  }, []);
 
   // Filter products on sale
   const saleProducts = allProducts?.filter(p => p.sale_price && p.sale_price < p.base_price) || [];
@@ -36,7 +43,8 @@ const Index = () => {
         cardBg
       />
 
-      {/* Bijuterias section removed - replaced by Mais Vendidos above */}
+      {/* Bijuterias Section */}
+      <BijuteriasSection />
 
       {/* Highlight Banners Section */}
       <HighlightBanners />
