@@ -94,21 +94,21 @@ interface ProductCarouselProps {
    if (!products?.length) return null;
  
    return (
-     <section className={`py-12 ${darkBg ? 'bg-secondary text-secondary-foreground' : ''}`}>
-       <div className="container-custom">
-         {title && (
-           <div className="flex items-center justify-between mb-8">
-             <div>
-               <h2 className="text-2xl font-bold">{title}</h2>
-               {subtitle && <p className={`mt-1 ${darkBg ? 'text-secondary-foreground/70' : 'text-muted-foreground'}`}>{subtitle}</p>}
-             </div>
-             {showViewAll && viewAllLink && (
-               <Button asChild variant={darkBg ? 'secondary' : 'outline'} className={darkBg ? 'bg-background text-foreground hover:bg-background/90' : ''}>
-                 <Link to={viewAllLink}>Ver tudo</Link>
-               </Button>
-             )}
-           </div>
-         )}
+    <section className={`py-12 ${darkBg ? 'bg-secondary text-secondary-foreground' : ''} ${cardBg ? 'bg-secondary text-secondary-foreground' : ''}`}>
+      <div className="container-custom">
+        {title && (
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl font-bold">{title}</h2>
+              {subtitle && <p className={`mt-1 ${darkBg || cardBg ? 'text-secondary-foreground/70' : 'text-muted-foreground'}`}>{subtitle}</p>}
+            </div>
+            {showViewAll && viewAllLink && (
+              <Button asChild variant="outline" className={darkBg || cardBg ? 'bg-background text-foreground hover:bg-background/90 border-background' : ''}>
+                <Link to={viewAllLink}>Ver tudo</Link>
+              </Button>
+            )}
+          </div>
+        )}
  
          <div className="relative">
            {/* Navigation arrows */}

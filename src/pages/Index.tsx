@@ -36,6 +36,8 @@ const Index = () => {
         cardBg
       />
 
+      {/* Bijuterias section removed - replaced by Mais Vendidos above */}
+
       {/* Highlight Banners Section */}
       <HighlightBanners />
 

@@ -317,24 +317,39 @@ export function Header() {
                 </button>
                 
               {activeMegaMenu === 'all' && (
-                  <div className="absolute top-full left-0 w-[min(1200px,90vw)] bg-background border rounded-lg shadow-xl z-50 p-6 grid grid-cols-4 gap-6 animate-fade-in">
+                  <div
+                    className="absolute top-full left-0 bg-background border rounded-lg shadow-xl z-50 p-6 grid grid-cols-3 sm:grid-cols-4 gap-4 animate-fade-in"
+                    style={{ width: 'min(900px, 90vw)', maxHeight: '70vh', overflowY: 'auto' }}
+                    ref={(el) => {
+                      if (el) {
+                        const rect = el.getBoundingClientRect();
+                        if (rect.right > window.innerWidth - 16) {
+                          el.style.left = 'auto';
+                          el.style.right = '0';
+                        }
+                      }
+                    }}
+                  >
                     {categories?.map((category) => (
-                      <div key={category.id}>
-                        <Link
-                          to={`/categoria/${category.slug}`}
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted transition-colors group font-semibold"
-                          onClick={() => setActiveMegaMenu(null)}
-                        >
-                          <span className="group-hover:text-primary transition-colors">{category.name}</span>
-                        </Link>
-                      </div>
+                      <Link
+                        key={category.id}
+                        to={`/categoria/${category.slug}`}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group"
+                        onClick={() => setActiveMegaMenu(null)}
+                      >
+                        {category.image_url && (
+                          <img src={category.image_url} alt={category.name} className="w-10 h-10 rounded-md object-cover" />
+                        )}
+                        <span className="font-medium group-hover:text-primary transition-colors">{category.name}</span>
+                      </Link>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Bijuterias button inline */}
-              <Link to="/bijuterias" className="flex-shrink-0 nav-link flex items-center gap-1.5 py-4 px-3 hover:bg-muted transition-colors text-primary font-medium">
+              {/* Bijuterias button inline - right side */}
+              <div className="flex-1" />
+              <Link to="/bijuterias" className="flex-shrink-0 flex items-center gap-1.5 py-2 px-4 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors font-medium text-sm">
                 <Percent className="h-3.5 w-3.5" />
                 Bijuterias
               </Link>

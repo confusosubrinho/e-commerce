@@ -410,18 +410,20 @@ export default function ProductDetail() {
             <div className="pt-4">
               <ShippingCalculator />
             </div>
+
+            {/* Buy Together Section - inside product info column */}
+            {buyTogetherList.length > 0 && (
+              <div className="pt-4 border-t">
+                <BuyTogether 
+                  currentProduct={product} 
+                  relatedProducts={buyTogetherList} 
+                  discountPercent={buyTogetherDiscount}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Buy Together Section */}
-      {buyTogetherList.length > 0 && (
-        <BuyTogether 
-          currentProduct={product} 
-          relatedProducts={buyTogetherList} 
-          discountPercent={buyTogetherDiscount}
-        />
-      )}
 
       <ProductReviews productId={product.id} productName={product.name} />
 
