@@ -9,7 +9,7 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
           {/* Logo and description */}
           <div className="space-y-4 col-span-2 md:col-span-1">
-            <img src={logo} alt="Vanessa Lima Shoes" className="h-10 sm:h-12 brightness-0 invert" />
+            <img src={logo} alt="Vanessa Lima Shoes" className="h-10 sm:h-12 brightness-0 invert" loading="lazy" decoding="async" width={120} height={48} />
             <p className="text-sm text-secondary-foreground/80">
               Calçados femininos de alta qualidade, feitos com couro legítimo e muito amor.
             </p>

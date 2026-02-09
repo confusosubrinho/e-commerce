@@ -103,12 +103,20 @@ export function ProductCard({ product }: ProductCardProps) {
             className={`w-full h-full object-cover transition-all duration-500 ${
               secondaryImage ? 'group-hover:opacity-0' : 'group-hover:scale-110'
             }`}
+            loading="lazy"
+            decoding="async"
+            width={300}
+            height={300}
           />
           {secondaryImage && (
             <img
               src={secondaryImage.url}
-              alt={product.name}
+              alt={`${product.name} - foto alternativa`}
               className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              loading="lazy"
+              decoding="async"
+              width={300}
+              height={300}
             />
           )}
 
