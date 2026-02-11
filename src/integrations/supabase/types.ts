@@ -510,6 +510,7 @@ export type Database = {
           product_ids: string[] | null
           section_type: string
           show_view_all: boolean | null
+          sort_order: string | null
           source_type: string
           subtitle: string | null
           title: string
@@ -528,6 +529,7 @@ export type Database = {
           product_ids?: string[] | null
           section_type?: string
           show_view_all?: boolean | null
+          sort_order?: string | null
           source_type?: string
           subtitle?: string | null
           title: string
@@ -546,6 +548,7 @@ export type Database = {
           product_ids?: string[] | null
           section_type?: string
           show_view_all?: boolean | null
+          sort_order?: string | null
           source_type?: string
           subtitle?: string | null
           title?: string

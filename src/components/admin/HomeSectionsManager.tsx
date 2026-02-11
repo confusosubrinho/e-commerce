@@ -29,6 +29,18 @@ const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   grid: { label: 'Grid', icon: <LayoutGrid className="h-3 w-3" /> },
 };
 
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Mais recentes' },
+  { value: 'oldest', label: 'Mais antigos' },
+  { value: 'price_asc', label: 'Menor preço' },
+  { value: 'price_desc', label: 'Maior preço' },
+  { value: 'discount_desc', label: 'Maior desconto' },
+  { value: 'alpha_asc', label: 'A → Z' },
+  { value: 'alpha_desc', label: 'Z → A' },
+];
+
+const AUTO_SOURCE_TYPES = ['featured', 'new', 'sale'];
+
 interface FormData {
   title: string;
   subtitle: string;
@@ -42,12 +54,14 @@ interface FormData {
   view_all_link: string;
   dark_bg: boolean;
   card_bg: boolean;
+  sort_order: string;
 }
 
 const defaultForm: FormData = {
   title: '', subtitle: '', section_type: 'carousel', source_type: 'category',
   category_id: '', product_ids: [], max_items: 10, is_active: true,
   show_view_all: true, view_all_link: '', dark_bg: false, card_bg: false,
+  sort_order: 'newest',
 };
 
 export function HomeSectionsManager() {
@@ -101,6 +115,7 @@ export function HomeSectionsManager() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
+      const isAutoSource = AUTO_SOURCE_TYPES.includes(data.source_type);
       const sectionData: any = {
         title: data.title,
         subtitle: data.subtitle || null,
@@ -110,10 +125,11 @@ export function HomeSectionsManager() {
         product_ids: data.source_type === 'manual' ? data.product_ids : [],
         max_items: data.max_items,
         is_active: data.is_active,
-        show_view_all: data.show_view_all,
-        view_all_link: data.view_all_link || null,
+        show_view_all: true,
+        view_all_link: isAutoSource ? null : (data.view_all_link || null),
         dark_bg: data.dark_bg,
         card_bg: data.card_bg,
+        sort_order: data.sort_order || 'newest',
         display_order: editing?.display_order ?? (sections?.length || 0),
       };
       if (editing) {
@@ -161,6 +177,7 @@ export function HomeSectionsManager() {
         view_all_link: section.view_all_link || '',
         dark_bg: section.dark_bg,
         card_bg: section.card_bg,
+        sort_order: section.sort_order || 'newest',
       });
     } else {
       setEditing(null);
@@ -318,23 +335,38 @@ export function HomeSectionsManager() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Switch checked={formData.show_view_all} onCheckedChange={(v) => setFormData({ ...formData, show_view_all: v })} />
-                <Label className="text-sm">Mostrar "Ver tudo"</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={formData.is_active} onCheckedChange={(v) => setFormData({ ...formData, is_active: v })} />
-                <Label className="text-sm">Ativo</Label>
-              </div>
+            <div className="space-y-2">
+              <Label>Ordenação</Label>
+              <Select value={formData.sort_order} onValueChange={(v) => setFormData({ ...formData, sort_order: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {formData.show_view_all && (
+            {!AUTO_SOURCE_TYPES.includes(formData.source_type) && (
               <div className="space-y-2">
                 <Label>Link "Ver tudo"</Label>
-                <Input value={formData.view_all_link} onChange={(e) => setFormData({ ...formData, view_all_link: e.target.value })} placeholder="/mais-vendidos" />
+                <Input value={formData.view_all_link} onChange={(e) => setFormData({ ...formData, view_all_link: e.target.value })} placeholder="/categoria/sapatos" />
               </div>
             )}
+
+            {AUTO_SOURCE_TYPES.includes(formData.source_type) && (
+              <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                O botão "Ver tudo" será exibido automaticamente com link para a página de {
+                  formData.source_type === 'featured' ? 'destaques' :
+                  formData.source_type === 'new' ? 'novidades' : 'promoções'
+                }.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Switch checked={formData.is_active} onCheckedChange={(v) => setFormData({ ...formData, is_active: v })} />
+              <Label className="text-sm">Ativo</Label>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
