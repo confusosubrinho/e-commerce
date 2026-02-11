@@ -1051,6 +1051,7 @@ export type Database = {
           brand: string | null
           category_id: string | null
           condition: string | null
+          cost: number | null
           created_at: string
           depth: number | null
           description: string | null
@@ -1084,6 +1085,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           condition?: string | null
+          cost?: number | null
           created_at?: string
           depth?: number | null
           description?: string | null
@@ -1117,6 +1119,7 @@ export type Database = {
           brand?: string | null
           category_id?: string | null
           condition?: string | null
+          cost?: number | null
           created_at?: string
           depth?: number | null
           description?: string | null

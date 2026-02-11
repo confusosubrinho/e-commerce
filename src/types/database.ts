@@ -18,6 +18,7 @@ export interface Product {
   description: string | null;
   base_price: number;
   sale_price: number | null;
+  cost: number | null;
   sku: string | null;
   category_id: string | null;
   is_active: boolean;

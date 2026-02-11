@@ -33,6 +33,7 @@ interface ProductFormData {
   description: string;
   base_price: string;
   sale_price: string;
+  cost: string;
   category_id: string;
   sku: string;
   is_active: boolean;
@@ -83,6 +84,7 @@ const initialFormData: ProductFormData = {
   description: '',
   base_price: '',
   sale_price: '',
+  cost: '',
   category_id: '',
   sku: '',
   is_active: true,
@@ -125,6 +127,15 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
     },
   });
 
+  // Fetch store settings for tax rates
+  const { data: storeSettings } = useQuery({
+    queryKey: ['store-settings'],
+    queryFn: async () => {
+      const { data } = await supabase.from('store_settings').select('pix_discount, installment_interest_rate, installments_without_interest, max_installments, cash_discount').single();
+      return data;
+    },
+  });
+
   const { data: categories } = useQuery({
     queryKey: ['admin-categories'],
     queryFn: async () => {
@@ -144,6 +155,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         description: editingProduct.description || '',
         base_price: String(editingProduct.base_price || ''),
         sale_price: editingProduct.sale_price ? String(editingProduct.sale_price) : '',
+        cost: editingProduct.cost ? String(editingProduct.cost) : '',
         category_id: editingProduct.category_id || '',
         sku: editingProduct.sku || '',
         is_active: editingProduct.is_active ?? true,
@@ -233,6 +245,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         description: data.description || null,
         base_price: parseFloat(data.base_price),
         sale_price: data.sale_price ? parseFloat(data.sale_price) : null,
+        cost: data.cost ? parseFloat(data.cost) : null,
         category_id: data.category_id || null,
         sku: data.sku || null,
         is_active: data.is_active,
@@ -424,7 +437,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                   />
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
                     <Label>Preço Base *</Label>
                     <Input
@@ -445,6 +458,16 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                     />
                   </div>
                   <div>
+                    <Label>Custo</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.cost}
+                      onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
                     <Label>SKU</Label>
                     <Input
                       value={formData.sku}
@@ -452,6 +475,58 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                     />
                   </div>
                 </div>
+
+                {/* Profit Margin Calculator */}
+                {formData.cost && parseFloat(formData.cost) > 0 && (
+                  <div className="rounded-lg border p-4 bg-muted/50 space-y-2">
+                    <Label className="text-sm font-semibold">📊 Margem de Lucro</Label>
+                    {(() => {
+                      const cost = parseFloat(formData.cost);
+                      const sellPrice = formData.sale_price ? parseFloat(formData.sale_price) : (formData.base_price ? parseFloat(formData.base_price) : 0);
+                      if (!sellPrice || sellPrice <= 0) return <p className="text-sm text-muted-foreground">Preencha o preço para ver a margem.</p>;
+
+                      const pixDiscount = storeSettings?.pix_discount || storeSettings?.cash_discount || 5;
+                      const pixPrice = sellPrice * (1 - pixDiscount / 100);
+                      const pixProfit = pixPrice - cost;
+                      const pixMargin = ((pixProfit / pixPrice) * 100);
+
+                      const interestRate = storeSettings?.installment_interest_rate || 0;
+                      const freeInstallments = storeSettings?.installments_without_interest || 3;
+                      const installments = 6;
+                      // For 6x: if interest applies (6 > free installments), gateway takes a fee
+                      // Typical gateway fee ~3-5% for installments beyond free tier
+                      let cardPrice = sellPrice;
+                      let gatewayFee = 0;
+                      if (installments > freeInstallments && interestRate > 0) {
+                        // Interest is charged to customer, but gateway still takes processing fee
+                        gatewayFee = sellPrice * 0.0499; // ~4.99% typical card fee
+                      } else {
+                        gatewayFee = sellPrice * 0.0499;
+                      }
+                      const cardProfit = sellPrice - cost - gatewayFee;
+                      const cardMargin = ((cardProfit / sellPrice) * 100);
+
+                      return (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">PIX ({pixDiscount}% desc.)</p>
+                            <p className="text-sm">Venda: <strong>R$ {pixPrice.toFixed(2)}</strong></p>
+                            <p className={`text-sm font-bold ${pixProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              Lucro: R$ {pixProfit.toFixed(2)} ({pixMargin.toFixed(1)}%)
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Cartão 6x (taxa ~4.99%)</p>
+                            <p className="text-sm">Venda: <strong>R$ {sellPrice.toFixed(2)}</strong></p>
+                            <p className={`text-sm font-bold ${cardProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              Lucro: R$ {cardProfit.toFixed(2)} ({cardMargin.toFixed(1)}%)
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
