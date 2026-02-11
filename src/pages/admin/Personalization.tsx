@@ -2,6 +2,8 @@ import { useState, useCallback, lazy, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 const HighlightBannersAdmin = lazy(() => import('./HighlightBanners'));
+import { HomeSectionsManager } from '@/components/admin/HomeSectionsManager';
+import { LayoutGrid } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -520,12 +522,14 @@ export default function Personalization() {
         <p className="text-sm text-muted-foreground">Gerencie banners, destaques e vídeos da página inicial</p>
       </div>
 
-      <Tabs defaultValue="banners" className="space-y-4">
+      <Tabs defaultValue="secoes" className="space-y-4">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="secoes" className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" />Seções</TabsTrigger>
           <TabsTrigger value="banners" className="flex items-center gap-2"><ImageIcon className="h-4 w-4" />Banners</TabsTrigger>
           <TabsTrigger value="destaques" className="flex items-center gap-2"><ImageIcon className="h-4 w-4" />Destaques</TabsTrigger>
           <TabsTrigger value="videos" className="flex items-center gap-2"><Video className="h-4 w-4" />Inspire-se</TabsTrigger>
         </TabsList>
+        <TabsContent value="secoes"><HomeSectionsManager /></TabsContent>
         <TabsContent value="banners"><BannersSection /></TabsContent>
         <TabsContent value="destaques">
           <Suspense fallback={<p className="text-sm text-muted-foreground py-4">Carregando...</p>}>
