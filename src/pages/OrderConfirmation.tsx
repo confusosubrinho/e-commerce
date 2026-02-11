@@ -1,17 +1,25 @@
 import { Link, useLocation } from 'react-router-dom';
-import { CheckCircle, Package, ArrowRight } from 'lucide-react';
+import { CheckCircle, Package, ArrowRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.png';
 
 export default function OrderConfirmation() {
   const location = useLocation();
+  const { toast } = useToast();
   const orderNumber = location.state?.orderNumber || 'N/A';
   const paymentMethod = location.state?.paymentMethod || 'pix';
+  const pixQrcode = location.state?.pixQrcode;
+  const pixEmv = location.state?.pixEmv;
+  const boletoUrl = location.state?.boletoUrl;
+  const boletoDigitableLine = location.state?.boletoDigitableLine;
 
   const paymentInfo: Record<string, { title: string; description: string }> = {
     pix: {
       title: 'PIX',
-      description: 'Realize o pagamento via PIX para confirmar seu pedido. O QR Code ou chave será enviado por email.',
+      description: pixEmv
+        ? 'Escaneie o QR Code abaixo ou copie o código PIX para realizar o pagamento.'
+        : 'Realize o pagamento via PIX para confirmar seu pedido. O QR Code ou chave será enviado por email.',
     },
     card: {
       title: 'Cartão de Crédito',
@@ -19,11 +27,20 @@ export default function OrderConfirmation() {
     },
     boleto: {
       title: 'Boleto Bancário',
-      description: 'O boleto foi gerado e enviado para o seu email. O pedido será confirmado após a compensação (até 3 dias úteis).',
+      description: boletoUrl
+        ? 'Clique no botão abaixo para visualizar o boleto. O pedido será confirmado após a compensação (até 3 dias úteis).'
+        : 'O boleto foi gerado e enviado para o seu email. O pedido será confirmado após a compensação (até 3 dias úteis).',
     },
   };
 
   const info = paymentInfo[paymentMethod] || paymentInfo.pix;
+
+  const copyPixCode = () => {
+    if (pixEmv) {
+      navigator.clipboard.writeText(pixEmv);
+      toast({ title: 'Código PIX copiado!' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
@@ -55,6 +72,54 @@ export default function OrderConfirmation() {
             </div>
             <p className="text-sm text-muted-foreground">{info.description}</p>
           </div>
+
+          {/* PIX QR Code */}
+          {paymentMethod === 'pix' && pixQrcode && (
+            <div className="space-y-3">
+              <img src={pixQrcode} alt="QR Code PIX" className="mx-auto w-48 h-48" />
+              {pixEmv && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground break-all bg-muted/50 p-2 rounded text-left font-mono">
+                    {pixEmv}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={copyPixCode} className="gap-2">
+                    <Copy className="h-3 w-3" />
+                    Copiar código PIX
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Boleto */}
+          {paymentMethod === 'boleto' && boletoUrl && (
+            <div className="space-y-3">
+              {boletoDigitableLine && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground break-all bg-muted/50 p-2 rounded text-left font-mono">
+                    {boletoDigitableLine}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(boletoDigitableLine);
+                      toast({ title: 'Linha digitável copiada!' });
+                    }}
+                    className="gap-2"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copiar linha digitável
+                  </Button>
+                </div>
+              )}
+              <Button asChild variant="default" size="sm">
+                <a href={boletoUrl} target="_blank" rel="noopener noreferrer">
+                  Visualizar Boleto
+                </a>
+              </Button>
+            </div>
+          )}
 
           <p className="text-sm text-muted-foreground">
             Enviamos os detalhes do pedido e informações de pagamento para o seu email.
