@@ -1,0 +1,1 @@
+ALTER TABLE public.home_sections ADD COLUMN IF NOT EXISTS sort_order text DEFAULT 'newest';

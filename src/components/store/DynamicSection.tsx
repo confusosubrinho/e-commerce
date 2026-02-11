@@ -1,4 +1,4 @@
-import { HomeSection, useSectionProducts } from '@/hooks/useHomeSections';
+import { HomeSection, useSectionProducts, getViewAllLink } from '@/hooks/useHomeSections';
 import { ProductCarousel } from './ProductCarousel';
 import { ProductGrid } from './ProductGrid';
 
@@ -11,6 +11,8 @@ export function DynamicSection({ section }: DynamicSectionProps) {
 
   if (!isLoading && (!products || products.length === 0)) return null;
 
+  const viewAllLink = getViewAllLink(section);
+
   if (section.section_type === 'grid') {
     return (
       <ProductGrid
@@ -19,7 +21,7 @@ export function DynamicSection({ section }: DynamicSectionProps) {
         subtitle={section.subtitle || undefined}
         isLoading={isLoading}
         showViewAll={section.show_view_all}
-        viewAllLink={section.view_all_link || undefined}
+        viewAllLink={viewAllLink}
       />
     );
   }
@@ -31,7 +33,7 @@ export function DynamicSection({ section }: DynamicSectionProps) {
       subtitle={section.subtitle || undefined}
       isLoading={isLoading}
       showViewAll={section.show_view_all}
-      viewAllLink={section.view_all_link || undefined}
+      viewAllLink={viewAllLink}
       darkBg={section.dark_bg}
       cardBg={section.card_bg}
     />
