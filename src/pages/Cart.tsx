@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, Truck } from 'lucide-react';
 import { StoreLayout } from '@/components/store/StoreLayout';
@@ -6,9 +7,24 @@ import { useCart } from '@/contexts/CartContext';
 import { ShippingCalculator } from '@/components/store/ShippingCalculator';
 import { CouponInput } from '@/components/store/CouponInput';
 import { CartProductSuggestions } from '@/components/store/CartProductSuggestions';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Cart() {
   const { items, subtotal, removeItem, updateQuantity, clearCart, discount, selectedShipping, total } = useCart();
+
+  const [storeConfig, setStoreConfig] = useState({ freeShippingThreshold: 399, maxInstallments: 6, installmentsWithoutInterest: 3 });
+
+  useEffect(() => {
+    supabase.from('store_settings').select('free_shipping_threshold, max_installments, installments_without_interest').limit(1).maybeSingle().then(({ data }) => {
+      if (data) {
+        setStoreConfig({
+          freeShippingThreshold: Number(data.free_shipping_threshold) || 399,
+          maxInstallments: data.max_installments || 6,
+          installmentsWithoutInterest: data.installments_without_interest || 3,
+        });
+      }
+    });
+  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -17,9 +33,8 @@ export default function Cart() {
     }).format(price);
   };
 
-  const freeShippingThreshold = 399;
-  const remainingForFreeShipping = freeShippingThreshold - subtotal;
-  const hasFreeShipping = subtotal >= freeShippingThreshold;
+  const remainingForFreeShipping = storeConfig.freeShippingThreshold - subtotal;
+  const hasFreeShipping = subtotal >= storeConfig.freeShippingThreshold;
 
   if (items.length === 0) {
     return (
@@ -64,7 +79,7 @@ export default function Cart() {
           <div className="w-full bg-muted rounded-full h-2">
             <div
               className="bg-primary h-2 rounded-full transition-all"
-              style={{ width: `${Math.min((subtotal / freeShippingThreshold) * 100, 100)}%` }}
+              style={{ width: `${Math.min((subtotal / storeConfig.freeShippingThreshold) * 100, 100)}%` }}
             />
           </div>
         </div>
@@ -180,7 +195,7 @@ export default function Cart() {
                   <span>{formatPrice(total)}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  ou 6x de {formatPrice(total / 6)} sem juros
+                  ou {storeConfig.installmentsWithoutInterest}x de {formatPrice(total / storeConfig.installmentsWithoutInterest)} sem juros
                 </p>
               </div>
 

@@ -5,35 +5,62 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, formatCPF, formatCEP, formatPhone, lookupCEP } from '@/lib/validators';
+import { ShippingCalculator } from '@/components/store/ShippingCalculator';
+import { CouponInput } from '@/components/store/CouponInput';
 import logo from '@/assets/logo.png';
 
 type Step = 'identification' | 'shipping' | 'payment';
 
-// Card number formatting: 0000 0000 0000 0000
+interface PaymentConfig {
+  max_installments: number;
+  installments_without_interest: number;
+  installment_interest_rate: number;
+  min_installment_value: number;
+  pix_discount: number;
+  cash_discount: number;
+  gateway_configured: boolean;
+}
+
 function formatCardNumber(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 16);
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
 }
 
-// Expiry formatting: MM/AA
 function formatExpiry(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 4);
   if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2);
   return digits;
 }
 
+function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export default function Checkout() {
   const navigate = useNavigate();
-  const { items, subtotal, clearCart, updateQuantity, selectedShipping, shippingZip, discount } = useCart();
+  const { items, subtotal, clearCart, updateQuantity, selectedShipping, shippingZip, discount, appliedCoupon } = useCart();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>('identification');
   const [isLoading, setIsLoading] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
   const [cpfError, setCpfError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [selectedInstallments, setSelectedInstallments] = useState(1);
+
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({
+    max_installments: 6,
+    installments_without_interest: 3,
+    installment_interest_rate: 0,
+    min_installment_value: 30,
+    pix_discount: 5,
+    cash_discount: 5,
+    gateway_configured: false,
+  });
 
   const [formData, setFormData] = useState({
     email: '',
@@ -47,14 +74,23 @@ export default function Checkout() {
     neighborhood: '',
     city: '',
     state: '',
-    shippingMethod: 'standard',
     paymentMethod: 'pix',
-    // Card fields
     cardNumber: '',
     cardHolder: '',
     cardExpiry: '',
     cardCvv: '',
   });
+
+  // Fetch payment config from edge function
+  useEffect(() => {
+    supabase.functions.invoke('process-payment', {
+      body: { action: 'get_payment_config' },
+    }).then(({ data }) => {
+      if (data && !data.error) {
+        setPaymentConfig(data);
+      }
+    }).catch(() => {});
+  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
@@ -83,12 +119,14 @@ export default function Checkout() {
       setFormData(prev => ({ ...prev, cardExpiry: formatExpiry(value) }));
     } else if (name === 'cardCvv') {
       setFormData(prev => ({ ...prev, cardCvv: value.replace(/\D/g, '').slice(0, 4) }));
+    } else if (name === 'email') {
+      setFormData(prev => ({ ...prev, email: value }));
+      setEmailError('');
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
 
-  // CEP auto-fill
   const handleCepBlur = useCallback(async () => {
     const cleaned = formData.cep.replace(/\D/g, '');
     if (cleaned.length !== 8) return;
@@ -114,6 +152,11 @@ export default function Checkout() {
         toast({ title: 'Preencha todos os campos obrigatórios', variant: 'destructive' });
         return;
       }
+      if (!validateEmail(formData.email)) {
+        setEmailError('Email inválido');
+        toast({ title: 'Email inválido. Verifique e tente novamente.', variant: 'destructive' });
+        return;
+      }
       if (!validateCPF(formData.cpf)) {
         setCpfError('CPF inválido');
         toast({ title: 'CPF inválido. Verifique e tente novamente.', variant: 'destructive' });
@@ -121,16 +164,57 @@ export default function Checkout() {
       }
       setCurrentStep('shipping');
     } else if (currentStep === 'shipping') {
-      if (!formData.cep || !formData.address || !formData.number || !formData.city || !formData.state) {
+      if (!formData.cep || !formData.address || !formData.number || !formData.neighborhood || !formData.city || !formData.state) {
         toast({ title: 'Preencha o endereço completo', variant: 'destructive' });
+        return;
+      }
+      if (!selectedShipping) {
+        toast({ title: 'Selecione um método de envio', description: 'Calcule o frete pelo CEP para continuar.', variant: 'destructive' });
         return;
       }
       setCurrentStep('payment');
     }
   };
 
+  // Installment calculation
+  const calculateInstallments = () => {
+    const baseAmount = subtotal - discount + shippingCost;
+    const installmentOptions: { value: number; label: string; total: number }[] = [];
+
+    for (let i = 1; i <= paymentConfig.max_installments; i++) {
+      let installmentTotal: number;
+      let installmentValue: number;
+
+      if (i <= paymentConfig.installments_without_interest) {
+        installmentTotal = baseAmount;
+        installmentValue = baseAmount / i;
+      } else {
+        const monthlyRate = paymentConfig.installment_interest_rate / 100;
+        if (monthlyRate > 0) {
+          installmentTotal = baseAmount * Math.pow(1 + monthlyRate, i);
+          installmentValue = installmentTotal / i;
+        } else {
+          installmentTotal = baseAmount;
+          installmentValue = baseAmount / i;
+        }
+      }
+
+      if (installmentValue < paymentConfig.min_installment_value && i > 1) break;
+
+      const suffix = i <= paymentConfig.installments_without_interest ? ' sem juros' : ` (total ${formatPrice(installmentTotal)})`;
+      installmentOptions.push({
+        value: i,
+        label: `${i}x de ${formatPrice(installmentValue)}${suffix}`,
+        total: installmentTotal,
+      });
+    }
+
+    return installmentOptions;
+  };
+
+  const installmentOptions = calculateInstallments();
+
   const handleSubmit = async () => {
-    // Validate card fields if payment is card
     if (formData.paymentMethod === 'card') {
       const cardDigits = formData.cardNumber.replace(/\s/g, '');
       if (cardDigits.length < 13 || !formData.cardHolder || !formData.cardExpiry || formData.cardCvv.length < 3) {
@@ -144,16 +228,27 @@ export default function Checkout() {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id || null;
 
-      // 1. Create order in database
+      // Determine final total
+      let orderTotal: number;
+      if (formData.paymentMethod === 'pix') {
+        orderTotal = finalTotal;
+      } else if (formData.paymentMethod === 'card' && selectedInstallments > paymentConfig.installments_without_interest) {
+        const selected = installmentOptions.find(o => o.value === selectedInstallments);
+        orderTotal = selected ? selected.total : finalTotal;
+      } else {
+        orderTotal = finalTotal;
+      }
+
+      // 1. Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          order_number: 'TEMP', // trigger will generate real number
+          order_number: 'TEMP',
           user_id: userId,
           subtotal: subtotal,
           shipping_cost: shippingCost,
           discount_amount: discount,
-          total_amount: finalTotal,
+          total_amount: orderTotal,
           status: 'pending',
           shipping_name: formData.name,
           shipping_address: `${formData.address}, ${formData.number}${formData.complement ? ' - ' + formData.complement : ''}`,
@@ -161,6 +256,7 @@ export default function Checkout() {
           shipping_state: formData.state,
           shipping_zip: formData.cep,
           shipping_phone: formData.phone,
+          coupon_code: appliedCoupon?.code || null,
           notes: `CPF: ${formData.cpf} | Email: ${formData.email} | Pagamento: ${formData.paymentMethod}`,
         })
         .select()
@@ -183,10 +279,8 @@ export default function Checkout() {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) throw itemsError;
 
-      // 3. Call Appmax payment via edge function
+      // 3. Call Appmax payment
       const appmaxPaymentMethod = formData.paymentMethod === 'card' ? 'credit-card' : formData.paymentMethod;
-      
-      // Parse card expiry
       const expiryParts = formData.cardExpiry.split('/');
       const expiryMonth = expiryParts[0] || '';
       const expiryYear = expiryParts[1] ? '20' + expiryParts[1] : '';
@@ -195,13 +289,14 @@ export default function Checkout() {
         sku: item.product.sku || item.product.id,
         name: item.product.name,
         quantity: item.quantity,
-        price: (Number(item.product.sale_price || item.product.base_price) + Number(item.variant.price_modifier || 0)),
+        price: Number(item.product.sale_price || item.product.base_price) + Number(item.variant.price_modifier || 0),
+        variant_id: item.variant.id,
       }));
 
       const paymentPayload: Record<string, unknown> = {
         action: 'create_transaction',
         order_id: order.id,
-        amount: finalTotal,
+        amount: orderTotal,
         payment_method: appmaxPaymentMethod,
         customer_name: formData.name,
         customer_email: formData.email,
@@ -215,16 +310,17 @@ export default function Checkout() {
         shipping_city: formData.city,
         shipping_state: formData.state,
         products: productsForAppmax,
+        coupon_code: appliedCoupon?.code || null,
+        discount_amount: discount,
       };
 
-      // Add card-specific fields
       if (formData.paymentMethod === 'card') {
         paymentPayload.card_number = formData.cardNumber.replace(/\s/g, '');
         paymentPayload.card_holder = formData.cardHolder;
         paymentPayload.expiration_month = expiryMonth;
         paymentPayload.expiration_year = expiryYear;
         paymentPayload.security_code = formData.cardCvv;
-        paymentPayload.installments = 6; // TODO: let user select installments
+        paymentPayload.installments = selectedInstallments;
       }
 
       const { data: paymentResult, error: paymentError } = await supabase.functions.invoke(
@@ -233,8 +329,6 @@ export default function Checkout() {
       );
 
       if (paymentError) {
-        console.error('Payment function error:', paymentError);
-        // Update order notes with error
         await supabase.from('orders').update({
           notes: `${order.notes || ''} | ERRO PAGAMENTO: ${paymentError.message}`,
         }).eq('id', order.id);
@@ -242,29 +336,22 @@ export default function Checkout() {
       }
 
       if (paymentResult?.error) {
-        console.error('Appmax error:', paymentResult.error);
         await supabase.from('orders').update({
           notes: `${order.notes || ''} | ERRO APPMAX: ${paymentResult.error}`,
         }).eq('id', order.id);
         throw new Error(paymentResult.error);
       }
 
-      console.log('Payment success:', paymentResult);
-
-      // Save Appmax reference in order notes
       if (paymentResult?.appmax_order_id || paymentResult?.pay_reference) {
         await supabase.from('orders').update({
           notes: `CPF: ${formData.cpf} | Email: ${formData.email} | Appmax Order: ${paymentResult.appmax_order_id || 'N/A'} | Ref: ${paymentResult.pay_reference || 'N/A'}`,
         }).eq('id', order.id);
       }
 
-      // 4. Sync with Bling ERP (non-blocking)
+      // Bling sync (non-blocking)
       supabase.functions.invoke('bling-sync', {
         body: { action: 'order_to_nfe', order_id: order.id },
-      }).then((res) => {
-        if (res.error) console.warn('Bling sync warning:', res.error);
-        else console.log('Bling sync ok:', res.data);
-      }).catch((err) => console.warn('Bling sync failed:', err));
+      }).catch(() => {});
 
       clearCart();
       navigate('/pedido-confirmado', {
@@ -278,21 +365,19 @@ export default function Checkout() {
         },
       });
     } catch (err: any) {
-      console.error('Order error:', err);
       toast({ title: 'Erro ao processar pedido', description: err?.message || 'Tente novamente.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Use shipping from cart context if available
-  const shippingCost = selectedShipping 
-    ? selectedShipping.price 
-    : subtotal >= 399 ? 0 : formData.shippingMethod === 'express' ? 25 : 15;
+  // Use real shipping from cart context
+  const shippingCost = selectedShipping ? selectedShipping.price : 0;
   const total = subtotal - discount + shippingCost;
-  const finalTotal = formData.paymentMethod === 'pix' ? total * 0.95 : total;
+  const pixDiscount = paymentConfig.pix_discount / 100;
+  const finalTotal = formData.paymentMethod === 'pix' ? total * (1 - pixDiscount) : total;
 
-  // Pre-fill CEP from cart context
+  // Pre-fill CEP from cart
   useEffect(() => {
     if (shippingZip && !formData.cep) {
       setFormData(prev => ({ ...prev, cep: shippingZip }));
@@ -389,7 +474,9 @@ export default function Checkout() {
                         value={formData.email}
                         onChange={handleMaskedChange}
                         placeholder="seu@email.com"
+                        className={emailError ? 'border-destructive' : ''}
                       />
+                      {emailError && <p className="text-sm text-destructive mt-1">{emailError}</p>}
                     </div>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
@@ -525,33 +612,22 @@ export default function Checkout() {
                     </div>
                   </div>
 
+                  {/* Real shipping calculator */}
                   <div className="space-y-4">
-                    <h3 className="font-medium">Método de envio</h3>
-                    <RadioGroup
-                      value={formData.shippingMethod}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, shippingMethod: value }))}
-                    >
-                      <div className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value="standard" id="shipping-standard" />
-                          <Label htmlFor="shipping-standard" className="cursor-pointer">
-                            <span className="font-medium">Envio padrão</span>
-                            <p className="text-sm text-muted-foreground">7-10 dias úteis</p>
-                          </Label>
-                        </div>
-                        <span className="font-medium">{subtotal >= 399 ? 'Grátis' : formatPrice(15)}</span>
+                    <h3 className="font-medium">Calcular frete</h3>
+                    <ShippingCalculator />
+                    {selectedShipping && (
+                      <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg flex items-center gap-2">
+                        <Check className="h-4 w-4 text-primary" />
+                        <span className="text-sm">
+                          <span className="font-medium">{selectedShipping.name}</span>
+                          <span className="text-muted-foreground ml-2">
+                            {selectedShipping.price === 0 ? 'Grátis' : formatPrice(selectedShipping.price)}
+                            {selectedShipping.deadline && ` • ${selectedShipping.deadline}`}
+                          </span>
+                        </span>
                       </div>
-                      <div className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value="express" id="shipping-express" />
-                          <Label htmlFor="shipping-express" className="cursor-pointer">
-                            <span className="font-medium">Envio expresso</span>
-                            <p className="text-sm text-muted-foreground">3-5 dias úteis</p>
-                          </Label>
-                        </div>
-                        <span className="font-medium">{subtotal >= 399 ? formatPrice(10) : formatPrice(25)}</span>
-                      </div>
-                    </RadioGroup>
+                    )}
                   </div>
 
                   <Button onClick={handleNextStep} className="w-full" size="lg" id="btn-checkout-to-payment">
@@ -566,9 +642,15 @@ export default function Checkout() {
                 <div className="space-y-6 animate-fade-in">
                   <h2 className="text-xl font-bold">Pagamento</h2>
 
+                  {/* Coupon in payment step */}
+                  <CouponInput />
+
                   <RadioGroup
                     value={formData.paymentMethod}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, paymentMethod: value }));
+                      setSelectedInstallments(1);
+                    }}
                     className="space-y-4"
                   >
                     <div className={`p-4 border rounded-lg cursor-pointer transition-colors ${formData.paymentMethod === 'pix' ? 'border-primary bg-primary/5' : 'hover:border-primary'}`}>
@@ -576,9 +658,9 @@ export default function Checkout() {
                         <RadioGroupItem value="pix" id="payment-pix" />
                         <Label htmlFor="payment-pix" className="cursor-pointer flex-1">
                           <span className="font-medium">PIX</span>
-                          <p className="text-sm text-muted-foreground">Pagamento instantâneo com 5% de desconto</p>
+                          <p className="text-sm text-muted-foreground">Pagamento instantâneo com {paymentConfig.pix_discount}% de desconto</p>
                         </Label>
-                        <span className="font-bold text-primary">{formatPrice(total * 0.95)}</span>
+                        <span className="font-bold text-primary">{formatPrice(total * (1 - paymentConfig.pix_discount / 100))}</span>
                       </div>
                     </div>
                     <div className={`p-4 border rounded-lg cursor-pointer transition-colors ${formData.paymentMethod === 'card' ? 'border-primary bg-primary/5' : 'hover:border-primary'}`}>
@@ -586,7 +668,10 @@ export default function Checkout() {
                         <RadioGroupItem value="card" id="payment-card" />
                         <Label htmlFor="payment-card" className="cursor-pointer flex-1">
                           <span className="font-medium">Cartão de Crédito</span>
-                          <p className="text-sm text-muted-foreground">Em até 6x sem juros</p>
+                          <p className="text-sm text-muted-foreground">
+                            Em até {paymentConfig.installments_without_interest}x sem juros
+                            {paymentConfig.max_installments > paymentConfig.installments_without_interest && ` ou até ${paymentConfig.max_installments}x`}
+                          </p>
                         </Label>
                         <span className="font-medium">{formatPrice(total)}</span>
                       </div>
@@ -603,7 +688,7 @@ export default function Checkout() {
                     </div>
                   </RadioGroup>
 
-                  {/* Card fields */}
+                  {/* Card fields with installment selector */}
                   {formData.paymentMethod === 'card' && (
                     <div className="space-y-4 p-4 border rounded-lg bg-muted/30 animate-fade-in">
                       <h3 className="font-medium flex items-center gap-2">
@@ -661,6 +746,26 @@ export default function Checkout() {
                           />
                         </div>
                       </div>
+
+                      {/* Installment selector */}
+                      <div>
+                        <Label>Parcelas</Label>
+                        <Select
+                          value={String(selectedInstallments)}
+                          onValueChange={(val) => setSelectedInstallments(Number(val))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {installmentOptions.map(opt => (
+                              <SelectItem key={opt.value} value={String(opt.value)}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   )}
 
@@ -671,7 +776,10 @@ export default function Checkout() {
                         Processando pagamento...
                       </>
                     ) : (
-                      `Finalizar Pedido — ${formatPrice(finalTotal)}`
+                      `Finalizar Pedido — ${formatPrice(formData.paymentMethod === 'card' && selectedInstallments > paymentConfig.installments_without_interest
+                        ? (installmentOptions.find(o => o.value === selectedInstallments)?.total || finalTotal)
+                        : finalTotal
+                      )}`
                     )}
                   </Button>
                 </div>
@@ -701,7 +809,6 @@ export default function Checkout() {
                           Tam: {item.variant.size}
                           {item.variant.color && ` | Cor: ${item.variant.color}`}
                         </p>
-                        {/* Variant change link */}
                         <button
                           onClick={() => {
                             window.open(`/produto/${item.product.slug}`, '_blank');
@@ -747,20 +854,20 @@ export default function Checkout() {
                 </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-sm text-primary">
-                    <span>Desconto cupom</span>
+                    <span>Desconto{appliedCoupon ? ` (${appliedCoupon.code})` : ''}</span>
                     <span>-{formatPrice(discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Frete</span>
+                  <span className="text-muted-foreground">Frete{selectedShipping ? ` (${selectedShipping.name})` : ''}</span>
                   <span className={shippingCost === 0 ? 'text-primary' : ''}>
-                    {shippingCost === 0 ? 'Grátis' : formatPrice(shippingCost)}
+                    {selectedShipping ? (shippingCost === 0 ? 'Grátis' : formatPrice(shippingCost)) : 'A calcular'}
                   </span>
                 </div>
                 {formData.paymentMethod === 'pix' && (
                   <div className="flex justify-between text-sm text-primary">
-                    <span>Desconto PIX (5%)</span>
-                    <span>-{formatPrice(total * 0.05)}</span>
+                    <span>Desconto PIX ({paymentConfig.pix_discount}%)</span>
+                    <span>-{formatPrice(total * (paymentConfig.pix_discount / 100))}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">

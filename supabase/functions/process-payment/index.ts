@@ -3,10 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Appmax API endpoints
 const APPMAX_PRODUCTION_URL = "https://admin.appmax.com.br/api/v3";
 const APPMAX_SANDBOX_URL = "https://homolog.sandboxappmax.com.br/api/v3";
 
@@ -20,7 +19,6 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get Appmax credentials from store_settings
     const { data: settings, error: settingsError } = await supabase
       .from("store_settings")
       .select("appmax_access_token, appmax_environment, max_installments, installments_without_interest, installment_interest_rate, min_installment_value, pix_discount, cash_discount")
@@ -31,6 +29,26 @@ serve(async (req) => {
 
     const accessToken = settings?.appmax_access_token;
 
+    const { action, ...payload } = await req.json();
+
+    // ─── Action: get_payment_config ───
+    if (action === "get_payment_config") {
+      return new Response(
+        JSON.stringify({
+          max_installments: settings?.max_installments || 6,
+          installments_without_interest: settings?.installments_without_interest || 3,
+          installment_interest_rate: settings?.installment_interest_rate || 0,
+          min_installment_value: settings?.min_installment_value || 30,
+          pix_discount: settings?.pix_discount || 0,
+          cash_discount: settings?.cash_discount || 0,
+          gateway_configured: !!accessToken,
+          gateway: "appmax",
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // All other actions require access token
     if (!accessToken) {
       return new Response(JSON.stringify({ error: "Credenciais da Appmax não configuradas" }), {
         status: 400,
@@ -38,12 +56,9 @@ serve(async (req) => {
       });
     }
 
-    const { action, ...payload } = await req.json();
-
     const isProduction = settings?.appmax_environment === "production";
     const baseUrl = isProduction ? APPMAX_PRODUCTION_URL : APPMAX_SANDBOX_URL;
 
-    // Helper to make Appmax API calls
     async function appmaxFetch(endpoint: string, body: Record<string, unknown>) {
       const response = await fetch(`${baseUrl}/${endpoint}`, {
         method: "POST",
@@ -57,7 +72,7 @@ serve(async (req) => {
       return data;
     }
 
-    // ─── Action: create_transaction (full flow: customer → order → payment) ───
+    // ─── Action: create_transaction ───
     if (action === "create_transaction") {
       const {
         order_id,
@@ -79,11 +94,96 @@ serve(async (req) => {
         shipping_neighborhood,
         shipping_city,
         shipping_state,
-        payment_method = "credit-card", // credit-card | pix | boleto
+        payment_method = "credit-card",
         products = [],
+        coupon_code,
+        discount_amount = 0,
       } = payload;
 
-      console.log("Appmax transaction for order:", order_id, "method:", payment_method);
+      // ── Server-side coupon validation ──
+      let validatedDiscount = 0;
+      let validatedCouponId: string | null = null;
+
+      if (coupon_code) {
+        const { data: coupon, error: couponError } = await supabase
+          .from("coupons")
+          .select("*")
+          .eq("code", coupon_code.toUpperCase())
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (couponError || !coupon) {
+          return new Response(JSON.stringify({ error: "Cupom inválido ou inativo" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
+          return new Response(JSON.stringify({ error: "Cupom expirado" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (coupon.max_uses && (coupon.uses_count || 0) >= coupon.max_uses) {
+          return new Response(JSON.stringify({ error: "Cupom esgotado" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Calculate expected subtotal from products
+        const expectedSubtotal = products.reduce((sum: number, p: any) => sum + (p.price * (p.quantity || 1)), 0);
+
+        if (coupon.min_purchase_amount && expectedSubtotal < coupon.min_purchase_amount) {
+          return new Response(JSON.stringify({ error: `Valor mínimo para este cupom: R$ ${coupon.min_purchase_amount}` }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        validatedDiscount = coupon.discount_type === "percentage"
+          ? (expectedSubtotal * coupon.discount_value) / 100
+          : coupon.discount_value;
+
+        // Tolerance of R$0.10 for rounding
+        if (Math.abs(validatedDiscount - discount_amount) > 0.10) {
+          return new Response(JSON.stringify({ error: "Valor do desconto divergente. Recarregue a página." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        validatedCouponId = coupon.id;
+      }
+
+      // ── Stock validation ──
+      const variantIds = products.filter((p: any) => p.variant_id).map((p: any) => p.variant_id);
+      if (variantIds.length > 0) {
+        const { data: variants, error: varError } = await supabase
+          .from("product_variants")
+          .select("id, stock_quantity, size, color")
+          .in("id", variantIds);
+
+        if (varError) {
+          console.error("Stock check error:", varError);
+        } else if (variants) {
+          for (const product of products) {
+            if (!product.variant_id) continue;
+            const variant = variants.find((v: any) => v.id === product.variant_id);
+            if (!variant) continue;
+            if (variant.stock_quantity < (product.quantity || 1)) {
+              return new Response(JSON.stringify({
+                error: `Estoque insuficiente para "${product.name}" (${variant.size}${variant.color ? ' - ' + variant.color : ''}). Disponível: ${variant.stock_quantity}`,
+              }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+        }
+      }
 
       // Step 1: Create customer
       const nameParts = (customer_name || "Cliente").split(" ");
@@ -108,8 +208,6 @@ serve(async (req) => {
       const customerId = customerData.data?.id;
       if (!customerId) throw new Error("Falha ao criar cliente na Appmax");
 
-      console.log("Appmax customer created:", customerId);
-
       // Step 2: Create order
       const orderProducts = products.length > 0 ? products.map((p: any) => ({
         sku: p.sku || p.product_id || "SKU001",
@@ -127,9 +225,7 @@ serve(async (req) => {
       const appmaxOrderId = orderData.data?.id;
       if (!appmaxOrderId) throw new Error("Falha ao criar pedido na Appmax");
 
-      console.log("Appmax order created:", appmaxOrderId);
-
-      // Step 3: Process payment based on method
+      // Step 3: Process payment
       let paymentEndpoint: string;
       let paymentBody: Record<string, unknown> = {
         cart: { order_id: appmaxOrderId },
@@ -151,7 +247,6 @@ serve(async (req) => {
           },
         };
       } else {
-        // credit-card
         paymentEndpoint = "payment/CreditCard";
         paymentBody.payment = {
           CreditCard: {
@@ -167,24 +262,97 @@ serve(async (req) => {
         };
       }
 
-      console.log("Appmax payment endpoint:", paymentEndpoint);
-
       const paymentData = await appmaxFetch(paymentEndpoint, paymentBody);
 
-      console.log("Appmax payment response:", JSON.stringify(paymentData));
-
-      // Update order status on success
+      // ── Post-payment: update order, decrement stock, increment coupon ──
       if (order_id) {
         await supabase
           .from("orders")
           .update({
             status: "processing",
+            coupon_code: coupon_code || null,
+            discount_amount: validatedDiscount || discount_amount || 0,
             notes: `Appmax Order: ${appmaxOrderId} | Ref: ${paymentData.data?.pay_reference || "N/A"}`,
           })
           .eq("id", order_id);
+
+        // Find or create customer record and link to order
+        if (customer_email) {
+          const { data: existingCustomer } = await supabase
+            .from("customers")
+            .select("id, total_orders, total_spent")
+            .eq("email", customer_email.toLowerCase())
+            .maybeSingle();
+
+          let dbCustomerId: string;
+          if (existingCustomer) {
+            dbCustomerId = existingCustomer.id;
+            await supabase
+              .from("customers")
+              .update({
+                total_orders: (existingCustomer.total_orders || 0) + 1,
+                total_spent: (existingCustomer.total_spent || 0) + amount,
+                full_name: customer_name || existingCustomer.id,
+                phone: customer_phone || null,
+              })
+              .eq("id", existingCustomer.id);
+          } else {
+            const { data: newCustomer } = await supabase
+              .from("customers")
+              .insert({
+                email: customer_email.toLowerCase(),
+                full_name: customer_name || "Cliente",
+                phone: customer_phone || null,
+                total_orders: 1,
+                total_spent: amount,
+              })
+              .select("id")
+              .single();
+            dbCustomerId = newCustomer?.id || "";
+          }
+
+          if (dbCustomerId) {
+            await supabase.from("orders").update({ customer_id: dbCustomerId }).eq("id", order_id);
+          }
+        }
       }
 
-      // Build response based on payment type
+      // Decrement stock
+      for (const product of products) {
+        if (!product.variant_id) continue;
+        const qty = product.quantity || 1;
+        // Use RPC-like approach: read then update
+        const { data: currentVariant } = await supabase
+          .from("product_variants")
+          .select("stock_quantity")
+          .eq("id", product.variant_id)
+          .single();
+
+        if (currentVariant) {
+          await supabase
+            .from("product_variants")
+            .update({ stock_quantity: Math.max(0, currentVariant.stock_quantity - qty) })
+            .eq("id", product.variant_id);
+        }
+      }
+
+      // Increment coupon uses
+      if (validatedCouponId) {
+        const { data: couponData } = await supabase
+          .from("coupons")
+          .select("uses_count")
+          .eq("id", validatedCouponId)
+          .single();
+
+        if (couponData) {
+          await supabase
+            .from("coupons")
+            .update({ uses_count: (couponData.uses_count || 0) + 1 })
+            .eq("id", validatedCouponId);
+        }
+      }
+
+      // Build response
       const result: Record<string, unknown> = {
         success: true,
         appmax_order_id: appmaxOrderId,
@@ -208,23 +376,6 @@ serve(async (req) => {
       });
     }
 
-    // ─── Action: get_payment_config ───
-    if (action === "get_payment_config") {
-      return new Response(
-        JSON.stringify({
-          max_installments: settings?.max_installments || 6,
-          installments_without_interest: settings?.installments_without_interest || 3,
-          installment_interest_rate: settings?.installment_interest_rate || 0,
-          min_installment_value: settings?.min_installment_value || 30,
-          pix_discount: settings?.pix_discount || 0,
-          cash_discount: settings?.cash_discount || 0,
-          gateway_configured: true,
-          gateway: "appmax",
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // ─── Action: tokenize_card ───
     if (action === "tokenize_card") {
       const { card_number, card_cvv, card_month, card_year, card_name } = payload;
@@ -245,7 +396,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("Payment error:", error);
+    console.error("Payment error:", error.message);
     return new Response(
       JSON.stringify({ error: error.message || "Erro ao processar pagamento" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
