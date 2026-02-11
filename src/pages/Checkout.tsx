@@ -13,6 +13,19 @@ import logo from '@/assets/logo.png';
 
 type Step = 'identification' | 'shipping' | 'payment';
 
+// Card number formatting: 0000 0000 0000 0000
+function formatCardNumber(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 16);
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+
+// Expiry formatting: MM/AA
+function formatExpiry(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2);
+  return digits;
+}
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { items, subtotal, clearCart, updateQuantity, selectedShipping, shippingZip, discount } = useCart();
@@ -36,6 +49,11 @@ export default function Checkout() {
     state: '',
     shippingMethod: 'standard',
     paymentMethod: 'pix',
+    // Card fields
+    cardNumber: '',
+    cardHolder: '',
+    cardExpiry: '',
+    cardCvv: '',
   });
 
   const formatPrice = (price: number) => {
@@ -59,6 +77,12 @@ export default function Checkout() {
       setFormData(prev => ({ ...prev, cep: formatCEP(value) }));
     } else if (name === 'phone') {
       setFormData(prev => ({ ...prev, phone: formatPhone(value) }));
+    } else if (name === 'cardNumber') {
+      setFormData(prev => ({ ...prev, cardNumber: formatCardNumber(value) }));
+    } else if (name === 'cardExpiry') {
+      setFormData(prev => ({ ...prev, cardExpiry: formatExpiry(value) }));
+    } else if (name === 'cardCvv') {
+      setFormData(prev => ({ ...prev, cardCvv: value.replace(/\D/g, '').slice(0, 4) }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -106,21 +130,29 @@ export default function Checkout() {
   };
 
   const handleSubmit = async () => {
+    // Validate card fields if payment is card
+    if (formData.paymentMethod === 'card') {
+      const cardDigits = formData.cardNumber.replace(/\s/g, '');
+      if (cardDigits.length < 13 || !formData.cardHolder || !formData.cardExpiry || formData.cardCvv.length < 3) {
+        toast({ title: 'Preencha todos os dados do cartão', variant: 'destructive' });
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
-      const orderNumber = 'VL' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id || null;
 
+      // 1. Create order in database
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          order_number: orderNumber,
+          order_number: 'TEMP', // trigger will generate real number
           user_id: userId,
           subtotal: subtotal,
           shipping_cost: shippingCost,
-          discount_amount: 0,
+          discount_amount: discount,
           total_amount: finalTotal,
           status: 'pending',
           shipping_name: formData.name,
@@ -129,14 +161,14 @@ export default function Checkout() {
           shipping_state: formData.state,
           shipping_zip: formData.cep,
           shipping_phone: formData.phone,
-          notes: `CPF: ${formData.cpf} | Pagamento: ${formData.paymentMethod}`,
+          notes: `CPF: ${formData.cpf} | Email: ${formData.email} | Pagamento: ${formData.paymentMethod}`,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Insert order items
+      // 2. Insert order items
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.product.id,
@@ -151,7 +183,82 @@ export default function Checkout() {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) throw itemsError;
 
-      // Sync with Bling ERP (non-blocking)
+      // 3. Call Appmax payment via edge function
+      const appmaxPaymentMethod = formData.paymentMethod === 'card' ? 'credit-card' : formData.paymentMethod;
+      
+      // Parse card expiry
+      const expiryParts = formData.cardExpiry.split('/');
+      const expiryMonth = expiryParts[0] || '';
+      const expiryYear = expiryParts[1] ? '20' + expiryParts[1] : '';
+
+      const productsForAppmax = items.map(item => ({
+        sku: item.product.sku || item.product.id,
+        name: item.product.name,
+        quantity: item.quantity,
+        price: (Number(item.product.sale_price || item.product.base_price) + Number(item.variant.price_modifier || 0)),
+      }));
+
+      const paymentPayload: Record<string, unknown> = {
+        action: 'create_transaction',
+        order_id: order.id,
+        amount: finalTotal,
+        payment_method: appmaxPaymentMethod,
+        customer_name: formData.name,
+        customer_email: formData.email,
+        customer_phone: formData.phone,
+        customer_cpf: formData.cpf,
+        shipping_zip: formData.cep,
+        shipping_address: formData.address,
+        shipping_number: formData.number,
+        shipping_complement: formData.complement,
+        shipping_neighborhood: formData.neighborhood,
+        shipping_city: formData.city,
+        shipping_state: formData.state,
+        products: productsForAppmax,
+      };
+
+      // Add card-specific fields
+      if (formData.paymentMethod === 'card') {
+        paymentPayload.card_number = formData.cardNumber.replace(/\s/g, '');
+        paymentPayload.card_holder = formData.cardHolder;
+        paymentPayload.expiration_month = expiryMonth;
+        paymentPayload.expiration_year = expiryYear;
+        paymentPayload.security_code = formData.cardCvv;
+        paymentPayload.installments = 6; // TODO: let user select installments
+      }
+
+      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke(
+        'process-payment',
+        { body: paymentPayload }
+      );
+
+      if (paymentError) {
+        console.error('Payment function error:', paymentError);
+        // Update order notes with error
+        await supabase.from('orders').update({
+          notes: `${order.notes || ''} | ERRO PAGAMENTO: ${paymentError.message}`,
+        }).eq('id', order.id);
+        throw new Error(paymentError.message || 'Erro ao processar pagamento');
+      }
+
+      if (paymentResult?.error) {
+        console.error('Appmax error:', paymentResult.error);
+        await supabase.from('orders').update({
+          notes: `${order.notes || ''} | ERRO APPMAX: ${paymentResult.error}`,
+        }).eq('id', order.id);
+        throw new Error(paymentResult.error);
+      }
+
+      console.log('Payment success:', paymentResult);
+
+      // Save Appmax reference in order notes
+      if (paymentResult?.appmax_order_id || paymentResult?.pay_reference) {
+        await supabase.from('orders').update({
+          notes: `CPF: ${formData.cpf} | Email: ${formData.email} | Appmax Order: ${paymentResult.appmax_order_id || 'N/A'} | Ref: ${paymentResult.pay_reference || 'N/A'}`,
+        }).eq('id', order.id);
+      }
+
+      // 4. Sync with Bling ERP (non-blocking)
       supabase.functions.invoke('bling-sync', {
         body: { action: 'order_to_nfe', order_id: order.id },
       }).then((res) => {
@@ -161,11 +268,18 @@ export default function Checkout() {
 
       clearCart();
       navigate('/pedido-confirmado', {
-        state: { orderNumber: order.order_number, paymentMethod: formData.paymentMethod },
+        state: {
+          orderNumber: order.order_number,
+          paymentMethod: formData.paymentMethod,
+          pixQrcode: paymentResult?.pix_qrcode,
+          pixEmv: paymentResult?.pix_emv,
+          boletoUrl: paymentResult?.boleto_url,
+          boletoDigitableLine: paymentResult?.boleto_digitable_line,
+        },
       });
     } catch (err: any) {
       console.error('Order error:', err);
-      toast({ title: 'Erro ao criar pedido', description: err?.message || 'Tente novamente.', variant: 'destructive' });
+      toast({ title: 'Erro ao processar pedido', description: err?.message || 'Tente novamente.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -489,14 +603,75 @@ export default function Checkout() {
                     </div>
                   </RadioGroup>
 
+                  {/* Card fields */}
+                  {formData.paymentMethod === 'card' && (
+                    <div className="space-y-4 p-4 border rounded-lg bg-muted/30 animate-fade-in">
+                      <h3 className="font-medium flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Dados do Cartão
+                      </h3>
+                      <div>
+                        <Label htmlFor="cardNumber">Número do cartão *</Label>
+                        <Input
+                          id="cardNumber"
+                          name="cardNumber"
+                          value={formData.cardNumber}
+                          onChange={handleMaskedChange}
+                          placeholder="0000 0000 0000 0000"
+                          maxLength={19}
+                          autoComplete="cc-number"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="cardHolder">Nome impresso no cartão *</Label>
+                        <Input
+                          id="cardHolder"
+                          name="cardHolder"
+                          value={formData.cardHolder}
+                          onChange={handleMaskedChange}
+                          placeholder="NOME COMO ESTÁ NO CARTÃO"
+                          autoComplete="cc-name"
+                          className="uppercase"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="cardExpiry">Validade *</Label>
+                          <Input
+                            id="cardExpiry"
+                            name="cardExpiry"
+                            value={formData.cardExpiry}
+                            onChange={handleMaskedChange}
+                            placeholder="MM/AA"
+                            maxLength={5}
+                            autoComplete="cc-exp"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="cardCvv">CVV *</Label>
+                          <Input
+                            id="cardCvv"
+                            name="cardCvv"
+                            type="password"
+                            value={formData.cardCvv}
+                            onChange={handleMaskedChange}
+                            placeholder="000"
+                            maxLength={4}
+                            autoComplete="cc-csc"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <Button onClick={handleSubmit} className="w-full" size="lg" disabled={isLoading} id="btn-checkout-finalize">
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processando...
+                        Processando pagamento...
                       </>
                     ) : (
-                      'Finalizar Pedido'
+                      `Finalizar Pedido — ${formatPrice(finalTotal)}`
                     )}
                   </Button>
                 </div>
@@ -529,7 +704,6 @@ export default function Checkout() {
                         {/* Variant change link */}
                         <button
                           onClick={() => {
-                            // Open product page for variant change
                             window.open(`/produto/${item.product.slug}`, '_blank');
                           }}
                           className="text-xs text-primary hover:underline"
@@ -571,6 +745,12 @@ export default function Checkout() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-sm text-primary">
+                    <span>Desconto cupom</span>
+                    <span>-{formatPrice(discount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Frete</span>
                   <span className={shippingCost === 0 ? 'text-primary' : ''}>
