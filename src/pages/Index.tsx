@@ -4,7 +4,9 @@ import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
+import { DynamicSection } from '@/components/store/DynamicSection';
 import { useFeaturedProducts, useProducts } from '@/hooks/useProducts';
+import { useHomeSections } from '@/hooks/useHomeSections';
 import { trackSession } from '@/lib/utmTracker';
 
 // Lazy load below-the-fold sections
@@ -20,6 +22,7 @@ const SectionFallback = () => <div className="py-12" />;
 const Index = () => {
   const { data: featuredProducts, isLoading: featuredLoading } = useFeaturedProducts();
   const { data: allProducts, isLoading: productsLoading } = useProducts();
+  const { data: homeSections } = useHomeSections();
 
   useEffect(() => {
     trackSession();
@@ -28,65 +31,82 @@ const Index = () => {
   const saleProducts = allProducts?.filter(p => p.sale_price && p.sale_price < p.base_price).slice(0, 10) || [];
   const newProducts = allProducts?.filter(p => p.is_new).slice(0, 8) || [];
 
+  // If there are custom sections configured, use dynamic layout
+  const hasDynamicSections = homeSections && homeSections.length > 0;
+
   return (
     <StoreLayout>
       <BannerCarousel />
       <FeaturesBar />
       <CategoryGrid />
-      
-      <ProductCarousel
-        products={(featuredProducts || []).slice(0, 10)}
-        title="Mais Vendidos"
-        subtitle="Os modelos mais amados pelas nossas clientes"
-        showViewAll
-        viewAllLink="/mais-vendidos"
-        isLoading={featuredLoading}
-        cardBg
-      />
 
-      <div className="content-lazy">
-        <Suspense fallback={<SectionFallback />}>
-          <BijuteriasSection />
-        </Suspense>
-      </div>
-
-      <div className="content-lazy">
-        <Suspense fallback={<SectionFallback />}>
-          <HighlightBanners />
-        </Suspense>
-      </div>
-
-      <div className="content-lazy">
-        <Suspense fallback={<SectionFallback />}>
-          <ShopBySize />
-        </Suspense>
-      </div>
-
-      {saleProducts.length > 0 && (
-        <div className="content-lazy">
+      {hasDynamicSections ? (
+        // Dynamic sections from admin config
+        <>
+          {homeSections.map(section => (
+            <div key={section.id} className="content-lazy">
+              <DynamicSection section={section} />
+            </div>
+          ))}
+        </>
+      ) : (
+        // Default static layout (fallback when no sections configured)
+        <>
           <ProductCarousel
-            products={saleProducts}
-            title="Promoções"
-            subtitle="Ofertas imperdíveis para você"
+            products={(featuredProducts || []).slice(0, 10)}
+            title="Mais Vendidos"
+            subtitle="Os modelos mais amados pelas nossas clientes"
             showViewAll
-            viewAllLink="/promocoes"
-            isLoading={productsLoading}
+            viewAllLink="/mais-vendidos"
+            isLoading={featuredLoading}
+            cardBg
           />
-        </div>
-      )}
 
-      <div className="content-lazy">
-        <Suspense fallback={<SectionFallback />}>
-          <ProductGrid
-            products={newProducts}
-            title="Novidades"
-            subtitle="Acabou de chegar na loja"
-            isLoading={productsLoading}
-            showViewAll
-            viewAllLink="/novidades"
-          />
-        </Suspense>
-      </div>
+          <div className="content-lazy">
+            <Suspense fallback={<SectionFallback />}>
+              <BijuteriasSection />
+            </Suspense>
+          </div>
+
+          <div className="content-lazy">
+            <Suspense fallback={<SectionFallback />}>
+              <HighlightBanners />
+            </Suspense>
+          </div>
+
+          <div className="content-lazy">
+            <Suspense fallback={<SectionFallback />}>
+              <ShopBySize />
+            </Suspense>
+          </div>
+
+          {saleProducts.length > 0 && (
+            <div className="content-lazy">
+              <ProductCarousel
+                products={saleProducts}
+                title="Promoções"
+                subtitle="Ofertas imperdíveis para você"
+                showViewAll
+                viewAllLink="/promocoes"
+                isLoading={productsLoading}
+              />
+            </div>
+          )}
+
+          <div className="content-lazy">
+            <Suspense fallback={<SectionFallback />}>
+              <ProductGrid
+                products={newProducts}
+                title="Novidades"
+                subtitle="Acabou de chegar na loja"
+                isLoading={productsLoading}
+                showViewAll
+                viewAllLink="/novidades"
+              />
+            </Suspense>
+          </div>
+        </>
+      )}
 
       <Suspense fallback={<SectionFallback />}>
         <InstagramFeed />

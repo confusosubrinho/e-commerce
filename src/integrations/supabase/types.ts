@@ -497,6 +497,71 @@ export type Database = {
         }
         Relationships: []
       }
+      home_sections: {
+        Row: {
+          card_bg: boolean | null
+          category_id: string | null
+          created_at: string
+          dark_bg: boolean | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          max_items: number | null
+          product_ids: string[] | null
+          section_type: string
+          show_view_all: boolean | null
+          source_type: string
+          subtitle: string | null
+          title: string
+          updated_at: string
+          view_all_link: string | null
+        }
+        Insert: {
+          card_bg?: boolean | null
+          category_id?: string | null
+          created_at?: string
+          dark_bg?: boolean | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_items?: number | null
+          product_ids?: string[] | null
+          section_type?: string
+          show_view_all?: boolean | null
+          source_type?: string
+          subtitle?: string | null
+          title: string
+          updated_at?: string
+          view_all_link?: string | null
+        }
+        Update: {
+          card_bg?: boolean | null
+          category_id?: string | null
+          created_at?: string
+          dark_bg?: boolean | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_items?: number | null
+          product_ids?: string[] | null
+          section_type?: string
+          show_view_all?: boolean | null
+          source_type?: string
+          subtitle?: string | null
+          title?: string
+          updated_at?: string
+          view_all_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "home_sections_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instagram_videos: {
         Row: {
           created_at: string
