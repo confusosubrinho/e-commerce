@@ -554,9 +554,30 @@ serve(async (req) => {
 
         case "product": {
           const prodBlingId = dados?.id || dados?.idProduto || dados?.produto?.id;
-          if (prodBlingId && token) {
-            console.log(`[webhook] Product event for bling_id=${prodBlingId}`);
-            await syncSingleProduct(supabase, prodBlingId, token);
+          const eventAction = (evento || "").toLowerCase();
+          
+          if (prodBlingId) {
+            // Handle product deletion events
+            if (eventAction.includes('deleted') || eventAction.includes('excluido') || eventAction.includes('removido')) {
+              console.log(`[webhook] Product DELETED event for bling_id=${prodBlingId}`);
+              
+              // Deactivate product instead of deleting (preserves order history)
+              const { data: delProduct } = await supabase
+                .from("products")
+                .select("id")
+                .eq("bling_product_id", prodBlingId)
+                .maybeSingle();
+              
+              if (delProduct) {
+                await supabase.from("products").update({ is_active: false }).eq("id", delProduct.id);
+                await supabase.from("product_variants").update({ is_active: false }).eq("product_id", delProduct.id);
+                console.log(`[webhook] Product ${prodBlingId} deactivated (deleted in Bling)`);
+              }
+            } else if (token) {
+              // Creation/update events
+              console.log(`[webhook] Product event for bling_id=${prodBlingId}`);
+              await syncSingleProduct(supabase, prodBlingId, token);
+            }
           }
           break;
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, Truck } from 'lucide-react';
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, Truck, AlertTriangle } from 'lucide-react';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/contexts/CartContext';
@@ -8,9 +8,27 @@ import { ShippingCalculator } from '@/components/store/ShippingCalculator';
 import { CouponInput } from '@/components/store/CouponInput';
 import { CartProductSuggestions } from '@/components/store/CartProductSuggestions';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Cart() {
-  const { items, subtotal, removeItem, updateQuantity, clearCart, discount, selectedShipping, total } = useCart();
+  const { items, subtotal, removeItem, updateQuantity, clearCart, discount, selectedShipping, setSelectedShipping, total } = useCart();
+
+  // Fetch fresh stock data for cart items
+  const { data: freshStockData } = useQuery({
+    queryKey: ['cart-stock', items.map(i => i.variant.id).join(',')],
+    queryFn: async () => {
+      const variantIds = items.map(i => i.variant.id);
+      if (variantIds.length === 0) return new Map<string, { stock_quantity: number; is_active: boolean | null }>();
+      const { data } = await supabase
+        .from('product_variants')
+        .select('id, stock_quantity, is_active')
+        .in('id', variantIds);
+      return new Map(data?.map(v => [v.id, v]) || []);
+    },
+    enabled: items.length > 0,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
 
   const [storeConfig, setStoreConfig] = useState({ freeShippingThreshold: 399, maxInstallments: 6, installmentsWithoutInterest: 3 });
 
@@ -87,8 +105,14 @@ export default function Cart() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Cart items */}
           <div className="lg:col-span-2 space-y-4">
-            {items.map((item) => (
-              <div key={item.variant.id} className="flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg">
+            {items.map((item) => {
+              const freshStock = freshStockData?.get(item.variant.id);
+              const currentStock = freshStock?.stock_quantity ?? item.variant.stock_quantity;
+              const isActive = freshStock?.is_active ?? true;
+              const stockInsufficient = currentStock < item.quantity;
+
+              return (
+              <div key={item.variant.id} className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg ${!isActive ? 'opacity-60' : ''}`}>
                 <Link to={`/produto/${item.product.slug}`}>
                   <img
                     src={item.product.images?.[0]?.url || '/placeholder.svg'}
@@ -105,6 +129,16 @@ export default function Cart() {
                       <p className="text-sm text-muted-foreground">Tamanho: {item.variant.size}</p>
                       {item.variant.color && (
                         <p className="text-sm text-muted-foreground">Cor: {item.variant.color}</p>
+                      )}
+                      {!isActive && (
+                        <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                          <AlertTriangle className="h-3 w-3" /> Produto indisponível
+                        </p>
+                      )}
+                      {isActive && stockInsufficient && (
+                        <p className="text-xs text-orange-600 flex items-center gap-1 mt-1">
+                          <AlertTriangle className="h-3 w-3" /> Estoque reduzido para {currentStock} un.
+                        </p>
                       )}
                     </div>
                     <Button
@@ -132,7 +166,8 @@ export default function Cart() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => updateQuantity(item.variant.id, Math.min(item.quantity + 1, item.variant.stock_quantity || 99))}
+                        disabled={item.quantity >= currentStock || !isActive}
+                        onClick={() => updateQuantity(item.variant.id, Math.min(item.quantity + 1, currentStock))}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -146,11 +181,13 @@ export default function Cart() {
                       <p className="font-bold text-lg">
                         {formatPrice(Number(item.product.sale_price || item.product.base_price) * item.quantity)}
                       </p>
+                      <p className="text-xs text-muted-foreground">{currentStock} disponível(is)</p>
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             <Button variant="ghost" className="text-destructive" onClick={clearCart}>
               Limpar carrinho
@@ -199,8 +236,10 @@ export default function Cart() {
                 </p>
               </div>
 
-              <Button asChild className="w-full" size="lg">
-                <Link to="/checkout">Finalizar Compra</Link>
+              <Button asChild className="w-full" size="lg" disabled={!selectedShipping}>
+                <Link to={selectedShipping ? "/checkout" : "#"} onClick={(e) => { if (!selectedShipping) e.preventDefault(); }}>
+                  {selectedShipping ? 'Finalizar Compra' : 'Calcule o frete primeiro'}
+                </Link>
               </Button>
 
               <Button asChild variant="outline" className="w-full">

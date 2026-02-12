@@ -504,8 +504,8 @@ async function upsertParentWithVariants(
     imported = true;
   }
 
-  // Sync images from parent
-  if (parentDetail.midia?.imagens?.internas?.length) {
+  // Sync images ONLY on first import (preserve manual edits on updates)
+  if (imported && parentDetail.midia?.imagens?.internas?.length) {
     await supabase.from("product_images").delete().eq("product_id", productId);
     const images = parentDetail.midia.imagens.internas.map((img: any, idx: number) => ({
       product_id: productId,
@@ -515,6 +515,9 @@ async function upsertParentWithVariants(
       alt_text: parentDetail.nome,
     }));
     await supabase.from("product_images").insert(images);
+    console.log(`[sync] Imported ${images.length} images for new product ${productId}`);
+  } else if (updated) {
+    console.log(`[sync] Skipping image sync for existing product ${productId} (preserving manual edits)`);
   }
 
   // Sync characteristics
