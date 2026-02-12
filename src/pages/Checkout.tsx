@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { validateCPF, formatCPF, formatCEP, formatPhone, lookupCEP } from '@/lib/validators';
 import { ShippingCalculator } from '@/components/store/ShippingCalculator';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getInstallmentOptions, formatCurrency as formatPricingCurrency } from '@/lib/pricingEngine';
 import { CouponInput } from '@/components/store/CouponInput';
 import logo from '@/assets/logo.png';
 

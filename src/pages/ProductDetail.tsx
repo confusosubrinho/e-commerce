@@ -10,6 +10,8 @@ import { useProduct, useStoreSettings } from '@/hooks/useProducts';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { useFavorites } from '@/hooks/useFavorites';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getInstallmentOptions, getPixPrice, getBestHighlight, formatCurrency } from '@/lib/pricingEngine';
 import { ShippingCalculator } from '@/components/store/ShippingCalculator';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
 import { ProductReviews } from '@/components/store/ProductReviews';
@@ -42,6 +44,7 @@ export default function ProductDetail() {
   const { data: recentProducts } = useRecentProducts(product?.id);
   const { data: relatedProducts } = useRelatedProducts(product?.category_id, product?.id);
   const { data: storeSettings } = useStoreSettings();
+  const { data: pricingConfig } = usePricingConfig();
 
   // Auto-select first available variant when product loads
   useEffect(() => {
@@ -57,11 +60,7 @@ export default function ProductDetail() {
     setSelectedImage(0);
   }, [product?.id]);
 
-  const pixDiscountPercent = storeSettings?.pix_discount ?? 5;
-  const maxInstallments = storeSettings?.max_installments ?? 10;
-  const installmentsWithoutInterest = storeSettings?.installments_without_interest ?? 6;
-  const installmentInterestRate = storeSettings?.installment_interest_rate ?? 0;
-  const minInstallmentValue = storeSettings?.min_installment_value ?? 50;
+  const pixDiscountPercent = pricingConfig?.pix_discount ?? storeSettings?.pix_discount ?? 5;
 
   // Fetch buy together products configured for this product
   const { data: buyTogetherProducts } = useQuery({
@@ -174,8 +173,10 @@ export default function ProductDetail() {
           ? Number(selectedVariant.base_price)
           : Number(product.sale_price || product.base_price) + Number(selectedVariant.price_modifier || 0))
     : Number(product.sale_price || product.base_price);
-  const bestInstallment = Math.min(installmentsWithoutInterest, Math.floor(currentPrice / minInstallmentValue) || 1);
-  const installmentPrice = bestInstallment > 0 ? (currentPrice / bestInstallment).toFixed(2) : currentPrice.toFixed(2);
+  const installmentOptions = pricingConfig ? getInstallmentOptions(currentPrice, pricingConfig) : [];
+  const interestFreeOptions = installmentOptions.filter(o => !o.hasInterest && o.n > 1);
+  const bestInstallment = interestFreeOptions.length > 0 ? interestFreeOptions[interestFreeOptions.length - 1].n : 1;
+  const installmentPrice = bestInstallment > 1 ? formatCurrency(currentPrice / bestInstallment) : formatCurrency(currentPrice);
   const isInStock = selectedVariant ? selectedVariant.stock_quantity > 0 : false;
 
   const handleColorSelect = (colorName: string) => {
@@ -343,18 +344,21 @@ export default function ProductDetail() {
           <div className="space-y-4">
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium text-primary mb-2">PIX</h4>
-              <p className="text-2xl font-bold">{formatPrice(currentPrice * (1 - pixDiscountPercent / 100))}</p>
+              <p className="text-2xl font-bold">{pricingConfig ? formatCurrency(getPixPrice(currentPrice, pricingConfig)) : formatPrice(currentPrice * (1 - pixDiscountPercent / 100))}</p>
               <p className="text-sm text-muted-foreground">À vista com {pixDiscountPercent}% de desconto</p>
             </div>
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Cartão de Crédito</h4>
-              <p className="text-lg font-bold">até {bestInstallment}x de R$ {installmentPrice}</p>
-              <p className="text-sm text-muted-foreground">Sem juros no cartão</p>
+              <p className="text-lg font-bold">até {bestInstallment}x de {installmentPrice}</p>
+              <p className="text-sm text-muted-foreground">{bestInstallment > 1 ? 'Sem juros no cartão' : ''}</p>
               <div className="mt-3 pt-3 border-t">
                 <p className="text-sm text-muted-foreground mb-2">Parcelas disponíveis:</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  {Array.from({ length: bestInstallment }, (_, i) => i + 1).map(n => (
-                    <span key={n}>{n}x de {formatPrice(currentPrice / n)}</span>
+                  {installmentOptions.map(opt => (
+                    <span key={opt.n}>
+                      {opt.n}x de {formatCurrency(opt.installmentValue)}
+                      {opt.hasInterest ? '' : ' s/juros'}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -449,13 +453,13 @@ export default function ProductDetail() {
                 <p className="text-muted-foreground line-through text-lg">{formatPrice(Number(product.base_price))}</p>
               )}
               <p className="text-2xl sm:text-3xl font-bold text-foreground">{formatPrice(currentPrice)}</p>
-              <p className="text-muted-foreground">ou {bestInstallment}x de R$ {installmentPrice} sem juros</p>
+              <p className="text-muted-foreground">ou {bestInstallment}x de {installmentPrice} sem juros</p>
               <PaymentMethodsModal
                 basePrice={currentPrice}
-                maxInstallments={maxInstallments}
-                installmentsWithoutInterest={installmentsWithoutInterest}
-                installmentInterestRate={installmentInterestRate}
-                minInstallmentValue={minInstallmentValue}
+                maxInstallments={pricingConfig?.max_installments ?? 6}
+                installmentsWithoutInterest={pricingConfig?.interest_free_installments ?? 3}
+                installmentInterestRate={pricingConfig?.monthly_rate_fixed ?? 0}
+                minInstallmentValue={pricingConfig?.min_installment_value ?? 25}
                 pixDiscount={pixDiscountPercent}
               />
             </div>

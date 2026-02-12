@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { 
+import {
   LayoutDashboard, 
   Package, 
   ShoppingCart, 
@@ -17,6 +17,7 @@ import {
   Mail,
   ShoppingBag,
   ImageIcon,
+  CreditCard,
   Menu,
   X,
   Store,
@@ -92,6 +93,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { title: 'Galeria de Mídia', url: '/admin/galeria', icon: ImageIcon },
+  { title: 'Juros e Cartões', url: '/admin/precos', icon: CreditCard },
   { title: 'Integrações', url: '/admin/integracoes', icon: Plug },
   { 
     title: 'Configurações', 

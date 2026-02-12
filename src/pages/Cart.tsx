@@ -9,9 +9,12 @@ import { CouponInput } from '@/components/store/CouponInput';
 import { CartProductSuggestions } from '@/components/store/CartProductSuggestions';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getBestHighlight, formatCurrency } from '@/lib/pricingEngine';
 
 export default function Cart() {
   const { items, subtotal, removeItem, updateQuantity, clearCart, discount, selectedShipping, setSelectedShipping, total } = useCart();
+  const { data: pricingConfig } = usePricingConfig();
 
   // Fetch fresh stock data for cart items
   const { data: freshStockData } = useQuery({
@@ -232,7 +235,7 @@ export default function Cart() {
                   <span>{formatPrice(total)}</span>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  ou {storeConfig.installmentsWithoutInterest}x de {formatPrice(total / storeConfig.installmentsWithoutInterest)} sem juros
+                  ou {pricingConfig ? getBestHighlight(total, pricingConfig) : `${storeConfig.installmentsWithoutInterest}x de ${formatPrice(total / storeConfig.installmentsWithoutInterest)} sem juros`}
                 </p>
               </div>
 
