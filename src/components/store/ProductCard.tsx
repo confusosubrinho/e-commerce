@@ -6,7 +6,8 @@ import { ShoppingBag, Heart, Star } from 'lucide-react';
 import { VariantSelectorModal } from './VariantSelectorModal';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useToast } from '@/hooks/use-toast';
-import { useStoreSettings } from '@/hooks/useProducts';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getPixPrice, getBestHighlight, formatCurrency } from '@/lib/pricingEngine';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -20,8 +21,8 @@ export function ProductCard({ product }: ProductCardProps) {
   const { isFavorite, toggleFavorite, isAuthenticated } = useFavorites();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { data: storeSettings } = useStoreSettings();
-  const pixDiscountPercent = storeSettings?.pix_discount ?? 5;
+  const { data: pricingConfig } = usePricingConfig();
+  const pixDiscountPercent = pricingConfig?.pix_discount ?? 5;
 
   // Fetch average rating for this product
   const { data: reviewStats } = useQuery({
@@ -48,7 +49,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
   const currentPrice = Number(product.sale_price || product.base_price);
-  const pixPrice = currentPrice * (1 - pixDiscountPercent / 100);
+  const pixPrice = pricingConfig ? getPixPrice(currentPrice, pricingConfig) : currentPrice * (1 - pixDiscountPercent / 100);
   const hasVariants = (product.variants?.filter(v => v.is_active)?.length || 0) > 0;
   const sizes = product.variants
     ?.filter(v => v.is_active)

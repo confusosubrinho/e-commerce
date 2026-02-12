@@ -959,6 +959,95 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_pricing_audit_log: {
+        Row: {
+          after_data: Json | null
+          before_data: Json | null
+          changed_at: string
+          changed_by: string | null
+          config_id: string | null
+          id: string
+        }
+        Insert: {
+          after_data?: Json | null
+          before_data?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          config_id?: string | null
+          id?: string
+        }
+        Update: {
+          after_data?: Json | null
+          before_data?: Json | null
+          changed_at?: string
+          changed_by?: string | null
+          config_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_pricing_audit_log_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "payment_pricing_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_pricing_config: {
+        Row: {
+          card_cash_rate: number
+          cash_discount: number
+          created_at: string
+          id: string
+          interest_free_installments: number
+          interest_mode: string
+          is_active: boolean
+          max_installments: number
+          min_installment_value: number
+          monthly_rate_by_installment: Json | null
+          monthly_rate_fixed: number | null
+          pix_discount: number
+          rounding_mode: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          card_cash_rate?: number
+          cash_discount?: number
+          created_at?: string
+          id?: string
+          interest_free_installments?: number
+          interest_mode?: string
+          is_active?: boolean
+          max_installments?: number
+          min_installment_value?: number
+          monthly_rate_by_installment?: Json | null
+          monthly_rate_fixed?: number | null
+          pix_discount?: number
+          rounding_mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          card_cash_rate?: number
+          cash_discount?: number
+          created_at?: string
+          id?: string
+          interest_free_installments?: number
+          interest_mode?: string
+          is_active?: boolean
+          max_installments?: number
+          min_installment_value?: number
+          monthly_rate_by_installment?: Json | null
+          monthly_rate_fixed?: number | null
+          pix_discount?: number
+          rounding_mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       product_characteristics: {
         Row: {
           created_at: string
