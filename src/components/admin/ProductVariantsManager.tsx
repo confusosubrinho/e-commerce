@@ -167,13 +167,36 @@ export function ProductVariantsManager({
   const handleBulkAdd = () => {
     if (!bulkSizes.trim()) return;
     const sizes = bulkSizes.split(',').map(s => s.trim()).filter(Boolean);
+
+    // Validate duplicate variants by size+color BEFORE creating
+    const duplicateSizes: string[] = [];
+    for (const size of sizes) {
+      if (variants.some(v => v.size === size && (v.color || '') === (bulkColor || ''))) {
+        duplicateSizes.push(size);
+      }
+    }
+    if (duplicateSizes.length > 0) {
+      toast({
+        title: 'Variantes duplicadas',
+        description: `Já existem variantes para: ${duplicateSizes.join(', ')}${bulkColor ? ' na cor ' + bulkColor : ''}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const stockValue = parseInt(bulkStock) || 0;
+    if (stockValue < 0) {
+      toast({ title: 'Estoque inválido', description: 'Estoque não pode ser negativo', variant: 'destructive' });
+      return;
+    }
+
     const newVariants: VariantItem[] = sizes.map(size => {
       const sku = generateSku(parentSku, size, bulkColor);
       return {
         size,
         color: bulkColor,
         color_hex: bulkColorHex,
-        stock_quantity: parseInt(bulkStock) || 0,
+        stock_quantity: stockValue,
         price_modifier: 0,
         sku,
         is_active: true,
@@ -186,7 +209,7 @@ export function ProductVariantsManager({
       };
     });
 
-    // Check for duplicates
+    // Check for SKU duplicates
     const allSkus = [...variants.map(v => v.sku), ...newVariants.map(v => v.sku)];
     const duplicates = allSkus.filter((s, i) => s && allSkus.indexOf(s) !== i);
     if (duplicates.length > 0) {
@@ -196,6 +219,7 @@ export function ProductVariantsManager({
 
     onChange([...variants, ...newVariants]);
     setBulkSizes('');
+    toast({ title: `${newVariants.length} variante(s) adicionada(s)` });
   };
 
   const editingVariant = editIndex !== null ? variants[editIndex] : null;
@@ -371,8 +395,18 @@ export function ProductVariantsManager({
                   <Input
                     type="number"
                     className="h-9 text-sm"
+                    min={0}
+                    max={9999}
                     value={editingVariant.stock_quantity}
-                    onChange={(e) => updateVariant(editIndex, 'stock_quantity', parseInt(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (isNaN(val)) return;
+                      if (val > 9999) {
+                        toast({ title: 'Estoque máximo: 9999', variant: 'destructive' });
+                        return;
+                      }
+                      updateVariant(editIndex, 'stock_quantity', val);
+                    }}
                   />
                 </div>
               </div>
