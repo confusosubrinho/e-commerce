@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ProductChangeLog } from './ProductChangeLog';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -106,7 +107,7 @@ const initialFormData: ProductFormData = {
   seo_keywords: '',
 };
 
-const STEPS = [
+const STEPS_BASE = [
   { key: 'basic', label: 'Básico' },
   { key: 'media', label: 'Mídia' },
   { key: 'variants', label: 'Variantes' },
@@ -114,6 +115,7 @@ const STEPS = [
   { key: 'buy-together', label: 'Compre Junto' },
   { key: 'shipping', label: 'Frete & GMC' },
   { key: 'seo', label: 'SEO' },
+  { key: 'history', label: 'Histórico' },
 ];
 
 export function ProductFormDialog({ open, onOpenChange, editingProduct }: ProductFormDialogProps) {
@@ -871,6 +873,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
     </div>
   );
 
+  // Only show history tab when editing
+  const STEPS = editingProduct ? STEPS_BASE : STEPS_BASE.filter(s => s.key !== 'history');
+
   const renderStepContent = (stepKey: string) => {
     switch (stepKey) {
       case 'basic': return renderBasicContent();
@@ -880,6 +885,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       case 'buy-together': return renderBuyTogetherContent();
       case 'shipping': return renderShippingContent();
       case 'seo': return renderSEOContent();
+      case 'history': return editingProduct ? <ProductChangeLog productId={editingProduct.id} /> : null;
       default: return null;
     }
   };
@@ -1002,9 +1008,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             <>
               <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setCurrentStep(STEPS.findIndex(s => s.key === v)); }} className="w-full">
                 <div className="px-6">
-                  <TabsList className="grid w-full grid-cols-7">
+                  <TabsList className={`grid w-full ${STEPS.length === 8 ? 'grid-cols-8' : 'grid-cols-7'}`}>
                     {STEPS.map(s => (
-                      <TabsTrigger key={s.key} value={s.key}>{s.label}</TabsTrigger>
+                      <TabsTrigger key={s.key} value={s.key} className="text-xs">{s.label}</TabsTrigger>
                     ))}
                   </TabsList>
                 </div>
