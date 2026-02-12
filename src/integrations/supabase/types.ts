@@ -1054,6 +1054,53 @@ export type Database = {
         }
         Relationships: []
       }
+      product_change_log: {
+        Row: {
+          after_data: Json | null
+          before_data: Json | null
+          bulk_edit_id: string | null
+          change_type: string
+          changed_at: string
+          changed_by: string | null
+          fields_changed: string[]
+          id: string
+          notes: string | null
+          product_id: string
+        }
+        Insert: {
+          after_data?: Json | null
+          before_data?: Json | null
+          bulk_edit_id?: string | null
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          fields_changed?: string[]
+          id?: string
+          notes?: string | null
+          product_id: string
+        }
+        Update: {
+          after_data?: Json | null
+          before_data?: Json | null
+          bulk_edit_id?: string | null
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          fields_changed?: string[]
+          id?: string
+          notes?: string | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_change_log_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_characteristics: {
         Row: {
           created_at: string
@@ -1240,7 +1287,10 @@ export type Database = {
         Row: {
           age_group: string | null
           base_price: number
+          bling_last_error: string | null
+          bling_last_synced_at: string | null
           bling_product_id: number | null
+          bling_sync_status: string | null
           brand: string | null
           category_id: string | null
           condition: string | null
@@ -1274,7 +1324,10 @@ export type Database = {
         Insert: {
           age_group?: string | null
           base_price: number
+          bling_last_error?: string | null
+          bling_last_synced_at?: string | null
           bling_product_id?: number | null
+          bling_sync_status?: string | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
@@ -1308,7 +1361,10 @@ export type Database = {
         Update: {
           age_group?: string | null
           base_price?: number
+          bling_last_error?: string | null
+          bling_last_synced_at?: string | null
           bling_product_id?: number | null
+          bling_sync_status?: string | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
