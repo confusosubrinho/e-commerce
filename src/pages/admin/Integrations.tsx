@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { ExternalLink, Check, AlertCircle, Settings2, Plug, CreditCard, Package, Truck, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Store, Link2, Loader2, ArrowUpDown, Filter } from 'lucide-react';
+import { ExternalLink, Check, AlertCircle, Settings2, Plug, CreditCard, Package, Truck, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Store, Link2, Loader2, ArrowUpDown, Filter, Activity, Clock, RefreshCw, Wifi } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -555,6 +559,194 @@ function BlingSyncConfigPanel() {
   );
 }
 
+// ─── Bling Monitoring Panel (Webhook Logs + Sync Runs + Health) ───
+
+function BlingMonitoringPanel() {
+  const { toast } = useToast();
+  const [testingWebhook, setTestingWebhook] = useState(false);
+
+  const { data: webhookLogs, isLoading: logsLoading } = useQuery({
+    queryKey: ['bling-webhook-logs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bling_webhook_logs' as any)
+        .select('*')
+        .order('received_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as any[];
+    },
+    refetchInterval: 30000,
+  });
+
+  const { data: syncRuns } = useQuery({
+    queryKey: ['bling-sync-runs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bling_sync_runs' as any)
+        .select('*')
+        .order('started_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data as any[];
+    },
+    refetchInterval: 30000,
+  });
+
+  const lastWebhook = webhookLogs?.[0];
+  const lastRun = syncRuns?.[0];
+  const errors24h = webhookLogs?.filter((l: any) => {
+    const t = new Date(l.received_at).getTime();
+    return l.result === 'error' && (Date.now() - t) < 86400000;
+  }) || [];
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    try {
+      const res = await supabase.functions.invoke('bling-webhook', {
+        body: { action: 'test', event: 'test_ping', eventId: `test_${Date.now()}` },
+      });
+      toast({ title: 'Teste enviado!', description: 'Webhook processou com sucesso.' });
+    } catch (err: any) {
+      toast({ title: 'Erro no teste', description: err.message, variant: 'destructive' });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
+  const resultBadge = (result: string) => {
+    const map: Record<string, string> = {
+      updated: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+      skipped: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+      not_found: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+      error: 'bg-destructive/10 text-destructive',
+      duplicate: 'bg-muted text-muted-foreground',
+      processed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      skipped_inactive: 'bg-muted text-muted-foreground',
+    };
+    return <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${map[result] || 'bg-muted text-muted-foreground'}`}>{result}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium text-sm flex items-center gap-2">
+          <Activity className="h-4 w-4" />
+          Monitoramento Bling
+        </h4>
+        <Button size="sm" variant="outline" onClick={handleTestWebhook} disabled={testingWebhook}>
+          {testingWebhook ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Wifi className="h-3 w-3 mr-1" />}
+          Testar Webhook
+        </Button>
+      </div>
+
+      {/* Health Summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
+          <p className="text-[10px] text-muted-foreground uppercase">Último Webhook</p>
+          <p className="text-xs font-medium mt-1">
+            {lastWebhook ? formatDistanceToNow(new Date(lastWebhook.received_at), { addSuffix: true, locale: ptBR }) : '—'}
+          </p>
+        </div>
+        <div className="bg-muted/50 rounded-lg p-3 text-center">
+          <p className="text-[10px] text-muted-foreground uppercase">Último Cron</p>
+          <p className="text-xs font-medium mt-1">
+            {lastRun ? formatDistanceToNow(new Date(lastRun.started_at), { addSuffix: true, locale: ptBR }) : '—'}
+          </p>
+        </div>
+        <div className={`rounded-lg p-3 text-center ${errors24h.length > 0 ? 'bg-destructive/10' : 'bg-green-50 dark:bg-green-950/30'}`}>
+          <p className="text-[10px] text-muted-foreground uppercase">Erros (24h)</p>
+          <p className={`text-xs font-bold mt-1 ${errors24h.length > 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+            {errors24h.length}
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="webhooks" className="space-y-3">
+        <TabsList className="h-8">
+          <TabsTrigger value="webhooks" className="text-xs">Webhooks</TabsTrigger>
+          <TabsTrigger value="cron" className="text-xs">Sync Runs</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="webhooks">
+          {logsLoading ? (
+            <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+          ) : (
+            <div className="max-h-60 overflow-y-auto border rounded">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[10px] w-[120px]">Quando</TableHead>
+                    <TableHead className="text-[10px]">Evento</TableHead>
+                    <TableHead className="text-[10px]">Bling ID</TableHead>
+                    <TableHead className="text-[10px]">Resultado</TableHead>
+                    <TableHead className="text-[10px]">Motivo</TableHead>
+                    <TableHead className="text-[10px] w-[50px]">ms</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(webhookLogs || []).map((log: any) => (
+                    <TableRow key={log.id} className="text-[11px]">
+                      <TableCell className="py-1">{format(new Date(log.received_at), "dd/MM HH:mm:ss", { locale: ptBR })}</TableCell>
+                      <TableCell className="py-1 font-mono">{log.event_type}</TableCell>
+                      <TableCell className="py-1">{log.bling_product_id || '—'}</TableCell>
+                      <TableCell className="py-1">{resultBadge(log.result)}</TableCell>
+                      <TableCell className="py-1 max-w-[200px] truncate text-muted-foreground">{log.reason || '—'}</TableCell>
+                      <TableCell className="py-1 text-muted-foreground">{log.processing_time_ms || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                  {(!webhookLogs || webhookLogs.length === 0) && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-4 text-muted-foreground text-xs">Nenhum webhook registrado</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="cron">
+          <div className="max-h-60 overflow-y-auto border rounded">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-[10px]">Início</TableHead>
+                  <TableHead className="text-[10px]">Tipo</TableHead>
+                  <TableHead className="text-[10px]">Processados</TableHead>
+                  <TableHead className="text-[10px]">Atualizados</TableHead>
+                  <TableHead className="text-[10px]">Erros</TableHead>
+                  <TableHead className="text-[10px]">Duração</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(syncRuns || []).map((run: any) => {
+                  const duration = run.finished_at && run.started_at
+                    ? Math.round((new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000)
+                    : null;
+                  return (
+                    <TableRow key={run.id} className="text-[11px]">
+                      <TableCell className="py-1">{format(new Date(run.started_at), "dd/MM HH:mm", { locale: ptBR })}</TableCell>
+                      <TableCell className="py-1">{run.trigger_type}</TableCell>
+                      <TableCell className="py-1 text-center">{run.processed_count}</TableCell>
+                      <TableCell className="py-1 text-center">{run.updated_count}</TableCell>
+                      <TableCell className="py-1 text-center">
+                        {run.errors_count > 0 ? <span className="text-destructive font-medium">{run.errors_count}</span> : '0'}
+                      </TableCell>
+                      <TableCell className="py-1 text-muted-foreground">{duration != null ? `${duration}s` : '—'}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                {(!syncRuns || syncRuns.length === 0) && (
+                  <TableRow><TableCell colSpan={6} className="text-center py-4 text-muted-foreground text-xs">Nenhuma execução registrada</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
 // ─── Bling ERP Panel (OAuth2) ───
 
 function BlingPanel() {
@@ -1076,6 +1268,11 @@ function BlingPanel() {
               </div>
             </div>
           </div>
+
+          <Separator />
+
+          {/* Monitoring Panel */}
+          <BlingMonitoringPanel />
 
           <Separator />
 

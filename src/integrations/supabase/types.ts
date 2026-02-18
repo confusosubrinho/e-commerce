@@ -176,6 +176,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bling_sync_runs: {
+        Row: {
+          created_at: string
+          error_details: Json | null
+          errors_count: number | null
+          finished_at: string | null
+          id: string
+          processed_count: number | null
+          started_at: string
+          trigger_type: string
+          updated_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          error_details?: Json | null
+          errors_count?: number | null
+          finished_at?: string | null
+          id?: string
+          processed_count?: number | null
+          started_at?: string
+          trigger_type?: string
+          updated_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          error_details?: Json | null
+          errors_count?: number | null
+          finished_at?: string | null
+          id?: string
+          processed_count?: number | null
+          started_at?: string
+          trigger_type?: string
+          updated_count?: number | null
+        }
+        Relationships: []
+      }
       bling_webhook_events: {
         Row: {
           bling_product_id: number | null
@@ -215,6 +251,48 @@ export type Database = {
           received_at?: string
           retries?: number
           status?: string
+        }
+        Relationships: []
+      }
+      bling_webhook_logs: {
+        Row: {
+          bling_product_id: number | null
+          created_at: string
+          event_id: string | null
+          event_type: string
+          id: string
+          payload_meta: Json | null
+          processing_time_ms: number | null
+          reason: string | null
+          received_at: string
+          result: string
+          status_code: number | null
+        }
+        Insert: {
+          bling_product_id?: number | null
+          created_at?: string
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          payload_meta?: Json | null
+          processing_time_ms?: number | null
+          reason?: string | null
+          received_at?: string
+          result?: string
+          status_code?: number | null
+        }
+        Update: {
+          bling_product_id?: number | null
+          created_at?: string
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          payload_meta?: Json | null
+          processing_time_ms?: number | null
+          reason?: string | null
+          received_at?: string
+          result?: string
+          status_code?: number | null
         }
         Relationships: []
       }

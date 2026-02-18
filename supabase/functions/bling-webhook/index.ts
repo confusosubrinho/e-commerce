@@ -17,6 +17,33 @@ function createSupabase() {
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
+// ─── Webhook logging ───
+async function logWebhook(supabase: any, params: {
+  event_type: string;
+  event_id?: string;
+  bling_product_id?: number | null;
+  payload_meta?: any;
+  result: string;
+  reason?: string;
+  status_code?: number;
+  processing_time_ms?: number;
+}) {
+  try {
+    await supabase.from("bling_webhook_logs").insert({
+      event_type: params.event_type,
+      event_id: params.event_id || null,
+      bling_product_id: params.bling_product_id || null,
+      payload_meta: params.payload_meta || {},
+      result: params.result,
+      reason: params.reason || null,
+      status_code: params.status_code || 200,
+      processing_time_ms: params.processing_time_ms || null,
+    });
+  } catch (e) {
+    console.error("[webhook] Failed to log webhook:", e);
+  }
+}
+
 // ─── Load sync config ───
 async function getSyncConfig(supabase: any): Promise<BlingSyncConfig> {
   const { data } = await supabase.from("bling_sync_config").select("*").limit(1).maybeSingle();
@@ -104,13 +131,6 @@ function classifyEvent(event: string): "stock" | "product" | "order" | "invoice"
   return "unknown";
 }
 
-// ─── Check if product is inactive in our DB ───
-async function isProductInactiveByBlingId(supabase: any, blingProductId: number): Promise<boolean> {
-  const { data } = await supabase.from("products").select("is_active").eq("bling_product_id", blingProductId).maybeSingle();
-  if (data && data.is_active === false) return true;
-  return false;
-}
-
 // ─── Find variant by bling_variant_id OR by SKU fallback ───
 async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?: string): Promise<{ variantId: string; productId: string } | null> {
   const { data: variant } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingId).maybeSingle();
@@ -145,9 +165,9 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
   return null;
 }
 
-// ─── Update stock for a single Bling product ID (respects inactive check) ───
-async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string) {
-  if (newStock === undefined && !token) return;
+// ─── Update stock for a single Bling product ID + update sync status ───
+async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string): Promise<string> {
+  if (newStock === undefined && !token) return "no_data";
 
   if (newStock !== undefined) {
     const match = await findVariantByBlingIdOrSku(supabase, blingProductId, token);
@@ -156,27 +176,35 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
       const { data: parentProduct } = await supabase.from("products").select("is_active").eq("id", match.productId).maybeSingle();
       if (parentProduct && parentProduct.is_active === false) {
         console.log(`[webhook] Skipping stock update for inactive product (bling_id=${blingProductId})`);
-        return;
+        return "skipped_inactive";
       }
       await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", match.variantId);
+      // P0.1 FIX: Always update sync status when stock is updated
+      await supabase.from("products").update({
+        bling_sync_status: "synced",
+        bling_last_synced_at: new Date().toISOString(),
+        bling_last_error: null,
+      }).eq("id", match.productId);
       console.log(`[webhook] Stock updated: bling_id=${blingProductId} → ${newStock}`);
-      return;
+      return "updated";
     }
     console.log(`[webhook] No match found for bling_id=${blingProductId}`);
-    return;
+    return "not_found";
   }
 
   // Fetch stock from Bling API
-  if (!token) return;
+  if (!token) return "no_token";
   try {
     const res = await fetch(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers: blingHeaders(token) });
     const json = await res.json();
     const stock = json?.data?.[0]?.saldoVirtualTotal ?? null;
     if (stock !== null) {
-      await updateStockForBlingId(supabase, blingProductId, stock, token);
+      return await updateStockForBlingId(supabase, blingProductId, stock, token);
     }
+    return "no_stock_data";
   } catch (err) {
     console.error(`[webhook] Error fetching stock for ${blingProductId}:`, err);
+    return "error";
   }
 }
 
@@ -234,18 +262,12 @@ async function syncSingleProduct(supabase: any, blingProductId: number, token: s
 async function syncProductFields(supabase: any, headers: any, productId: string, blingProductId: number, detail: any, config: BlingSyncConfig) {
   // Update config-enabled fields (NEVER touch is_active)
   const updateData = getConfigAwareUpdateFields(detail, config);
-  if (Object.keys(updateData).length > 0) {
-    await supabase.from("products").update({
-      ...updateData,
-      bling_last_synced_at: new Date().toISOString(),
-      bling_sync_status: "synced",
-    }).eq("id", productId);
-  } else {
-    await supabase.from("products").update({
-      bling_last_synced_at: new Date().toISOString(),
-      bling_sync_status: "synced",
-    }).eq("id", productId);
-  }
+  await supabase.from("products").update({
+    ...updateData,
+    bling_last_synced_at: new Date().toISOString(),
+    bling_sync_status: "synced",
+    bling_last_error: null,
+  }).eq("id", productId);
 
   // Sync images only if toggle is on
   if (config.sync_images && detail.midia?.imagens?.internas?.length) {
@@ -274,7 +296,11 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
       const varBlingId = s.produto?.id;
       const qty = s.saldoVirtualTotal ?? 0;
       if (varBlingId) {
-        await updateStockForBlingId(supabase, varBlingId, qty);
+        // Direct variant update (skip full updateStockForBlingId to avoid redundant product status update)
+        const match = await findVariantByBlingIdOrSku(supabase, varBlingId);
+        if (match) {
+          await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
+        }
       }
     }
   } else {
@@ -286,18 +312,30 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
   }
 }
 
-// ─── Batch stock sync (cron) — only active products ───
+// ─── Batch stock sync (cron) — only active products, updates sync status ───
 async function batchStockSync(supabase: any) {
+  const runStarted = new Date().toISOString();
+  
   // Check if sync_stock is enabled
   const config = await getSyncConfig(supabase);
   if (!config.sync_stock) {
     console.log("[cron] sync_stock is disabled, skipping batch sync");
+    await supabase.from("bling_sync_runs").insert({
+      started_at: runStarted, finished_at: new Date().toISOString(),
+      trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 0,
+      error_details: [{ reason: "sync_stock disabled" }],
+    });
     return { updated: 0, message: "sync_stock disabled" };
   }
 
   let token: string;
   try { token = await getValidToken(supabase); } catch (err: any) {
     console.error("[cron] Cannot get valid token:", err.message);
+    await supabase.from("bling_sync_runs").insert({
+      started_at: runStarted, finished_at: new Date().toISOString(),
+      trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 1,
+      error_details: [{ reason: `Token error: ${err.message}` }],
+    });
     return { error: err.message, updated: 0 };
   }
   const headers = blingHeaders(token);
@@ -314,24 +352,39 @@ async function batchStockSync(supabase: any) {
   }
 
   const blingIdToVariants = new Map<number, string[]>();
+  // Track which product_id each bling_id belongs to for sync status update
+  const blingIdToProductId = new Map<number, string>();
+  
   for (const v of (allVariants || [])) {
     if (!activeProductIds.has(v.product_id)) continue;
     if (v.bling_variant_id) {
       if (!blingIdToVariants.has(v.bling_variant_id)) blingIdToVariants.set(v.bling_variant_id, []);
       blingIdToVariants.get(v.bling_variant_id)!.push(v.id);
+      blingIdToProductId.set(v.bling_variant_id, v.product_id);
     } else {
       const parentBlingId = productBlingMap.get(v.product_id);
       if (parentBlingId) {
         if (!blingIdToVariants.has(parentBlingId)) blingIdToVariants.set(parentBlingId, []);
         blingIdToVariants.get(parentBlingId)!.push(v.id);
+        blingIdToProductId.set(parentBlingId, v.product_id);
       }
     }
   }
 
   const allBlingIds = [...blingIdToVariants.keys()];
-  if (allBlingIds.length === 0) return { updated: 0 };
+  if (allBlingIds.length === 0) {
+    await supabase.from("bling_sync_runs").insert({
+      started_at: runStarted, finished_at: new Date().toISOString(),
+      trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 0,
+    });
+    return { updated: 0 };
+  }
 
   let updated = 0;
+  let errorsCount = 0;
+  const errorDetails: any[] = [];
+  const updatedProductIds = new Set<string>();
+  
   for (let i = 0; i < allBlingIds.length; i += 50) {
     const batch = allBlingIds.slice(i, i + 50);
     const idsParam = batch.map(id => `idsProdutos[]=${id}`).join("&");
@@ -339,7 +392,12 @@ async function batchStockSync(supabase: any) {
       if (i > 0) await sleep(350);
       const res = await fetch(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
       const json = await res.json();
-      if (!res.ok) { console.error(`[cron] Stock batch error:`, JSON.stringify(json)); continue; }
+      if (!res.ok) {
+        console.error(`[cron] Stock batch error:`, JSON.stringify(json));
+        errorsCount++;
+        errorDetails.push({ batch_start: i, error: JSON.stringify(json).substring(0, 200) });
+        continue;
+      }
       for (const stock of (json?.data || [])) {
         const blingId = stock.produto?.id;
         const qty = stock.saldoVirtualTotal ?? 0;
@@ -350,15 +408,43 @@ async function batchStockSync(supabase: any) {
             await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid);
           }
           updated += variantIds.length;
+          // Track product for sync status update
+          const pid = blingIdToProductId.get(blingId);
+          if (pid) updatedProductIds.add(pid);
         }
       }
     } catch (err: any) {
       console.error(`[cron] Stock batch fetch error:`, err.message);
+      errorsCount++;
+      errorDetails.push({ batch_start: i, error: err.message });
     }
   }
 
-  console.log(`[cron] Stock sync complete: ${updated} updates, ${allBlingIds.length} Bling IDs checked (inactive skipped)`);
-  return { updated, totalChecked: allBlingIds.length };
+  // P0.1/P0.2 FIX: Update sync status for ALL products that had stock updated
+  const now = new Date().toISOString();
+  const productIdsArr = [...updatedProductIds];
+  for (let i = 0; i < productIdsArr.length; i += 100) {
+    const batch = productIdsArr.slice(i, i + 100);
+    await supabase.from("products").update({
+      bling_sync_status: "synced",
+      bling_last_synced_at: now,
+      bling_last_error: null,
+    }).in("id", batch);
+  }
+
+  // Log the run
+  await supabase.from("bling_sync_runs").insert({
+    started_at: runStarted,
+    finished_at: now,
+    trigger_type: "cron",
+    processed_count: allBlingIds.length,
+    updated_count: updated,
+    errors_count: errorsCount,
+    error_details: errorDetails,
+  });
+
+  console.log(`[cron] Stock sync complete: ${updated} updates, ${allBlingIds.length} Bling IDs checked, ${updatedProductIds.size} products marked synced (inactive skipped)`);
+  return { updated, totalChecked: allBlingIds.length, productsSynced: updatedProductIds.size };
 }
 
 // ─── Idempotency ───
@@ -388,6 +474,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+
   try {
     const supabase = createSupabase();
     const url = new URL(req.url);
@@ -414,6 +502,13 @@ serve(async (req) => {
         const isValid = await validateHmacSignature(bodyText, signatureHeader, settings.bling_client_secret);
         if (!isValid) {
           console.error("[webhook] Invalid HMAC signature - rejecting");
+          await logWebhook(supabase, {
+            event_type: "signature_invalid",
+            result: "error",
+            reason: "Invalid HMAC signature",
+            status_code: 401,
+            processing_time_ms: Date.now() - startTime,
+          });
           return new Response(JSON.stringify({ error: "Invalid signature" }), {
             status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -439,18 +534,34 @@ serve(async (req) => {
 
       if (retorno.estoques && config.sync_stock) {
         const estoques = Array.isArray(retorno.estoques) ? retorno.estoques : [retorno.estoques];
+        let updatedCount = 0;
+        let skippedCount = 0;
         for (const estoque of estoques) {
           const est = estoque.estoque || estoque;
           const blingId = est.idProduto || est.produto?.id;
           const saldo = est.saldoVirtualTotal ?? est.quantidade ?? est.saldo;
           if (blingId) {
-            // isProductInactive check is inside updateStockForBlingId
-            await updateStockForBlingId(supabase, blingId, saldo !== undefined ? saldo : undefined, token || undefined);
+            const result = await updateStockForBlingId(supabase, blingId, saldo !== undefined ? saldo : undefined, token || undefined);
+            if (result === "updated") updatedCount++;
+            else skippedCount++;
           }
         }
-        console.log(`[webhook] Processed ${estoques.length} stock callback(s)`);
+        console.log(`[webhook] Processed ${estoques.length} stock callback(s): ${updatedCount} updated, ${skippedCount} skipped`);
+        await logWebhook(supabase, {
+          event_type: "legacy_stock",
+          payload_meta: { count: estoques.length, updated: updatedCount, skipped: skippedCount },
+          result: updatedCount > 0 ? "updated" : "skipped",
+          reason: `${updatedCount} updated, ${skippedCount} skipped`,
+          processing_time_ms: Date.now() - startTime,
+        });
       } else if (retorno.estoques && !config.sync_stock) {
         console.log("[webhook] sync_stock disabled, ignoring stock callback");
+        await logWebhook(supabase, {
+          event_type: "legacy_stock",
+          result: "skipped",
+          reason: "sync_stock disabled",
+          processing_time_ms: Date.now() - startTime,
+        });
       }
 
       if (retorno.produtos && token) {
@@ -461,6 +572,12 @@ serve(async (req) => {
           if (blingId) await syncSingleProduct(supabase, blingId, token, config);
         }
         console.log(`[webhook] Processed ${produtos.length} product callback(s)`);
+        await logWebhook(supabase, {
+          event_type: "legacy_product",
+          payload_meta: { count: produtos.length },
+          result: "updated",
+          processing_time_ms: Date.now() - startTime,
+        });
       }
 
       return new Response(JSON.stringify({ ok: true }), {
@@ -470,6 +587,12 @@ serve(async (req) => {
 
     // ─── Handle V3 event format ───
     if (!evento) {
+      await logWebhook(supabase, {
+        event_type: "no_event",
+        result: "skipped",
+        reason: "No event in payload",
+        processing_time_ms: Date.now() - startTime,
+      });
       return new Response(JSON.stringify({ ok: true, message: "No event" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -481,6 +604,14 @@ serve(async (req) => {
     const blingProductId = dados?.produto?.id || dados?.id || dados?.idProduto || null;
     const shouldProcess = await checkAndStoreEvent(supabase, eventId, evento, blingProductId, payload);
     if (!shouldProcess) {
+      await logWebhook(supabase, {
+        event_type: evento,
+        event_id: eventId,
+        bling_product_id: blingProductId,
+        result: "duplicate",
+        reason: "Duplicate event ID",
+        processing_time_ms: Date.now() - startTime,
+      });
       return new Response(JSON.stringify({ ok: true, message: "Duplicate event" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -489,20 +620,28 @@ serve(async (req) => {
     let token: string | null = null;
     try { token = await getValidToken(supabase); } catch (_) {}
     let processingError: string | undefined;
+    let webhookResult = "processed";
+    let webhookReason = "";
 
     try {
       switch (eventType) {
         case "stock": {
           if (!config.sync_stock) {
             console.log("[webhook] sync_stock disabled, ignoring stock event");
+            webhookResult = "skipped";
+            webhookReason = "sync_stock disabled";
             break;
           }
           const stockBlingId = dados?.produto?.id || dados?.idProduto;
           const saldoVirtual = dados?.saldoVirtualTotal;
           if (stockBlingId) {
-            // Inactive check is inside updateStockForBlingId
             console.log(`[webhook] Stock event for bling_id=${stockBlingId}, saldoVirtual=${saldoVirtual}`);
-            await updateStockForBlingId(supabase, stockBlingId, saldoVirtual !== undefined ? saldoVirtual : undefined, token || undefined);
+            const result = await updateStockForBlingId(supabase, stockBlingId, saldoVirtual !== undefined ? saldoVirtual : undefined, token || undefined);
+            webhookResult = result;
+            webhookReason = `Stock ${result} for bling_id=${stockBlingId}`;
+          } else {
+            webhookResult = "skipped";
+            webhookReason = "No bling product ID in stock event";
           }
           break;
         }
@@ -520,12 +659,22 @@ serve(async (req) => {
                 await supabase.from("products").update({ is_active: false }).eq("id", delProduct.id);
                 await supabase.from("product_variants").update({ is_active: false }).eq("product_id", delProduct.id);
                 console.log(`[webhook] Product ${prodBlingId} deactivated (deleted in Bling)`);
+                webhookResult = "updated";
+                webhookReason = `Product deactivated (deleted in Bling)`;
+              } else {
+                webhookResult = "not_found";
+                webhookReason = `Product bling_id=${prodBlingId} not in DB`;
               }
             } else if (token) {
               // Creation/update — config-aware, never changes is_active
               console.log(`[webhook] Product event for bling_id=${prodBlingId}`);
               await syncSingleProduct(supabase, prodBlingId, token, config);
+              webhookResult = "updated";
+              webhookReason = `Product synced`;
             }
+          } else {
+            webhookResult = "skipped";
+            webhookReason = "No product ID in payload";
           }
           break;
         }
@@ -533,24 +682,54 @@ serve(async (req) => {
         case "order":
         case "invoice":
           console.log(`[webhook] ${eventType} event acknowledged: ${evento}`);
+          webhookResult = "skipped";
+          webhookReason = `${eventType} event acknowledged (not processed)`;
           break;
 
         default:
           console.log(`[webhook] Unknown event type: ${evento}`);
+          webhookResult = "skipped";
+          webhookReason = `Unknown event type: ${evento}`;
       }
     } catch (err: any) {
       processingError = err.message;
+      webhookResult = "error";
+      webhookReason = err.message;
       console.error(`[webhook] Processing error for ${eventId}:`, err.message);
     }
 
     await markEventProcessed(supabase, eventId, processingError);
+    
+    // Log to bling_webhook_logs
+    await logWebhook(supabase, {
+      event_type: evento,
+      event_id: eventId,
+      bling_product_id: blingProductId,
+      payload_meta: { event: evento, type: eventType, product_id: blingProductId },
+      result: webhookResult,
+      reason: webhookReason,
+      status_code: processingError ? 500 : 200,
+      processing_time_ms: Date.now() - startTime,
+    });
 
     return new Response(
-      JSON.stringify({ ok: true, evento, eventType }),
+      JSON.stringify({ ok: true, evento, eventType, result: webhookResult }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("[webhook] Error:", error);
+    // Try to log the fatal error
+    try {
+      const supabase = createSupabase();
+      await logWebhook(supabase, {
+        event_type: "fatal_error",
+        result: "error",
+        reason: error.message,
+        status_code: 500,
+        processing_time_ms: Date.now() - startTime,
+      });
+    } catch (_) {}
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
