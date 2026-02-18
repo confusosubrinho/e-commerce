@@ -317,22 +317,49 @@ export default function Products() {
     setIsBulkEditOpen(false);
   };
 
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [bulkSyncProgress, setBulkSyncProgress] = useState({ done: 0, total: 0 });
+
   const handleBulkSyncBling = async () => {
-    const ids = getEffectiveIds().filter(id => {
-      const p = products?.find(pr => pr.id === id);
-      return p?.bling_product_id != null;
-    });
-    if (ids.length === 0) {
-      toast({ title: 'Nenhum produto Bling selecionado', variant: 'destructive' });
+    const allIds = getEffectiveIds();
+    const eligibleProducts = allIds
+      .map(id => products?.find(pr => pr.id === id))
+      .filter((p): p is Product => !!p && p.is_active && p.bling_product_id != null);
+
+    if (eligibleProducts.length === 0) {
+      toast({ title: 'Nenhum produto ativo com vínculo Bling selecionado', variant: 'destructive' });
       return;
     }
-    bulkUpdateMutation.mutate({
-      ids,
-      updates: { bling_sync_status: 'pending', bling_last_error: null },
-      changeType: 'update',
-      fields: ['bling_sync_status'],
+
+    setBulkSyncing(true);
+    setBulkSyncProgress({ done: 0, total: eligibleProducts.length });
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const product of eligibleProducts) {
+      try {
+        const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
+          body: { product_id: product.id },
+        });
+        if (error || (data && !data.success)) {
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      } catch {
+        errorCount++;
+      }
+      setBulkSyncProgress(prev => ({ ...prev, done: prev.done + 1 }));
+    }
+
+    setBulkSyncing(false);
+    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    clearSelection();
+    toast({
+      title: 'Sincronização em massa concluída',
+      description: `${successCount} sincronizado(s), ${errorCount} erro(s)`,
+      variant: errorCount > 0 ? 'destructive' : 'default',
     });
-    toast({ title: `${ids.length} produtos marcados para sincronização` });
   };
 
   // Single product stock sync
@@ -554,8 +581,9 @@ export default function Products() {
           <Button variant="outline" size="sm" onClick={() => setIsBulkEditOpen(true)} disabled={bulkUpdateMutation.isPending}>
             <Edit3 className="h-3.5 w-3.5 mr-1" /> Editar em Massa
           </Button>
-          <Button variant="outline" size="sm" onClick={handleBulkSyncBling} disabled={bulkUpdateMutation.isPending}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync Bling
+          <Button variant="outline" size="sm" onClick={handleBulkSyncBling} disabled={bulkUpdateMutation.isPending || bulkSyncing}>
+            {bulkSyncing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+            {bulkSyncing ? `Sync ${bulkSyncProgress.done}/${bulkSyncProgress.total}` : 'Sync Estoque'}
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={clearSelection}>
             <X className="h-4 w-4" />
