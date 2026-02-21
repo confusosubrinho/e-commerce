@@ -203,7 +203,7 @@ export function ProductCard({ product }: ProductCardProps) {
               <>
                 <p className="price-original text-xs">{formatPrice(Number(product.base_price))}</p>
                 <p className="text-base font-bold text-primary">{formatPrice(pixPrice)}</p>
-                <p className="text-[11px] text-muted-foreground">no Pix ({pixDiscountPercent}% off)</p>
+                <p className="text-[11px] text-muted-foreground">no Pix</p>
               </>
             ) : (
               <>
@@ -216,9 +216,6 @@ export function ProductCard({ product }: ProductCardProps) {
               return (
                 <div className="pt-0.5">
                   <p className="text-[11px] font-medium text-foreground/80">{display.primaryText}</p>
-                  {display.secondaryText && (
-                    <p className="text-[10px] text-muted-foreground">{display.secondaryText}</p>
-                  )}
                 </div>
               );
             })()}
