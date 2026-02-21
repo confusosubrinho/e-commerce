@@ -34,73 +34,124 @@ function AppmaxGatewayPanel() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: settings } = useQuery({
-    queryKey: ['store-settings'],
+  // Installation status
+  const { data: installation, isLoading: installLoading } = useQuery({
+    queryKey: ['appmax-installation'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('store_settings').select('*').limit(1).maybeSingle();
+      const { data, error } = await supabase
+        .from('appmax_installations' as any)
+        .select('id, external_key, environment, status, last_error, updated_at, merchant_client_id')
+        .eq('external_key', 'main-store')
+        .eq('environment', 'sandbox')
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      return data as any;
     },
   });
 
-  const [form, setForm] = useState({
-    appmax_access_token: '',
-    appmax_environment: 'sandbox',
+  // Logs
+  const { data: logs } = useQuery({
+    queryKey: ['appmax-logs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appmax_logs' as any)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data as any[];
+    },
   });
 
-  useEffect(() => {
-    if (settings) {
-      setForm({
-        appmax_access_token: (settings as any).appmax_access_token || '',
-        appmax_environment: (settings as any).appmax_environment || 'sandbox',
+  const [connecting, setConnecting] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('appmax-authorize', {
+        body: { external_key: 'main-store' },
       });
-    }
-  }, [settings]);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (settings?.id) {
-        const { error } = await supabase.from('store_settings').update(form as any).eq('id', settings.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('store_settings').insert(form as any);
-        if (error) throw error;
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      if (data?.redirect_url) {
+        window.location.href = data.redirect_url;
       }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-settings'] });
-      toast({ title: 'Configurações da Appmax salvas!' });
-    },
-    onError: (e: any) => toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
-  });
+    } catch (err: any) {
+      toast({ title: 'Erro ao conectar', description: err.message, variant: 'destructive' });
+      setConnecting(false);
+    }
+  };
 
-  const isConfigured = !!form.appmax_access_token;
+  const handleDisconnect = async () => {
+    if (!installation?.id) return;
+    try {
+      const { error } = await supabase
+        .from('appmax_installations' as any)
+        .update({ status: 'disconnected', merchant_client_id: null, merchant_client_secret: null, installation_token: null, last_error: null } as any)
+        .eq('id', installation.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['appmax-installation'] });
+      toast({ title: 'Appmax desconectada' });
+    } catch (err: any) {
+      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const installStatus = installation?.status || 'disconnected';
+
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    disconnected: { label: 'Desconectado', color: 'bg-muted text-muted-foreground' },
+    pending: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
+    connected: { label: 'Conectado', color: 'bg-green-100 text-green-800' },
+    error: { label: 'Erro', color: 'bg-red-100 text-red-800' },
+  };
+
+  const currentStatus = statusConfig[installStatus] || statusConfig.disconnected;
 
   return (
     <div className="space-y-6">
-      {/* Credentials */}
+      {/* Connection Status */}
       <div className="space-y-4">
-        <h4 className="font-medium text-sm">Credenciais Appmax</h4>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Access Token</Label>
-          <Input type="password" value={form.appmax_access_token} onChange={(e) => setForm({ ...form, appmax_access_token: e.target.value })} placeholder="Cole seu Access Token da Appmax" />
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium text-sm">Instalação do Aplicativo (Sandbox)</h4>
+          <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${currentStatus.color}`}>
+            {currentStatus.label}
+          </span>
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Ambiente</Label>
-          <Select value={form.appmax_environment} onValueChange={(v) => setForm({ ...form, appmax_environment: v })}>
-            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sandbox">Sandbox (Teste)</SelectItem>
-              <SelectItem value="production">Produção</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {isConfigured && (
-          <div className="flex items-center gap-2 text-sm text-green-600">
-            <Check className="h-4 w-4" />
-            <span>Token configurado</span>
+
+        {installStatus === 'connected' && installation?.updated_at && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Check className="h-3.5 w-3.5 text-green-600" />
+            Conectado em {format(new Date(installation.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            {installation.merchant_client_id && (
+              <span className="text-muted-foreground">• Client ID: {String(installation.merchant_client_id).slice(0, 8)}...</span>
+            )}
           </div>
         )}
+
+        {installStatus === 'error' && installation?.last_error && (
+          <div className="bg-destructive/10 text-destructive text-xs rounded-md p-2.5">
+            <AlertCircle className="h-3.5 w-3.5 inline mr-1" />
+            {installation.last_error}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {installStatus !== 'connected' ? (
+            <Button onClick={handleConnect} disabled={connecting || installLoading} className="flex-1">
+              {connecting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Redirecionando...</>
+              ) : (
+                <><Plug className="h-4 w-4 mr-2" />Conectar Appmax (Sandbox)</>
+              )}
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={handleDisconnect} size="sm">
+              Desconectar
+            </Button>
+          )}
+        </div>
       </div>
 
       <Separator />
@@ -111,27 +162,43 @@ function AppmaxGatewayPanel() {
       </div>
 
       <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1">
-        <p className="font-medium">Como obter seu Access Token:</p>
+        <p className="font-medium">Como funciona:</p>
         <ol className="list-decimal list-inside space-y-0.5 text-muted-foreground">
-          <li>Acesse <a href="https://admin.appmax.com.br" target="_blank" rel="noopener noreferrer" className="text-primary underline">admin.appmax.com.br</a></li>
-          <li>Vá em "Configurações" → "API" ou "Integrações"</li>
-          <li>Copie seu Access Token</li>
-          <li>Para testes, use o ambiente Sandbox em <a href="https://homolog.sandboxappmax.com.br" target="_blank" rel="noopener noreferrer" className="text-primary underline">homolog.sandboxappmax.com.br</a></li>
+          <li>Clique em "Conectar Appmax (Sandbox)"</li>
+          <li>Você será redirecionado para a Appmax para autorizar</li>
+          <li>Após autorizar, voltará automaticamente com as credenciais geradas</li>
+          <li>O sistema salvará tudo de forma segura (secrets nunca são expostos)</li>
         </ol>
       </div>
 
-      <div className="bg-muted/50 rounded-lg p-3 text-xs space-y-1">
-        <p className="font-medium">Métodos de pagamento suportados:</p>
-        <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
-          <li><strong>Cartão de Crédito</strong> — Parcelamento, tokenização de cartão</li>
-          <li><strong>PIX</strong> — QR Code gerado automaticamente</li>
-          <li><strong>Boleto Bancário</strong> — PDF e linha digitável</li>
-        </ul>
-      </div>
+      <Separator />
 
-      <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="w-full">
-        {saveMutation.isPending ? 'Salvando...' : 'Salvar Configurações Appmax'}
-      </Button>
+      {/* Logs */}
+      <div>
+        <button onClick={() => setShowLogs(!showLogs)} className="flex items-center gap-2 text-sm font-medium w-full">
+          <Activity className="h-4 w-4" />
+          Logs recentes
+          {showLogs ? <ChevronUp className="h-4 w-4 ml-auto" /> : <ChevronDown className="h-4 w-4 ml-auto" />}
+        </button>
+        {showLogs && (
+          <div className="mt-3 max-h-60 overflow-y-auto space-y-1.5">
+            {!logs?.length && <p className="text-xs text-muted-foreground">Nenhum log encontrado.</p>}
+            {logs?.map((log: any) => (
+              <div key={log.id} className="text-xs border rounded-md p-2 flex items-start gap-2">
+                <span className={`shrink-0 mt-0.5 h-2 w-2 rounded-full ${
+                  log.level === 'error' ? 'bg-destructive' : log.level === 'warn' ? 'bg-yellow-500' : 'bg-green-500'
+                }`} />
+                <div className="min-w-0">
+                  <p className="text-muted-foreground">{log.message}</p>
+                  <p className="text-muted-foreground/60 text-[10px]">
+                    {format(new Date(log.created_at), "dd/MM HH:mm:ss", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
