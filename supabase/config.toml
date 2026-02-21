@@ -20,3 +20,12 @@ verify_jwt = false
 
 [functions.bling-sync-single-stock]
 verify_jwt = false
+
+[functions.appmax-get-app-token]
+verify_jwt = false
+
+[functions.appmax-authorize]
+verify_jwt = false
+
+[functions.appmax-generate-merchant-keys]
+verify_jwt = false
