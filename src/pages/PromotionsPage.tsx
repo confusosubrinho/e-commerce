@@ -6,11 +6,12 @@ import { ProductGrid } from '@/components/store/ProductGrid';
 import { CategoryFilters, FilterState } from '@/components/store/CategoryFilters';
 import { useProducts } from '@/hooks/useProducts';
 
-export default function BestSellersPage() {
+export default function PromotionsPage() {
   const { data: allProducts, isLoading } = useProducts();
 
+  // Only products on sale
   const products = useMemo(() => {
-    return allProducts?.filter(p => p.is_featured) || [];
+    return allProducts?.filter(p => p.sale_price && p.sale_price < p.base_price) || [];
   }, [allProducts]);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -59,9 +60,6 @@ export default function BestSellersPage() {
     if (filters.colors.length > 0) {
       result = result.filter(p => p.variants?.some(v => v.color && filters.colors.includes(v.color) && v.is_active));
     }
-    if (filters.onSale) {
-      result = result.filter(p => p.sale_price && p.sale_price < p.base_price);
-    }
     if (filters.isNew) {
       result = result.filter(p => p.is_new);
     }
@@ -88,15 +86,15 @@ export default function BestSellersPage() {
           <nav className="flex items-center gap-2 text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary">Home</Link>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-foreground">Mais Vendidos</span>
+            <span className="text-foreground">Promoções</span>
           </nav>
         </div>
       </div>
 
       <div className="bg-muted/30 py-8">
         <div className="container-custom">
-          <h1 className="text-3xl font-bold">Mais Vendidos</h1>
-          <p className="text-muted-foreground mt-2">Os modelos mais amados pelas nossas clientes</p>
+          <h1 className="text-3xl font-bold">Promoções</h1>
+          <p className="text-muted-foreground mt-2">Aproveite os melhores descontos da loja</p>
         </div>
       </div>
 
@@ -110,7 +108,7 @@ export default function BestSellersPage() {
             <ProductGrid products={filteredProducts} isLoading={isLoading} />
             {!isLoading && filteredProducts.length === 0 && (
               <div className="py-16 text-center">
-                <p className="text-muted-foreground">Nenhum produto encontrado com os filtros selecionados.</p>
+                <p className="text-muted-foreground">Nenhum produto em promoção no momento.</p>
               </div>
             )}
           </main>

@@ -6,11 +6,11 @@ import { ProductGrid } from '@/components/store/ProductGrid';
 import { CategoryFilters, FilterState } from '@/components/store/CategoryFilters';
 import { useProducts } from '@/hooks/useProducts';
 
-export default function BestSellersPage() {
+export default function NewArrivalsPage() {
   const { data: allProducts, isLoading } = useProducts();
 
   const products = useMemo(() => {
-    return allProducts?.filter(p => p.is_featured) || [];
+    return allProducts?.filter(p => p.is_new) || [];
   }, [allProducts]);
 
   const [filters, setFilters] = useState<FilterState>({
@@ -62,9 +62,6 @@ export default function BestSellersPage() {
     if (filters.onSale) {
       result = result.filter(p => p.sale_price && p.sale_price < p.base_price);
     }
-    if (filters.isNew) {
-      result = result.filter(p => p.is_new);
-    }
 
     switch (filters.sortBy) {
       case 'price-asc': result.sort((a, b) => Number(a.sale_price || a.base_price) - Number(b.sale_price || b.base_price)); break;
@@ -88,15 +85,15 @@ export default function BestSellersPage() {
           <nav className="flex items-center gap-2 text-sm text-muted-foreground">
             <Link to="/" className="hover:text-primary">Home</Link>
             <ChevronRight className="h-4 w-4" />
-            <span className="text-foreground">Mais Vendidos</span>
+            <span className="text-foreground">Novidades</span>
           </nav>
         </div>
       </div>
 
       <div className="bg-muted/30 py-8">
         <div className="container-custom">
-          <h1 className="text-3xl font-bold">Mais Vendidos</h1>
-          <p className="text-muted-foreground mt-2">Os modelos mais amados pelas nossas clientes</p>
+          <h1 className="text-3xl font-bold">Novidades</h1>
+          <p className="text-muted-foreground mt-2">Os lançamentos mais recentes da loja</p>
         </div>
       </div>
 
@@ -110,7 +107,7 @@ export default function BestSellersPage() {
             <ProductGrid products={filteredProducts} isLoading={isLoading} />
             {!isLoading && filteredProducts.length === 0 && (
               <div className="py-16 text-center">
-                <p className="text-muted-foreground">Nenhum produto encontrado com os filtros selecionados.</p>
+                <p className="text-muted-foreground">Nenhuma novidade no momento.</p>
               </div>
             )}
           </main>

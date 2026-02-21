@@ -29,6 +29,8 @@ const ComoComprarPage = lazy(() => import("./pages/ComoComprarPage"));
 const FormasPagamentoPage = lazy(() => import("./pages/FormasPagamentoPage"));
 const AtendimentoPage = lazy(() => import("./pages/AtendimentoPage"));
 const BestSellersPage = lazy(() => import("./pages/BestSellersPage"));
+const PromotionsPage = lazy(() => import("./pages/PromotionsPage"));
+const NewArrivalsPage = lazy(() => import("./pages/NewArrivalsPage"));
 const RastreioPage = lazy(() => import("./pages/RastreioPage"));
 const OrderConfirmation = lazy(() => import("./pages/OrderConfirmation"));
 const FavoritesPage = lazy(() => import("./pages/FavoritesPage"));
@@ -130,6 +132,8 @@ const App = () => (
               <Route path="/formas-pagamento" element={<FormasPagamentoPage />} />
               <Route path="/atendimento" element={<AtendimentoPage />} />
               <Route path="/mais-vendidos" element={<BestSellersPage />} />
+              <Route path="/promocoes" element={<PromotionsPage />} />
+              <Route path="/novidades" element={<NewArrivalsPage />} />
               <Route path="/rastreio" element={<RastreioPage />} />
               <Route path="/pedido-confirmado" element={<OrderConfirmation />} />
               <Route path="/favoritos" element={<FavoritesPage />} />
