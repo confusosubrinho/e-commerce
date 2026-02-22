@@ -430,11 +430,11 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <div className="container-custom py-8">
-        <div className="grid md:grid-cols-2 gap-8">
+      <div className="container-custom py-8 overflow-hidden">
+        <div className="grid md:grid-cols-2 gap-8 overflow-hidden">
           {/* Images */}
-          <div className="space-y-4">
-            <div className="aspect-square rounded-lg overflow-hidden bg-muted relative max-h-[calc(100vh-120px)] md:max-h-none">
+          <div className="space-y-4 min-w-0 overflow-hidden">
+            <div className="aspect-square rounded-lg overflow-hidden bg-muted relative w-full">
               <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                 {product.is_new && (
                   <Badge className="bg-primary text-primary-foreground border-0 px-3 py-1">Lançamento</Badge>
