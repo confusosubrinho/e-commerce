@@ -168,7 +168,7 @@ export function Header() {
               <SheetContent side="left" className="w-[300px] p-0 flex flex-col">
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle className="flex items-center gap-2">
-                    <img src={logo} alt="Vanessa Lima" className="h-8" />
+                    <img key={logo} src={logo} alt="Vanessa Lima" className="h-8" decoding="async" />
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto py-2">
@@ -249,7 +249,7 @@ export function Header() {
 
             {/* Logo */}
             <Link to="/" className="flex-shrink-0">
-              <img src={logo} alt="Vanessa Lima Shoes" className="h-8 md:h-12" />
+              <img key={logo} src={logo} alt="Vanessa Lima Shoes" className="h-8 md:h-12" decoding="async" />
             </Link>
           </div>
 

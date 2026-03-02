@@ -1109,17 +1109,17 @@ function YampiSection({
     }
   };
 
-  const syncImages = async () => {
+  const syncImages = async (skipExisting: boolean = true) => {
     setSyncingImages(true);
-    setImageProgress("Iniciando...");
+    setImageProgress(skipExisting ? "Novos..." : "Re-enviando todos...");
     const BATCH_SIZE = 10;
     let offset = 0;
     let totalUploaded = 0, totalSkipped = 0, totalErrors = 0;
     try {
       while (true) {
-        setImageProgress(`Processando ${offset + 1}-${offset + BATCH_SIZE}...`);
+        setImageProgress(`${skipExisting ? "Novos" : "Todos"}: ${offset + 1}-${offset + BATCH_SIZE}...`);
         const { data, error } = await supabase.functions.invoke("yampi-sync-images", {
-          body: { offset, limit: BATCH_SIZE },
+          body: { offset, limit: BATCH_SIZE, skip_existing: skipExisting },
         });
         if (error) throw error;
         totalUploaded += data?.uploaded || 0;
@@ -1253,7 +1253,7 @@ function YampiSection({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                   <Button size="sm" variant="outline" onClick={syncCategories} disabled={syncingCategories} className="text-xs">
                     {syncingCategories ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Package className="h-3 w-3 mr-1" />}
                     Categorias
@@ -1266,9 +1266,13 @@ function YampiSection({
                     {syncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Database className="h-3 w-3 mr-1" />}
                     {syncing ? syncProgress || "Sincronizando..." : "Catálogo"}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={syncImages} disabled={syncingImages} className="text-xs">
+                  <Button size="sm" variant="outline" onClick={() => syncImages(true)} disabled={syncingImages} className="text-xs" title="Envia imagens só para SKUs que ainda não têm imagem na Yampi">
                     {syncingImages ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
-                    {syncingImages ? imageProgress || "Enviando..." : "Imagens"}
+                    {syncingImages ? imageProgress || "Enviando..." : "Imagens (novos)"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => syncImages(false)} disabled={syncingImages} className="text-xs" title="Re-envia imagens para todos os SKUs (inclui os que já tinham; útil se quebrou na Yampi)">
+                    {syncingImages ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                    Imagens (todos)
                   </Button>
                 </div>
 

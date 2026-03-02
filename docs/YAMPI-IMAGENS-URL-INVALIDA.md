@@ -31,7 +31,7 @@ Ou seja: a Yampi espera uma **URL pública** e um **URI válido** (absoluto, com
 
 ## O que o projeto faz hoje
 
-- **yampi-sync-images:** lê `product_images.url`, ignora se não começa com `http`, converte signed→public, tenta fallback WebP→JPG, envia `{ images: [{ url }], upload_option: "resize" }`.
+- **yampi-sync-images:** lê `product_images.url`, ignora se não começa com `http`, converte signed→public, tenta **conversão WebP→JPEG** via Supabase Image Transformation (render) com `Accept: image/jpeg`. Requer **plano Pro** para transformação; caso contrário usa fallback (bytes WebP com extensão .jpg, que a Yampi pode rejeitar). Envia `{ images: [{ url }], upload_option: "resize" }`.
 - **Bucket product-media:** público; URLs com `getPublicUrl()` são acessíveis sem auth.
 
 ## Ajustes recomendados
@@ -39,7 +39,7 @@ Ou seja: a Yampi espera uma **URL pública** e um **URI válido** (absoluto, com
 1. **Validar a URL antes de enviar** – Fazer HEAD na URL; se não retornar 200, não enviar e logar "URL inacessível".
 2. **Garantir HTTPS** – Reescrever `http` para `https` quando for o mesmo host (ex.: Supabase).
 3. **Manter apenas URLs públicas no banco** – Evitar gravar URLs signed; preferir sempre `getPublicUrl()` ou equivalente.
-4. **Preferir JPG/PNG para a Yampi** – Usar fallback .webp→.jpg quando existir; se a Yampi continuar rejeitando WebP, considerar conversão antes do sync.
+4. **Preferir JPG/PNG para a Yampi** – Usar fallback .webp→.jpg quando existir; se a Yampi continuar rejeitando WebP, considerar conversão antes do sync. A conversão real depende do **Supabase Image Transformation** (plano Pro). Nos logs da Edge Function `yampi-sync-images`, verificar: `Converted via render` = conversão OK; `Render returned 404` = plano Free (sem transformação); `Fallback (webp-as-jpg)` = sem conversão real (Yampi pode rejeitar).
 
 ## Referências
 

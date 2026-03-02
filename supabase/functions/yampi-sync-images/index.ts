@@ -123,41 +123,38 @@ async function convertAndUploadAsPng(
     return urlData?.publicUrl || null;
   }
 
-  // For WebP: use the image/png re-encode trick
-  // Deno doesn't have Canvas, so we use a different approach:
-  // Upload the raw bytes as PNG content-type — many image services accept this
-  // But for Yampi specifically, we need actual format conversion.
-  
-  // Strategy: Use Supabase Image Transformation if available
+  // For WebP: conversão real via Supabase Image Transformation (Pro+).
+  // Pedir JPEG via Accept para a Yampi aceitar (sem format=origin para permitir conversão).
   const renderUrl = `${supabaseUrl}/storage/v1/render/image/public/product-media/${relativePath}?width=1200&quality=85`;
   try {
-    const renderRes = await fetch(renderUrl);
+    const renderRes = await fetch(renderUrl, {
+      headers: { Accept: "image/jpeg, image/png;q=0.9" },
+      redirect: "follow",
+    });
     if (renderRes.ok) {
       const renderType = renderRes.headers.get("content-type") || "";
       const renderBytes = new Uint8Array(await renderRes.arrayBuffer());
-      
-      // The render endpoint typically returns PNG or JPEG
       const ext = renderType.includes("png") ? "png" : "jpg";
       const renderPath = `yampi-converted/${productId}/${imageIndex}.${ext}`;
-      
       const { error } = await supabase.storage.from("product-media").upload(renderPath, renderBytes, {
         contentType: renderType || "image/jpeg",
         upsert: true,
       });
-      
       if (!error) {
         const { data: urlData } = supabase.storage.from("product-media").getPublicUrl(renderPath);
         console.log(`[YAMPI-IMG] Converted via render: ${urlData?.publicUrl}`);
         return urlData?.publicUrl || null;
       }
       console.error(`[YAMPI-IMG] Upload rendered failed: ${error.message}`);
+    } else {
+      console.warn(`[YAMPI-IMG] Render returned ${renderRes.status} (Image Transformation pode exigir plano Pro)`);
     }
   } catch (e) {
     console.warn(`[YAMPI-IMG] Render endpoint unavailable: ${(e as Error).message}`);
   }
 
-  // Fallback: Upload WebP bytes with .jpg extension and image/jpeg content-type
-  // This is a hack but Yampi may accept it since many browsers/services auto-detect format
+  // Fallback sem conversão real: enviar WebP com extensão .jpg não altera os bytes.
+  // A Yampi pode rejeitar. Recomenda-se plano Pro para Image Transformation.
   const fallbackPath = `yampi-converted/${productId}/${imageIndex}.jpg`;
   const { error: fbErr } = await supabase.storage.from("product-media").upload(fallbackPath, originalBytes, {
     contentType: "image/jpeg",
