@@ -93,6 +93,7 @@ export function HeaderCustomizer() {
         header_highlight_url: data.header_highlight_url,
         header_highlight_icon: data.header_highlight_icon,
         header_menu_order: data.header_menu_order,
+        updated_at: new Date().toISOString(),
       } as any).eq('id', settings?.id || (await supabase.from('store_settings').select('id').single()).data?.id);
       if (error) throw error;
     },

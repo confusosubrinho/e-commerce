@@ -30,6 +30,7 @@ function FirstFramePlaceholder({
   activeOpacity: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const video = ref.current;
@@ -47,6 +48,8 @@ function FirstFramePlaceholder({
     return () => video.removeEventListener('loadeddata', onCanShow);
   }, [videoUrl]);
 
+  if (failed) return null;
+
   return (
     <video
       ref={ref}
@@ -54,7 +57,8 @@ function FirstFramePlaceholder({
       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${activeOpacity ? 'opacity-0' : 'opacity-100'}`}
       muted
       playsInline
-      preload="auto"
+      preload="metadata"
+      onError={() => setFailed(true)}
     />
   );
 }
@@ -78,21 +82,34 @@ export function InstagramFeed() {
     },
   });
 
-  // Auto-play active video, pause others - also set src when needed
+  // Auto-play active video, pause others - set src when needed and play only when video is ready
   useEffect(() => {
     if (!videos) return;
+    const cleanups: (() => void)[] = [];
     videoRefs.current.forEach((video, id) => {
       const idx = videos.findIndex(v => v.id === id);
       if (idx === activeIndex) {
-        // Set src if not loaded yet
         if (!video.src && video.dataset.src) {
           video.src = video.dataset.src;
         }
-        video.play().catch(() => {});
+        const playWhenReady = () => {
+          video.play().catch(() => {});
+        };
+        if (video.readyState >= 2) {
+          playWhenReady();
+        } else {
+          const onCanPlay = () => {
+            video.removeEventListener('canplay', onCanPlay);
+            playWhenReady();
+          };
+          video.addEventListener('canplay', onCanPlay);
+          cleanups.push(() => video.removeEventListener('canplay', onCanPlay));
+        }
       } else {
         video.pause();
       }
     });
+    return () => cleanups.forEach(fn => fn());
   }, [activeIndex, videos]);
 
   // No auto-advance - manual scroll only
@@ -204,7 +221,12 @@ export function InstagramFeed() {
                     loop
                     muted
                     playsInline
-                    preload="none"
+                    preload={isActive ? 'auto' : 'none'}
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.error?.code === 4) return; // MEDIA_ERR_SRC_NOT_SUPPORTED - log only in dev
+                      console.warn('[InstagramFeed] Video load error:', video.video_url, target.error?.message);
+                    }}
                   />
 
                   {/* Username overlay */}
