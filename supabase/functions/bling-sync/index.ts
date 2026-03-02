@@ -983,18 +983,52 @@ serve(async (req) => {
       case "cleanup_variations": {
         const { data: variationProducts } = await supabase.from("products").select("id, name, bling_product_id").or("name.like.%Cor:%,name.like.%Tamanho:%");
         let cleanedCount = 0;
-        for (const prod of (variationProducts || [])) {
-          const { data: existsAsVariant } = await supabase.from("product_variants").select("id").eq("bling_variant_id", prod.bling_product_id).maybeSingle();
-          if (existsAsVariant) {
-            await supabase.from("product_images").delete().eq("product_id", prod.id);
-            await supabase.from("product_variants").delete().eq("product_id", prod.id);
-            await supabase.from("product_characteristics").delete().eq("product_id", prod.id);
-            await supabase.from("buy_together_products").delete().eq("product_id", prod.id);
-            await supabase.from("buy_together_products").delete().eq("related_product_id", prod.id);
-            await supabase.from("products").delete().eq("id", prod.id);
-            cleanedCount++;
+
+        if (variationProducts && variationProducts.length > 0) {
+          const productIdsToDelete: string[] = [];
+          const CHUNK_SIZE = 100;
+
+          // Phase 1: Identify which products have a corresponding variant
+          for (let i = 0; i < variationProducts.length; i += CHUNK_SIZE) {
+            const chunk = variationProducts.slice(i, i + CHUNK_SIZE);
+            const blingIds = chunk.map(p => p.bling_product_id).filter(Boolean);
+
+            if (blingIds.length > 0) {
+              const { data: existingVariants } = await supabase
+                .from("product_variants")
+                .select("bling_variant_id")
+                .in("bling_variant_id", blingIds);
+
+              const existingBlingIds = new Set((existingVariants || []).map((v: any) => v.bling_variant_id));
+
+              const chunkIdsToDelete = chunk
+                .filter(p => p.bling_product_id && existingBlingIds.has(p.bling_product_id))
+                .map(p => p.id);
+
+              if (chunkIdsToDelete.length > 0) {
+                productIdsToDelete.push(...chunkIdsToDelete);
+              }
+            }
+          }
+
+          // Phase 2: Batch delete the identified products and their related records
+          if (productIdsToDelete.length > 0) {
+            for (let i = 0; i < productIdsToDelete.length; i += CHUNK_SIZE) {
+              const chunkIds = productIdsToDelete.slice(i, i + CHUNK_SIZE);
+
+              await Promise.all([
+                supabase.from("product_images").delete().in("product_id", chunkIds),
+                supabase.from("product_variants").delete().in("product_id", chunkIds),
+                supabase.from("product_characteristics").delete().in("product_id", chunkIds),
+                supabase.from("buy_together_products").delete().or(`product_id.in.(${chunkIds.join(',')}),related_product_id.in.(${chunkIds.join(',')})`),
+              ]);
+              await supabase.from("products").delete().in("id", chunkIds);
+
+              cleanedCount += chunkIds.length;
+            }
           }
         }
+
         result = { cleaned: cleanedCount };
         break;
       }
