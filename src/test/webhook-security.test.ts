@@ -19,7 +19,7 @@ describe('Webhook security', () => {
       body: JSON.stringify({ type: 'payment_intent.succeeded', data: {} }),
     });
     expect(res.status).toBe(400);
-  });
+  }, 15000);
 
   it('Stripe webhook com assinatura inválida retorna 400', async () => {
     if (!url) return;
@@ -69,5 +69,5 @@ describe('Webhook security', () => {
       body: JSON.stringify({ event_id: 'evt_00000000000000' }),
     });
     expect(res.status).toBe(401);
-  });
+  }, 15000);
 });

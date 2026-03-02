@@ -86,7 +86,7 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           {/* Logo & social */}
           <div className="space-y-4 sm:col-span-2 md:col-span-1 flex flex-col items-center sm:items-start">
-            <img src={logoSrc} alt={storeName} className="h-10 sm:h-12 brightness-0 invert max-w-[160px] object-contain" loading="lazy" decoding="async" />
+            <img src={logoSrc} alt={storeName} className="h-10 sm:h-12 brightness-0 invert max-w-[160px] object-contain" loading="lazy" decoding="async" width={198} height={70} />
             <div className="flex gap-4">
               <SocialIcons />
             </div>

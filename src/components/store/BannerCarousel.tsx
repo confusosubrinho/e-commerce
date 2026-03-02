@@ -58,10 +58,14 @@ export function BannerCarousel() {
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
       >
         {displayBanners.map((banner: any, index: number) => {
+          const isFirst = index === 0;
+          const w = isMobile ? 750 : 1440;
+          const h = isMobile ? 900 : 600;
           const imageUrl = resolveImageUrl(
-            isMobile && banner.mobile_image_url 
-              ? banner.mobile_image_url 
-              : banner.image_url
+            isMobile && banner.mobile_image_url
+              ? banner.mobile_image_url
+              : banner.image_url,
+            { width: w, height: h }
           );
 
           return (
@@ -80,11 +84,11 @@ export function BannerCarousel() {
                     alt={banner.title || 'Banner promocional'}
                     className="w-full h-full object-contain"
                     style={isMobile ? { maxHeight: '550px' } : { maxHeight: '600px' }}
-                    loading={index === 0 ? 'eager' : 'lazy'}
-                    fetchPriority={index === 0 ? 'high' : 'auto'}
-                    decoding={index === 0 ? 'sync' : 'async'}
-                    width={isMobile ? 750 : 1440}
-                    height={isMobile ? 900 : 600}
+                    loading={isFirst ? 'eager' : 'lazy'}
+                    fetchPriority={isFirst ? 'high' : 'auto'}
+                    decoding={isFirst ? 'sync' : 'async'}
+                    width={w}
+                    height={h}
                   />
                 </span>
               </a>

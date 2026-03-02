@@ -16,6 +16,25 @@ const CustomerTestimonials = lazy(() => import('@/components/store/CustomerTesti
 
 const SectionFallback = () => <div className="py-12" />;
 
+/** Skeleton com altura fixa para reservar espaço e evitar CLS da seção "Navegue por Categorias" */
+function CategoryGridSkeleton() {
+  return (
+    <section className="py-12 min-h-[280px]" aria-hidden="true">
+      <div className="container-custom">
+        <div className="h-8 bg-muted rounded w-48 mx-auto mb-8" />
+        <div className="flex gap-6 overflow-hidden justify-center">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex-shrink-0 w-[150px] text-center">
+              <div className="w-[150px] h-[150px] rounded-full bg-muted mx-auto mb-3" />
+              <div className="h-4 bg-muted rounded w-16 mx-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // Product sections block — renders the dynamic home_sections loop
 function ProductSectionsBlock() {
   const { data: homeSections } = useHomeSections();
@@ -63,9 +82,10 @@ const Index = () => {
         pagesSections.map((section) => {
           const Component = SECTION_COMPONENTS[section.section_type];
           if (!Component) return null;
+          const isCategoryGrid = section.section_type === 'category_grid';
           return (
-            <Suspense key={section.id} fallback={<SectionFallback />}>
-              <div className="content-lazy">
+            <Suspense key={section.id} fallback={isCategoryGrid ? <CategoryGridSkeleton /> : <SectionFallback />}>
+              <div className={isCategoryGrid ? 'content-lazy content-lazy-section-category' : 'content-lazy'}>
                 <Component config={section.config} />
               </div>
             </Suspense>

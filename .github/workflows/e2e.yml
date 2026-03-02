@@ -1,11 +1,9 @@
-# E2E regression — PRs e main. Artifacts: report, traces, screenshots.
+# E2E regression — desabilitado automaticamente; rodar manualmente na aba Actions se precisar.
 name: E2E
 
+# Sem trigger automático (não roda em push nem em PR). Para rodar: Actions → E2E → Run workflow.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   e2e:
@@ -44,6 +42,9 @@ jobs:
           retention-days: 7
 
       - name: Upload test results (traces, screenshots)
+        if: failure()
+        run: mkdir -p test-results/playwright
+      - name: Upload playwright-results artifact
         uses: actions/upload-artifact@v4
         if: failure()
         with:

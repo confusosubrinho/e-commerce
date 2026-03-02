@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: (id) => {
           if (id.includes("node_modules")) {
+            if (id.includes("@stripe/")) return "vendor-stripe";
             if (id.includes("react-dom") || id.includes("react/")) return "vendor-react";
             if (id.includes("react-router")) return "vendor-router";
             if (id.includes("@tanstack/react-query")) return "vendor-query";
@@ -43,6 +44,6 @@ export default defineConfig(({ mode }) => ({
         assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 500,
   },
 }));

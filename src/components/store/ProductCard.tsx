@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
+import { useInView } from '@/hooks/useInView';
 
 interface ProductCardProps {
   product: Product;
@@ -33,8 +34,9 @@ export function ProductCard({ product }: ProductCardProps) {
   const { data: pricingConfig } = usePricingConfig();
   const showVariants = useShowVariantsOnGrid();
   const pixDiscountPercent = pricingConfig?.pix_discount ?? 5;
+  const { ref: cardRef, inView: cardInView } = useInView<HTMLAnchorElement>({ rootMargin: '120px' });
 
-  // Fetch average rating for this product
+  // Só busca avaliações quando o card entra no viewport (reduz cadeia crítica / product_reviews)
   const { data: reviewStats } = useQuery({
     queryKey: ['product-review-stats', product.id],
     queryFn: async () => {
@@ -48,6 +50,7 @@ export function ProductCard({ product }: ProductCardProps) {
       return { avg, count: data.length };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: cardInView,
   });
 
   const primaryImage = product.images?.find(img => img.is_primary) || product.images?.[0];
@@ -126,6 +129,7 @@ export function ProductCard({ product }: ProductCardProps) {
   return (
     <>
       <a
+        ref={cardRef}
         href={productUrl}
         onClick={handleCardClick}
         onPointerDownCapture={handleCardPointerDown}

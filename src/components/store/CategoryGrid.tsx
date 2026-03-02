@@ -71,7 +71,7 @@ export function CategoryGrid() {
               >
                 <div className="w-[90px] h-[90px] sm:w-[120px] sm:h-[120px] md:w-[150px] md:h-[150px] rounded-full overflow-hidden bg-muted mb-2 sm:mb-3 mx-auto ring-2 ring-transparent group-hover:ring-primary transition-all">
                   <img
-                    src={resolveImageUrl(category.image_url)}
+                    src={resolveImageUrl(category.image_url, { width: 320 })}
                     alt={category.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     loading="lazy"

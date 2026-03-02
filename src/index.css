@@ -235,6 +235,10 @@
     content-visibility: auto;
     contain-intrinsic-size: auto 400px;
   }
+  /* Reserva espaço para a seção "Navegue por Categorias" e reduz CLS */
+  .content-lazy-section-category {
+    min-height: 280px;
+  }
 
   @keyframes fadeIn {
     from { opacity: 0; }

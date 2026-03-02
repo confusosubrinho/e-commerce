@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Package, ShoppingCart, Users, DollarSign, Settings2, TrendingUp, TrendingDown, Plus, Clock, Star, AlertTriangle } from 'lucide-react';
@@ -12,7 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Link, useNavigate } from 'react-router-dom';
 import { useNotifications, useUnreadCount } from '@/hooks/useNotifications';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { formatDistanceToNow, subDays, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -84,6 +83,71 @@ function StoreHealthCard() {
 }
 
 const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+
+type RechartsModule = typeof import('recharts');
+
+function DashboardCharts({ revenueChart, pieData }: { revenueChart: { date: string; value: number }[] | undefined; pieData: { name: string; value: number; color: string }[] }) {
+  const [Recharts, setRecharts] = useState<RechartsModule | null>(null);
+  useEffect(() => {
+    import('recharts').then(setRecharts);
+  }, []);
+
+  if (!Recharts) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <Card className="lg:col-span-8"><CardContent className="p-3 md:p-6"><Skeleton className="h-[220px] w-full" /></CardContent></Card>
+        <Card className="lg:col-span-4"><CardContent className="p-3 md:p-6"><Skeleton className="h-[160px] w-full" /></CardContent></Card>
+      </div>
+    );
+  }
+
+  const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } = Recharts;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <Card className="lg:col-span-8">
+        <CardHeader className="p-3 md:p-6 pb-0"><CardTitle className="text-sm md:text-base">Receita Diária</CardTitle></CardHeader>
+        <CardContent className="p-3 md:p-6 pt-2">
+          {revenueChart?.length ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={revenueChart}>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} width={50} />
+                <Tooltip formatter={(v: number) => formatPrice(v)} />
+                <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : <p className="text-sm text-muted-foreground text-center py-12">Sem dados no período</p>}
+        </CardContent>
+      </Card>
+      <Card className="lg:col-span-4">
+        <CardHeader className="p-3 md:p-6 pb-0"><CardTitle className="text-sm md:text-base">Pedidos por Status</CardTitle></CardHeader>
+        <CardContent className="p-3 md:p-6 pt-2 flex flex-col items-center">
+          {pieData.length ? (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" innerRadius={40} outerRadius={65} paddingAngle={2}>
+                    {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {pieData.map(d => (
+                  <div key={d.name} className="flex items-center gap-1 text-[10px]">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
+                    {d.name} ({d.value})
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : <p className="text-sm text-muted-foreground text-center py-12">Sem pedidos</p>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [period, setPeriod] = useState('30');
@@ -221,49 +285,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <Card className="lg:col-span-8">
-          <CardHeader className="p-3 md:p-6 pb-0"><CardTitle className="text-sm md:text-base">Receita Diária</CardTitle></CardHeader>
-          <CardContent className="p-3 md:p-6 pt-2">
-            {revenueChart?.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={revenueChart}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} width={50} />
-                  <Tooltip formatter={(v: number) => formatPrice(v)} />
-                  <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <p className="text-sm text-muted-foreground text-center py-12">Sem dados no período</p>}
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-4">
-          <CardHeader className="p-3 md:p-6 pb-0"><CardTitle className="text-sm md:text-base">Pedidos por Status</CardTitle></CardHeader>
-          <CardContent className="p-3 md:p-6 pt-2 flex flex-col items-center">
-            {pieData.length ? (
-              <>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" innerRadius={40} outerRadius={65} paddingAngle={2}>
-                      {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {pieData.map(d => (
-                    <div key={d.name} className="flex items-center gap-1 text-[10px]">
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
-                      {d.name} ({d.value})
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : <p className="text-sm text-muted-foreground text-center py-12">Sem pedidos</p>}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Charts row — Recharts carregado dinamicamente para não ir no bundle da loja */}
+      <DashboardCharts revenueChart={revenueChart} pieData={pieData} />
 
       {/* Row 3: Top products + Notifications + Low stock */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

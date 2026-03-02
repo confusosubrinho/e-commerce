@@ -1,3 +1,9 @@
+/**
+ * Componentes de gráfico (ChartContainer, ChartTooltip, etc.) baseados em Recharts.
+ * ATENÇÃO: Este arquivo importa "recharts" (~107 KiB). Não importe em páginas da loja
+ * (Index, ProductDetail, etc.) — use apenas em páginas admin (ex.: Dashboard, SalesDashboard).
+ * As páginas admin que precisam de gráficos já carregam recharts via import() dinâmico.
+ */
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 

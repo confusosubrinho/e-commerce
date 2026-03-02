@@ -15,6 +15,7 @@ import { SearchPreview } from './SearchPreview';
 import { CartProductSuggestions } from './CartProductSuggestions';
 import { prefetchCategoryPage, prefetchSearchPage, prefetchCartPage, prefetchCheckoutStartPage } from '@/lib/prefetch';
 import { FeedbackPreferencesDialog } from './FeedbackPreferencesDialog';
+import { resolveImageUrl } from '@/lib/imageUrl';
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   Percent, Star, Sparkles, Heart, Gift, Tag, Flame, Zap, Crown, ShoppingBag,
@@ -168,7 +169,7 @@ export function Header() {
               <SheetContent side="left" className="w-[300px] p-0 flex flex-col">
                 <SheetHeader className="p-4 border-b">
                   <SheetTitle className="flex items-center gap-2">
-                    <img key={logo} src={logo} alt="Vanessa Lima" className="h-8" decoding="async" />
+                    <img key={logo} src={logo} alt="Vanessa Lima Shoes" className="h-8" decoding="async" width={96} height={32} />
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto py-2">
@@ -181,7 +182,7 @@ export function Header() {
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {category.image_url && (
-                          <img src={category.image_url} alt={category.name} className="w-8 h-8 rounded-full object-cover" />
+                          <img src={resolveImageUrl(category.image_url, { width: 96 })} alt={category.name} className="w-8 h-8 rounded-full object-cover" />
                         )}
                         <span className="font-medium text-sm">{category.name}</span>
                       </Link>
@@ -249,7 +250,7 @@ export function Header() {
 
             {/* Logo */}
             <Link to="/" className="flex-shrink-0">
-              <img key={logo} src={logo} alt="Vanessa Lima Shoes" className="h-8 md:h-12" decoding="async" />
+              <img key={logo} src={logo} alt="Vanessa Lima Shoes" className="h-8 md:h-12" decoding="async" width={120} height={40} />
             </Link>
           </div>
 
@@ -506,7 +507,7 @@ export function Header() {
                         onClick={allCategoriesDD.close}
                       >
                         {category.image_url && (
-                          <img src={category.image_url} alt={category.name} className="w-10 h-10 rounded-md object-cover" />
+                          <img src={resolveImageUrl(category.image_url, { width: 96 })} alt={category.name} className="w-10 h-10 rounded-md object-cover" />
                         )}
                         <span className="font-medium group-hover:text-primary transition-colors">{category.name}</span>
                       </Link>
@@ -583,7 +584,7 @@ export function Header() {
                                               onClick={() => setActiveCatSlug(null)}
                                             >
                                               {child.image_url && (
-                                                <img src={child.image_url} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
+                                                <img src={resolveImageUrl(child.image_url, { width: 64 })} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
                                               )}
                                               {child.name}
                                             </Link>
@@ -628,7 +629,7 @@ export function Header() {
                                       onClick={() => setActiveCatSlug(null)}
                                     >
                                       <img
-                                        src={primaryImage?.url || '/placeholder.svg'}
+                                        src={resolveImageUrl(primaryImage?.url, { width: 96 }) || '/placeholder.svg'}
                                         alt={product.name}
                                         className="w-12 h-12 rounded-lg object-cover"
                                       />
@@ -644,7 +645,7 @@ export function Header() {
                               ) : (
                                 <div className="col-span-2 text-center text-muted-foreground py-4">
                                   <img
-                                    src={category.image_url || '/placeholder.svg'}
+                                    src={resolveImageUrl(category.image_url, { width: 96 }) || '/placeholder.svg'}
                                     alt={category.name}
                                     className="w-24 h-24 rounded-lg object-cover mx-auto"
                                   />
