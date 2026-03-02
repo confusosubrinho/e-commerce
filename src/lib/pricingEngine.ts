@@ -297,14 +297,6 @@ export function getInstallmentDisplay(price: number, config: PricingConfig, hasP
 }
 
 /**
- * @deprecated Use getInstallmentDisplay() instead.
- */
-export function getBestHighlight(price: number, config: PricingConfig): string {
-  const display = getInstallmentDisplay(price, config);
-  return display.primaryText;
-}
-
-/**
  * Get PIX price with discount.
  */
 export function getPixPrice(price: number, config: PricingConfig): number {
