@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
         couponRow = coupon as Record<string, unknown>;
       }
 
-      // ── BUG #3: Server-side price validation + build lineItems for coupon ──
+      // ── Server-side price validation + build lineItems for coupon ──
       let serverSubtotal = 0;
       let serverSubtotalFull = 0;
       let serverSubtotalSale = 0;
