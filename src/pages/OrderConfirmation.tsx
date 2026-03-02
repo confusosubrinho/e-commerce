@@ -36,6 +36,26 @@ const statusLabels: Record<string, { label: string; description: string; color: 
     description: 'Este pedido foi cancelado.',
     color: 'text-destructive',
   },
+  paid: {
+    label: 'Pago',
+    description: 'Seu pagamento foi confirmado.',
+    color: 'text-primary',
+  },
+  failed: {
+    label: 'Falha no Pagamento',
+    description: 'Houve um problema com o seu pagamento.',
+    color: 'text-destructive',
+  },
+  refunded: {
+    label: 'Reembolsado',
+    description: 'O valor do pedido foi devolvido.',
+    color: 'text-muted-foreground',
+  },
+  disputed: {
+    label: 'Em Contestação',
+    description: 'O pagamento deste pedido está sendo contestado.',
+    color: 'text-yellow-600',
+  },
 };
 
 // BUG #5: PIX countdown hook
@@ -209,10 +229,15 @@ export default function OrderConfirmation() {
           .select('status')
           .eq('id', id)
           .single();
-        if (data?.status && data.status !== orderStatus) {
-          setOrderStatus(data.status);
-          const info = statusLabels[data.status];
-          if (info) toast({ title: info.label, description: info.description });
+        if (data?.status) {
+          setOrderStatus((currentStatus) => {
+            if (data.status !== currentStatus) {
+              const info = statusLabels[data.status];
+              if (info) toast({ title: info.label, description: info.description });
+              return data.status;
+            }
+            return currentStatus;
+          });
         }
       };
       poll();
@@ -228,10 +253,15 @@ export default function OrderConfirmation() {
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
         (payload) => {
           const newStatus = payload.new?.status;
-          if (newStatus && newStatus !== orderStatus) {
-            setOrderStatus(newStatus);
-            const info = statusLabels[newStatus];
-            if (info) toast({ title: info.label, description: info.description });
+          if (newStatus) {
+            setOrderStatus((currentStatus) => {
+              if (newStatus !== currentStatus) {
+                const info = statusLabels[newStatus];
+                if (info) toast({ title: info.label, description: info.description });
+                return newStatus;
+              }
+              return currentStatus;
+            });
           }
         }
       )
