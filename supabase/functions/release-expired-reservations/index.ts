@@ -62,13 +62,35 @@ Deno.serve(async (req) => {
   const orderList = orders || [];
   const released: string[] = [];
 
-  for (const order of orderList) {
-    const { data: items } = await supabase
+  // Optimize order_items fetch to avoid N+1 query
+  const orderIds = orderList.map((o) => o.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let allOrderItems: any[] = [];
+  if (orderIds.length > 0) {
+    const { data: items, error: itemsError } = await supabase
       .from("order_items")
-      .select("product_variant_id, quantity")
-      .eq("order_id", order.id);
+      .select("order_id, product_variant_id, quantity")
+      .in("order_id", orderIds);
 
-    for (const item of items || []) {
+    if (itemsError) {
+      console.error("release_expired_reservations items fetch error:", itemsError);
+    } else {
+      allOrderItems = items || [];
+    }
+  }
+
+  // Group items by order_id for O(1) lookup
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const itemsByOrderId = allOrderItems.reduce((acc: Record<string, any[]>, item) => {
+    if (!acc[item.order_id]) acc[item.order_id] = [];
+    acc[item.order_id].push(item);
+    return acc;
+  }, {});
+
+  for (const order of orderList) {
+    const items = itemsByOrderId[order.id] || [];
+
+    for (const item of items) {
       if (item.product_variant_id && item.quantity) {
         await supabase.rpc("increment_stock", {
           p_variant_id: item.product_variant_id,
