@@ -94,7 +94,6 @@ export default function OrderConfirmation() {
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
 
-  // BUG #4: Persist state in sessionStorage
   const SESSION_KEY = `order_confirm_${urlOrderId || 'unknown'}`;
 
   const getInitialState = () => {
