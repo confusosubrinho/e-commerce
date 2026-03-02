@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { AdminErrorIndicator } from '@/components/store/AdminErrorIndicator';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, 
@@ -615,6 +616,7 @@ export default function AdminLayout() {
               <main className="flex-1 p-6 bg-background overflow-auto">
                 <Outlet />
               </main>
+              <AdminErrorIndicator />
             </div>
           </div>
         </SidebarProvider>
