@@ -44,6 +44,10 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // Group all admin pages into a single chunk — never loaded by store visitors
+          if (id.includes("/pages/admin/") || id.includes("/components/admin/")) {
+            return "admin";
+          }
           if (id.includes("node_modules")) {
             if (id.includes("@stripe/")) return "vendor-stripe";
             if (id.includes("react-dom") || id.includes("react/")) return "vendor-react";

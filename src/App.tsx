@@ -38,47 +38,47 @@ const ComoComprarPage = lazy(() => import("./pages/ComoComprarPage"));
 const FormasPagamentoPage = lazy(() => import("./pages/FormasPagamentoPage"));
 const AtendimentoPage = lazy(() => import("./pages/AtendimentoPage"));
 
-// Lazy load admin routes (heavy)
-const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
-const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
-const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
-const Products = lazy(() => import("./pages/admin/Products"));
-const Categories = lazy(() => import("./pages/admin/Categories"));
-const Orders = lazy(() => import("./pages/admin/Orders"));
-const Customers = lazy(() => import("./pages/admin/Customers"));
-const Coupons = lazy(() => import("./pages/admin/Coupons"));
-const Banners = lazy(() => import("./pages/admin/Banners"));
-const Personalization = lazy(() => import("./pages/admin/Personalization"));
-const HighlightBanners = lazy(() => import("./pages/admin/HighlightBanners"));
-const Settings = lazy(() => import("./pages/admin/Settings"));
-const CodeSettings = lazy(() => import("./pages/admin/CodeSettings"));
-const Integrations = lazy(() => import("./pages/admin/Integrations"));
-const SalesDashboard = lazy(() => import("./pages/admin/SalesDashboard"));
-const ManualRegistration = lazy(() => import("./pages/admin/ManualRegistration"));
-const ConversionManual = lazy(() => import("./pages/admin/ConversionManual"));
-const AbandonedCarts = lazy(() => import("./pages/admin/AbandonedCarts"));
-const EmailAutomations = lazy(() => import("./pages/admin/EmailAutomations"));
-const TrafficDashboard = lazy(() => import("./pages/admin/TrafficDashboard"));
-const MediaGallery = lazy(() => import("./pages/admin/MediaGallery"));
-const PricingSettings = lazy(() => import("./pages/admin/PricingSettings"));
-const HelpEditor = lazy(() => import("./pages/admin/HelpEditor"));
-const SocialLinks = lazy(() => import("./pages/admin/SocialLinks"));
-const PagesAdmin = lazy(() => import("./pages/admin/PagesAdmin"));
-const SystemAndLogs = lazy(() => import("./pages/admin/SystemAndLogs"));
-const ThemeEditor = lazy(() => import("./pages/admin/ThemeEditor"));
-const AppmaxCallback = lazy(() => import("./pages/admin/AppmaxCallback"));
-const Notifications = lazy(() => import("./pages/admin/Notifications"));
-const Reviews = lazy(() => import("./pages/admin/Reviews"));
-const Team = lazy(() => import("./pages/admin/Team"));
-const CheckoutSettings = lazy(() => import("./pages/admin/CheckoutSettings"));
-const CommerceHealth = lazy(() => import("./pages/admin/CommerceHealth"));
+// Lazy load ALL admin routes via single dynamic import boundary
+// Vite will group these into an "admin" chunk automatically
+const AdminLayout = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/AdminLayout"));
+const AdminLogin = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/AdminLogin"));
+const Dashboard = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Dashboard"));
+const Products = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Products"));
+const Categories = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Categories"));
+const Orders = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Orders"));
+const Customers = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Customers"));
+const Coupons = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Coupons"));
+const Banners = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Banners"));
+const Personalization = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Personalization"));
+const HighlightBanners = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/HighlightBanners"));
+const Settings = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Settings"));
+const CodeSettings = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/CodeSettings"));
+const Integrations = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Integrations"));
+const SalesDashboard = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/SalesDashboard"));
+const ManualRegistration = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/ManualRegistration"));
+const ConversionManual = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/ConversionManual"));
+const AbandonedCarts = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/AbandonedCarts"));
+const EmailAutomations = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/EmailAutomations"));
+const TrafficDashboard = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/TrafficDashboard"));
+const MediaGallery = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/MediaGallery"));
+const PricingSettings = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/PricingSettings"));
+const HelpEditor = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/HelpEditor"));
+const SocialLinks = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/SocialLinks"));
+const PagesAdmin = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/PagesAdmin"));
+const SystemAndLogs = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/SystemAndLogs"));
+const ThemeEditor = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/ThemeEditor"));
+const AppmaxCallback = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/AppmaxCallback"));
+const Notifications = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Notifications"));
+const Reviews = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Reviews"));
+const Team = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/Team"));
+const CheckoutSettings = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/CheckoutSettings"));
+const CommerceHealth = lazy(() => import(/* webpackChunkName: "admin" */ "./pages/admin/CommerceHealth"));
 const CheckoutStart = lazy(() => import("./pages/CheckoutStart"));
 const CheckoutReturn = lazy(() => import("./pages/CheckoutReturn"));
 
 // Lazy load non-critical floating components
 const WhatsAppFloat = lazy(() => import("./components/store/WhatsAppFloat").then(m => ({ default: m.WhatsAppFloat })));
 const CookieConsent = lazy(() => import("./components/store/CookieConsent").then(m => ({ default: m.CookieConsent })));
-const AdminErrorIndicator = lazy(() => import("./components/store/AdminErrorIndicator").then(m => ({ default: m.AdminErrorIndicator })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -148,9 +148,6 @@ const App = () => {
     <CartProvider>
       <TooltipProvider>
         <ThemeProvider>
-        <Suspense fallback={null}>
-          <AdminErrorIndicator />
-        </Suspense>
         <Toaster />
         <Sonner />
         <BrowserRouter>
