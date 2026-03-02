@@ -983,18 +983,31 @@ serve(async (req) => {
       case "cleanup_variations": {
         const { data: variationProducts } = await supabase.from("products").select("id, name, bling_product_id").or("name.like.%Cor:%,name.like.%Tamanho:%");
         let cleanedCount = 0;
-        for (const prod of (variationProducts || [])) {
-          const { data: existsAsVariant } = await supabase.from("product_variants").select("id").eq("bling_variant_id", prod.bling_product_id).maybeSingle();
-          if (existsAsVariant) {
-            await supabase.from("product_images").delete().eq("product_id", prod.id);
-            await supabase.from("product_variants").delete().eq("product_id", prod.id);
-            await supabase.from("product_characteristics").delete().eq("product_id", prod.id);
-            await supabase.from("buy_together_products").delete().eq("product_id", prod.id);
-            await supabase.from("buy_together_products").delete().eq("related_product_id", prod.id);
-            await supabase.from("products").delete().eq("id", prod.id);
-            cleanedCount++;
+
+        const blingIds = (variationProducts || []).map((p: any) => p.bling_product_id).filter((id: any) => id != null);
+
+        if (blingIds.length > 0) {
+          const { data: existingVariants } = await supabase.from("product_variants").select("bling_variant_id").in("bling_variant_id", blingIds);
+          const existingVariantIds = new Set((existingVariants || []).map((v: any) => v.bling_variant_id));
+
+          const productIdsToDelete = (variationProducts || [])
+            .filter((p: any) => existingVariantIds.has(p.bling_product_id))
+            .map((p: any) => p.id);
+
+          if (productIdsToDelete.length > 0) {
+            for (let i = 0; i < productIdsToDelete.length; i += 500) {
+              const chunk = productIdsToDelete.slice(i, i + 500);
+              await supabase.from("product_images").delete().in("product_id", chunk);
+              await supabase.from("product_variants").delete().in("product_id", chunk);
+              await supabase.from("product_characteristics").delete().in("product_id", chunk);
+              await supabase.from("buy_together_products").delete().in("product_id", chunk);
+              await supabase.from("buy_together_products").delete().in("related_product_id", chunk);
+              await supabase.from("products").delete().in("id", chunk);
+            }
+            cleanedCount = productIdsToDelete.length;
           }
         }
+
         result = { cleaned: cleanedCount };
         break;
       }
