@@ -1051,6 +1051,7 @@ function YampiSection({
         const { data, error } = await supabase.functions.invoke("yampi-catalog-sync", {
           body: { only_active: true, offset, limit: BATCH_SIZE, sync_run_id: syncRunId },
         });
+        if (data?.error) throw new Error(String(data.error));
         if (error) throw error;
         syncRunId = data?.sync_run_id || syncRunId;
         totalCreated += data?.created_products || 0;
@@ -1072,7 +1073,13 @@ function YampiSection({
         variant: totalErrors > 0 ? "destructive" : "default",
       });
     } catch (err: unknown) {
-      toast({ title: "Erro", description: (err as Error).message, variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Erro ao sincronizar";
+      const isCreds = /credenciais|incompletas|configurar/i.test(msg);
+      toast({
+        title: isCreds ? "Erro ao importar" : "Erro",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSyncing(false);
       setSyncProgress("");
@@ -1083,13 +1090,20 @@ function YampiSection({
     setSyncingCategories(true);
     try {
       const { data, error } = await supabase.functions.invoke("yampi-sync-categories");
+      if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
         title: "Categorias sincronizadas!",
         description: `${data?.created || 0} criadas, ${data?.matched || 0} mapeadas`,
       });
     } catch (err: unknown) {
-      toast({ title: "Erro", description: (err as Error).message, variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Erro ao sincronizar categorias";
+      const isCreds = /credenciais|incompletas|configurar/i.test(msg);
+      toast({
+        title: isCreds ? "Erro ao importar" : "Erro",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSyncingCategories(false);
     }
@@ -1099,13 +1113,20 @@ function YampiSection({
     setSyncingVariations(true);
     try {
       const { data, error } = await supabase.functions.invoke("yampi-sync-variation-values");
+      if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
         title: "Variações sincronizadas!",
         description: `${data?.created || 0} criadas, ${data?.matched || 0} mapeadas`,
       });
     } catch (err: unknown) {
-      toast({ title: "Erro", description: (err as Error).message, variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Erro ao sincronizar variações";
+      const isCreds = /credenciais|incompletas|configurar/i.test(msg);
+      toast({
+        title: isCreds ? "Erro ao importar" : "Erro",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSyncingVariations(false);
     }
@@ -1123,6 +1144,7 @@ function YampiSection({
         const { data, error } = await supabase.functions.invoke("yampi-sync-images", {
           body: { offset, limit: BATCH_SIZE, skip_existing: skipExisting },
         });
+        if (data?.error) throw new Error(String(data.error));
         if (error) throw error;
         totalUploaded += data?.uploaded || 0;
         totalSkipped += data?.skipped || 0;
@@ -1139,7 +1161,13 @@ function YampiSection({
         variant: totalErrors > 0 ? "destructive" : "default",
       });
     } catch (err: unknown) {
-      toast({ title: "Erro", description: (err as Error).message, variant: "destructive" });
+      const msg = err instanceof Error ? err.message : "Erro ao sincronizar imagens";
+      const isCreds = /credenciais|incompletas|configurar/i.test(msg);
+      toast({
+        title: isCreds ? "Erro ao importar" : "Erro",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setSyncingImages(false);
       setImageProgress("");

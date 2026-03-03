@@ -53,7 +53,9 @@ Deno.serve(async (req) => {
     const userSecretKey = config.user_secret_key as string;
 
     if (!alias || !userToken || !userSecretKey) {
-      return new Response(JSON.stringify({ error: "Credenciais Yampi incompletas" }), {
+      return new Response(JSON.stringify({
+        error: "Credenciais Yampi incompletas (alias, user_token, user_secret_key). Preencha em Checkout → Yampi → Configurar.",
+      }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

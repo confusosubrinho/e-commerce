@@ -85,7 +85,9 @@ Deno.serve(async (req) => {
     const defaultBrandId = config.default_brand_id ? Number(config.default_brand_id) : null;
 
     if (!alias || !userToken || !userSecretKey) {
-      return new Response(JSON.stringify({ error: "Credenciais Yampi incompletas" }), {
+      return new Response(JSON.stringify({
+        error: "Credenciais Yampi incompletas (alias, user_token, user_secret_key). Preencha em Checkout → Yampi → Configurar.",
+      }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
