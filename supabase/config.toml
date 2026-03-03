@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.yampi-sync-images]
 verify_jwt = false
+
+[functions.yampi-import-order]
+verify_jwt = false

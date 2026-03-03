@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Eye, MoreHorizontal, Calendar, DollarSign, ArrowUpDown, Filter, Download, Upload, SlidersHorizontal, ShoppingCart, Trash2, RefreshCw, Clock } from 'lucide-react';
+import { Search, Eye, MoreHorizontal, Calendar, DollarSign, ArrowUpDown, Filter, Download, Upload, SlidersHorizontal, ShoppingCart, Trash2, RefreshCw, Clock, PackagePlus } from 'lucide-react';
 import { HelpHint } from '@/components/HelpHint';
 import { AdminEmptyState } from '@/components/admin/AdminEmptyState';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -79,6 +79,9 @@ export default function Orders() {
   const isMobile = useIsMobile();
   const [orderToDeleteTest, setOrderToDeleteTest] = useState<Order | null>(null);
   const [reconcileOrderId, setReconcileOrderId] = useState<string | null>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importYampiId, setImportYampiId] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
   const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') + '/functions/v1';
 
   const ADMIN_ORDERS_PAGE_SIZE = 50;
@@ -330,6 +333,36 @@ export default function Orders() {
     e.target.value = '';
   };
 
+  const handleImportYampi = async () => {
+    if (!importYampiId.trim()) return;
+    setImportLoading(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      if (!token) throw new Error('Sessão não encontrada');
+
+      const res = await fetch(`${FUNCTIONS_URL}/yampi-import-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ yampi_order_id: importYampiId.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (data.ok) {
+        toast({ title: 'Pedido importado!', description: `Número: ${data.order_number} — ${data.items_count} item(ns)` });
+        queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+        setShowImportDialog(false);
+        setImportYampiId('');
+      } else {
+        toast({ title: 'Erro ao importar', description: data.error || 'Erro desconhecido', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Erro', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Header */}
@@ -349,40 +382,22 @@ export default function Orders() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowImportDialog(true)}>
+                <PackagePlus className="h-4 w-4 mr-2" /> Importar Yampi
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" /> Exportar
               </DropdownMenuItem>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="flex w-full">
-                      <DropdownMenuItem disabled className="opacity-70">
-                        <Upload className="h-4 w-4 mr-2" /> Importar (em breve)
-                      </DropdownMenuItem>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Funcionalidade em desenvolvimento</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+              <PackagePlus className="h-4 w-4 mr-2" /> Importar Yampi
+            </Button>
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" /> Exportar
             </Button>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button variant="outline" size="sm" disabled>
-                      <Upload className="h-4 w-4 mr-2" /> Importar (em breve)
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Funcionalidade em desenvolvimento</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         )}
       </div>
@@ -794,6 +809,42 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import from Yampi dialog */}
+      <Dialog open={showImportDialog} onOpenChange={(open) => { if (!importLoading) { setShowImportDialog(open); if (!open) setImportYampiId(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PackagePlus className="h-5 w-5" />
+              Importar pedido da Yampi
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Informe o número ou ID do pedido na Yampi para importá-lo. O pedido será criado no sistema com itens, pagamento e débito de estoque.
+            </p>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Número ou ID do pedido</label>
+              <Input
+                placeholder="Ex: 1491772375818422"
+                value={importYampiId}
+                onChange={(e) => setImportYampiId(e.target.value)}
+                disabled={importLoading}
+                onKeyDown={(e) => e.key === 'Enter' && handleImportYampi()}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowImportDialog(false); setImportYampiId(''); }} disabled={importLoading}>
+                Cancelar
+              </Button>
+              <Button onClick={handleImportYampi} disabled={importLoading || !importYampiId.trim()}>
+                {importLoading ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <PackagePlus className="h-4 w-4 mr-2" />}
+                Importar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
