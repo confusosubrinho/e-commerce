@@ -132,7 +132,7 @@ function classifyEvent(event: string): "stock" | "product" | "order" | "invoice"
   return "unknown";
 }
 
-// ─── Find variant by bling_variant_id OR by SKU fallback ───
+// ─── Find variant by bling_variant_id OR by SKU (used by syncStockOnly) ───
 async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?: string): Promise<{ variantId: string; productId: string } | null> {
   const { data: variant } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingId).maybeSingle();
   if (variant) return { variantId: variant.id, productId: variant.product_id };
@@ -143,7 +143,6 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
     if (defaultVar) return { variantId: defaultVar.id, productId: product.id };
   }
 
-  // SKU fallback
   if (token) {
     try {
       const res = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingId}`, { headers: blingHeaders(token) });
@@ -167,46 +166,113 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
 }
 
 // ─── Update stock for a single Bling product ID + update sync status ───
+// When blingId matches a VARIANT (bling_variant_id): update that variant only.
+// When blingId matches a PRODUCT (bling_product_id) and the product has multiple variants:
+//   do NOT apply the single value to the first variant only (would zero/wrong one). Fetch stock per variant from API instead.
 async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string): Promise<string> {
   if (newStock === undefined && !token) return "no_data";
 
-  if (newStock !== undefined) {
-    const match = await findVariantByBlingIdOrSku(supabase, blingProductId, token);
-    if (match) {
-      // Check if parent product is inactive — skip entirely
-      const { data: parentProduct } = await supabase.from("products").select("is_active").eq("id", match.productId).maybeSingle();
-      if (parentProduct && parentProduct.is_active === false) {
-        console.log(`[webhook] Skipping stock update for inactive product (bling_id=${blingProductId})`);
-        return "skipped_inactive";
-      }
-      await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", match.variantId);
-      // P0.1 FIX: Always update sync status when stock is updated
+  const { data: variantMatch } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingProductId).maybeSingle();
+  if (variantMatch) {
+    const { data: parentProduct } = await supabase.from("products").select("is_active").eq("id", variantMatch.product_id).maybeSingle();
+    if (parentProduct && parentProduct.is_active === false) {
+      console.log(`[webhook] Skipping stock update for inactive product (variant bling_id=${blingProductId})`);
+      return "skipped_inactive";
+    }
+    if (newStock !== undefined) {
+      await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", variantMatch.id);
       await supabase.from("products").update({
         bling_sync_status: "synced",
         bling_last_synced_at: new Date().toISOString(),
         bling_last_error: null,
-      }).eq("id", match.productId);
-      console.log(`[webhook] Stock updated: bling_id=${blingProductId} → ${newStock}`);
-      return "updated";
+      }).eq("id", variantMatch.product_id);
+      console.log(`[webhook] Stock updated (variant): bling_variant_id=${blingProductId} → ${newStock}`);
     }
-    console.log(`[webhook] No match found for bling_id=${blingProductId}`);
-    return "not_found";
+    return "updated";
   }
 
-  // Fetch stock from Bling API
-  if (!token) return "no_token";
-  try {
-    const res = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers: blingHeaders(token) });
-    const json = await res.json();
-    const stock = json?.data?.[0]?.saldoVirtualTotal ?? null;
-    if (stock !== null) {
-      return await updateStockForBlingId(supabase, blingProductId, stock, token);
+  const { data: product } = await supabase.from("products").select("id, is_active").eq("bling_product_id", blingProductId).maybeSingle();
+  if (product) {
+    if (product.is_active === false) {
+      console.log(`[webhook] Skipping stock update for inactive product (bling_id=${blingProductId})`);
+      return "skipped_inactive";
+    }
+    const { data: variants } = await supabase.from("product_variants").select("id").eq("product_id", product.id);
+    const variantCount = variants?.length ?? 0;
+    if (variantCount > 1) {
+      if (!token) return "no_token";
+      try {
+        const res = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers: blingHeaders(token) });
+        if (!res.ok) return "error";
+        const json = await res.json();
+        const detail = json?.data;
+        if (detail) {
+          await syncStockOnly(supabase, blingHeaders(token), product.id, blingProductId, detail);
+          console.log(`[webhook] Stock updated (product multi-variant): bling_id=${blingProductId} → synced all variants`);
+          return "updated";
+        }
+      } catch (err) {
+        console.error(`[webhook] Error syncing stock for product ${blingProductId}:`, err);
+        return "error";
+      }
+    }
+    if (variantCount === 1 && newStock !== undefined) {
+      await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("product_id", product.id);
+      await supabase.from("products").update({
+        bling_sync_status: "synced",
+        bling_last_synced_at: new Date().toISOString(),
+        bling_last_error: null,
+      }).eq("id", product.id);
+      console.log(`[webhook] Stock updated (product single variant): bling_id=${blingProductId} → ${newStock}`);
+      return "updated";
+    }
+  }
+
+  // SKU fallback
+  if (token) {
+    try {
+      const res = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers: blingHeaders(token) });
+      if (res.ok) {
+        const json = await res.json();
+        const sku = json?.data?.codigo;
+        if (sku) {
+          const { data: skuVariant } = await supabase.from("product_variants").select("id, product_id").eq("sku", sku).maybeSingle();
+          if (skuVariant) {
+            await supabase.from("product_variants").update({ bling_variant_id: blingProductId }).eq("id", skuVariant.id);
+            if (newStock !== undefined) {
+              await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", skuVariant.id);
+              await supabase.from("products").update({
+                bling_sync_status: "synced",
+                bling_last_synced_at: new Date().toISOString(),
+                bling_last_error: null,
+              }).eq("id", skuVariant.product_id);
+            }
+            console.log(`[webhook] Linked and updated variant via SKU: bling_id=${blingProductId} → ${newStock}`);
+            return "updated";
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[webhook] SKU fallback failed for ${blingProductId}:`, err);
+    }
+  }
+
+  if (newStock === undefined && token) {
+    try {
+      const res = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers: blingHeaders(token) });
+      const json = await res.json();
+      const stock = json?.data?.[0]?.saldoVirtualTotal ?? null;
+      if (stock !== null) {
+        return await updateStockForBlingId(supabase, blingProductId, stock, token);
+      }
+    } catch (err) {
+      console.error(`[webhook] Error fetching stock for ${blingProductId}:`, err);
     }
     return "no_stock_data";
-  } catch (err) {
-    console.error(`[webhook] Error fetching stock for ${blingProductId}:`, err);
-    return "error";
   }
+
+  console.log(`[webhook] No match found for bling_id=${blingProductId}`);
+  return "not_found";
 }
 
 // ─── Sync a single product — config-aware, never changes is_active ───
