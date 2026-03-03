@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
         deleted_at: new Date().toISOString(),
         reason: "modo teste",
       },
-    }).then(() => {}).catch(() => {});
+    }).then(() => {}, () => {});
     return new Response(
       JSON.stringify({ ok: true, action: "delete_order_test", order_number: order.order_number }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
