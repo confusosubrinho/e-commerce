@@ -247,7 +247,8 @@ Deno.serve(async (req) => {
       }
       case "checkout.session.completed": {
         const session = event.data.object as Record<string, unknown>;
-        const orderId = session.metadata?.order_id as string | undefined;
+        const metadata = session.metadata as Record<string, unknown> | undefined;
+        const orderId = metadata?.order_id as string | undefined;
         const piId = typeof session.payment_intent === "string" ? session.payment_intent : null;
         if (orderId) {
           const updateData: Record<string, unknown> = {

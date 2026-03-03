@@ -32,28 +32,22 @@ class MockSupabase {
               }
             };
           },
-          in: (field: string, values: any[]) => {
-            return {
-              then: async (resolve: any) => {
-                this.queryCount++;
-                // Simulate network latency (e.g., 25ms per query, slightly more than single query)
-                await new Promise(r => setTimeout(r, 25));
-                const data = values.map((value: any) => ({
-                    id: value,
-                    price_modifier: 0,
-                    sale_price: 100,
-                    base_price: 120,
-                    products: {
-                      id: "prod_1",
-                      category_id: "cat_1",
-                      base_price: 120,
-                      sale_price: 100,
-                      is_active: true
-                    }
-                }));
-                resolve({ data });
-              }
-            };
+          in: (_field: string, values: any[]) => {
+            this.queryCount++;
+            const data = values.map((value: any) => ({
+                id: value,
+                price_modifier: 0,
+                sale_price: 100,
+                base_price: 120,
+                products: {
+                  id: "prod_1",
+                  category_id: "cat_1",
+                  base_price: 120,
+                  sale_price: 100,
+                  is_active: true
+                }
+            }));
+            return Promise.resolve({ data });
           }
         };
       }
