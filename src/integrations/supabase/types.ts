@@ -2122,6 +2122,7 @@ export type Database = {
           gateway_fee_starts_at_installment: number
           id: string
           interest_free_installments: number
+          interest_free_installments_sale: number | null
           interest_mode: string
           is_active: boolean
           max_installments: number
@@ -2146,6 +2147,7 @@ export type Database = {
           gateway_fee_starts_at_installment?: number
           id?: string
           interest_free_installments?: number
+          interest_free_installments_sale?: number | null
           interest_mode?: string
           is_active?: boolean
           max_installments?: number
@@ -2170,6 +2172,7 @@ export type Database = {
           gateway_fee_starts_at_installment?: number
           id?: string
           interest_free_installments?: number
+          interest_free_installments_sale?: number | null
           interest_mode?: string
           is_active?: boolean
           max_installments?: number
