@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, Minus, Plus, ShoppingBag, Heart, MessageCircle, Truck, Bell, Star, RefreshCw } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Minus, Plus, ShoppingBag, Heart, MessageCircle, Truck, Bell, Star, RefreshCw } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { Button } from '@/components/ui/button';
@@ -626,7 +626,7 @@ export default function ProductDetail() {
         <div className="grid md:grid-cols-2 gap-8 overflow-hidden">
           {/* Images */}
           <div className="space-y-4 min-w-0 overflow-hidden">
-            <div className="aspect-square rounded-lg overflow-hidden bg-muted relative w-full">
+            <div className="aspect-square rounded-lg overflow-hidden bg-muted relative w-full group">
               <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
                 {product.is_new && (
                   <Badge className="bg-primary text-primary-foreground border-0 px-3 py-1">Lançamento</Badge>
@@ -638,6 +638,33 @@ export default function ProductDetail() {
                   <Badge className="bg-primary text-primary-foreground border-0 px-3 py-1">Destaque</Badge>
                 )}
               </div>
+              {/* Setas de navegação na imagem principal (só quando há mais de uma imagem) */}
+              {images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImage((prev) => (prev - 1 + images.length) % images.length);
+                    }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Imagem anterior"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImage((prev) => (prev + 1) % images.length);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                    aria-label="Próxima imagem"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -659,14 +686,12 @@ export default function ProductDetail() {
                 {images.map((image, index) => (
                   <button
                     key={image.id}
-                    onClick={() => {
-                      setSelectedImage(index);
-                      setLightboxIndex(index);
-                      setLightboxOpen(true);
-                    }}
+                    type="button"
+                    onClick={() => setSelectedImage(index)}
                     className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
                       index === selectedImage ? 'border-primary' : 'border-transparent'
-                    } focus:outline-none focus:ring-2 focus:ring-primary cursor-zoom-in`}
+                    } focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer`}
+                    aria-label={`Ver imagem ${index + 1}`}
                   >
                     <img src={resolveImageUrl(image.url)} alt={`${product.name} - ${index + 1}`} className="w-full h-full object-cover" />
                   </button>
