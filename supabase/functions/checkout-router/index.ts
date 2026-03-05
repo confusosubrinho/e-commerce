@@ -20,10 +20,10 @@ const ROUTES = [
 type Route = (typeof ROUTES)[number];
 
 const TARGET_MAP: Record<Exclude<Route, "start">, string> = {
-  resolve: "checkout/create-session",
-  create_gateway_session: "checkout/create-session",
-  stripe_intent: "checkout/stripe-create-intent",
-  process_payment: "checkout/process-payment",
+  resolve: "checkout-create-session",
+  create_gateway_session: "checkout-create-session",
+  stripe_intent: "checkout-stripe-create-intent",
+  process_payment: "checkout-process-payment",
 };
 
 // Allowlist e schema por route. Para "start" não aceitamos unit_price/product_name/subtotal/total_amount do cliente.
