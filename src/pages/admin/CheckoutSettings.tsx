@@ -1048,7 +1048,7 @@ function YampiSection({
     try {
       while (true) {
         setSyncProgress(`Processando ${offset + 1}-${offset + BATCH_SIZE}...`);
-        const { data, error } = await supabase.functions.invoke("yampi/catalog-sync", {
+        const { data, error } = await supabase.functions.invoke("yampi-catalog-sync", {
           body: { only_active: true, offset, limit: BATCH_SIZE, sync_run_id: syncRunId },
         });
         if (data?.error) throw new Error(String(data.error));
