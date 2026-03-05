@@ -139,7 +139,7 @@ export default function CommerceHealth() {
       return;
     }
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/checkout/reprocess-stripe-webhook`, {
+      const res = await fetch(`${FUNCTIONS_URL}/checkout-reprocess-stripe-webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ event_id: eventId }),
