@@ -87,6 +87,9 @@ verify_jwt = false
 [functions.checkout-router]
 verify_jwt = false
 
+[functions."checkout/router"]
+verify_jwt = false
+
 [functions.checkout-update-settings]
 verify_jwt = false
 
