@@ -622,7 +622,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <div className="container-custom py-8 overflow-hidden">
+      <div className="container-custom py-8 overflow-hidden animate-content-in">
         <div className="grid md:grid-cols-2 gap-8 overflow-hidden">
           {/* Images */}
           <div className="space-y-4 min-w-0 overflow-hidden">

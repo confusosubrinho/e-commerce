@@ -159,7 +159,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-content-in">
       <div className="flex items-center gap-2">
         <h1 className="text-xl sm:text-3xl font-bold">Configurações da Loja</h1>
         <HelpHint helpKey="admin.settings" />

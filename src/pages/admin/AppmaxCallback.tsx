@@ -87,7 +87,7 @@ export default function AppmaxCallbackPage() {
         setErrorMsg(
           'O healthcheck da Appmax não foi recebido dentro do tempo esperado (5 min). ' +
           'Verifique se a "URL de validação" no app Appmax está configurada corretamente: ' +
-          `https://sojrvsbqkrbxoymlwtii.supabase.co/functions/v1/appmax-healthcheck`
+          `https://sojrvsbqkrbxoymlwtii.supabase.co/functions/v1/appmax/healthcheck`
         );
       }
     }, POLL_INTERVAL_MS);
@@ -124,7 +124,7 @@ export default function AppmaxCallbackPage() {
     const t = setTimeout(async () => {
       try {
         const env = detectedEnv || 'sandbox';
-        const { data, error } = await supabase.functions.invoke('appmax-generate-merchant-keys', {
+        const { data, error } = await supabase.functions.invoke('appmax/generate-merchant-keys', {
           body: {
             external_key: externalKey,
             token: installToken,
@@ -164,7 +164,7 @@ export default function AppmaxCallbackPage() {
       setStatus('generating');
       const env = detectedEnv || 'sandbox';
 
-      const { data, error } = await supabase.functions.invoke('appmax-generate-merchant-keys', {
+      const { data, error } = await supabase.functions.invoke('appmax/generate-merchant-keys', {
         body: {
           external_key: externalKey,
           token: installToken,

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/database';
+import { sortProductList, homeSectionSortToProductSortKey } from '@/lib/productSort';
 
 export interface HomeSection {
   id: string;
@@ -125,36 +126,11 @@ export function useSectionProducts(section: HomeSection) {
         products.sort((a, b) => idOrder.indexOf(a.id) - idOrder.indexOf(b.id));
       }
 
-      // Apply sort_order
+      // Apply sort_order (reutiliza a mesma lógica de ordenação da loja/admin)
       const sortOrder = section.sort_order || 'newest';
       if (section.source_type !== 'manual') {
-        switch (sortOrder) {
-          case 'newest':
-            products.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            break;
-          case 'oldest':
-            products.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-            break;
-          case 'price_asc':
-            products.sort((a, b) => (a.sale_price || a.base_price) - (b.sale_price || b.base_price));
-            break;
-          case 'price_desc':
-            products.sort((a, b) => (b.sale_price || b.base_price) - (a.sale_price || a.base_price));
-            break;
-          case 'discount_desc':
-            products.sort((a, b) => {
-              const discA = a.sale_price ? ((a.base_price - a.sale_price) / a.base_price) : 0;
-              const discB = b.sale_price ? ((b.base_price - b.sale_price) / b.base_price) : 0;
-              return discB - discA;
-            });
-            break;
-          case 'alpha_asc':
-            products.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-          case 'alpha_desc':
-            products.sort((a, b) => b.name.localeCompare(a.name));
-            break;
-        }
+        const sortKey = homeSectionSortToProductSortKey(sortOrder);
+        products = sortProductList(products, sortKey);
       }
 
       return products;

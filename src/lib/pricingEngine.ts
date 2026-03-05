@@ -264,29 +264,31 @@ export interface InstallmentDisplay {
 
 /**
  * Get the unified installment display for a given price.
+ * Respects min_installment_value: only shows "sem juros" when parcel >= minimum.
  * @param hasProductSaleDiscount - when true and config has interest_free_installments_sale, that value is used for "sem juros"
  */
 export function getInstallmentDisplay(price: number, config: PricingConfig, hasProductSaleDiscount?: boolean): InstallmentDisplay {
   const effective = getEffectiveConfigForInstallments(config, hasProductSaleDiscount);
-  const bestN = effective.interest_free_installments;
+  const options = getInstallmentOptions(price, config, hasProductSaleDiscount);
   const maxN = effective.max_installments;
 
-  if (bestN >= 2 && price > 0) {
-    const installmentAmount = Math.floor((price / bestN) * 100) / 100;
-    const primaryText = `ou ${bestN}x de ${formatCurrency(installmentAmount)} sem juros`;
-    const secondaryText = maxN > bestN ? `até ${maxN}x no cartão` : null;
+  // Best "sem juros" option that respects min_installment_value (highest n among interest-free in options)
+  const interestFreeOptions = options.filter(o => !o.hasInterest);
+  const bestInterestFree = interestFreeOptions.length > 0 ? interestFreeOptions[interestFreeOptions.length - 1] : null;
 
+  if (bestInterestFree && bestInterestFree.n >= 2) {
+    const primaryText = `ou ${bestInterestFree.n}x de ${formatCurrency(bestInterestFree.installmentValue)} sem juros`;
+    const secondaryText = maxN > bestInterestFree.n ? `até ${maxN}x no cartão` : null;
     return {
       primaryText,
       secondaryText,
-      bestInterestFreeInstallments: bestN,
+      bestInterestFreeInstallments: bestInterestFree.n,
       maxInstallments: maxN,
-      bestInterestFreeInstallmentAmount: installmentAmount,
+      bestInterestFreeInstallmentAmount: bestInterestFree.installmentValue,
     };
   }
 
   const primaryText = maxN > 1 ? `até ${maxN}x no cartão` : formatCurrency(price);
-
   return {
     primaryText,
     secondaryText: null,

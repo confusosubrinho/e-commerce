@@ -6,11 +6,12 @@ import { ProductGrid } from '@/components/store/ProductGrid';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/database';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ProductSortSelect } from '@/components/ui/ProductSortSelect';
+import { sortProductList, DEFAULT_PRODUCT_SORT, type ProductSortKey } from '@/lib/productSort';
 
 export default function SizePage() {
   const { size } = useParams<{ size: string }>();
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState<ProductSortKey>(DEFAULT_PRODUCT_SORT);
 
   const { data: products, isLoading } = useQuery({
     queryKey: ['products-by-size', size],
@@ -45,24 +46,10 @@ export default function SizePage() {
     enabled: !!size,
   });
 
-  const sortedProducts = useMemo(() => {
-    if (!products) return [];
-    const result = [...products];
-    switch (sortBy) {
-      case 'price-asc':
-        result.sort((a, b) => Number(a.sale_price || a.base_price) - Number(b.sale_price || b.base_price));
-        break;
-      case 'price-desc':
-        result.sort((a, b) => Number(b.sale_price || b.base_price) - Number(a.sale_price || a.base_price));
-        break;
-      case 'name-asc':
-        result.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }
-    return result;
-  }, [products, sortBy]);
+  const sortedProducts = useMemo(
+    () => sortProductList(products ?? [], sortBy),
+    [products, sortBy]
+  );
 
   return (
     <StoreLayout>
@@ -87,17 +74,7 @@ export default function SizePage() {
 
       <div className="container-custom py-8">
         <div className="flex justify-end mb-6">
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Mais recentes</SelectItem>
-              <SelectItem value="price-asc">Menor preço</SelectItem>
-              <SelectItem value="price-desc">Maior preço</SelectItem>
-              <SelectItem value="name-asc">A-Z</SelectItem>
-            </SelectContent>
-          </Select>
+          <ProductSortSelect value={sortBy} onValueChange={setSortBy} variant="store" />
         </div>
 
         <ProductGrid products={sortedProducts} isLoading={isLoading} />

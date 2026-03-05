@@ -3,14 +3,14 @@
 ## Sincronização com o Supabase
 
 - A **chave secreta do webhook** pode ser configurada no **admin do site** (Checkout → Yampi → **Configurar** → campo **Chave secreta do webhook**). Ela é salva na tabela `integrations_checkout_providers`, coluna `config` (JSONB), chave `webhook_secret`.
-- A Edge Function **yampi-webhook** lê essa chave direto do banco (prioridade). Se não houver chave no config, usa a variável de ambiente `YAMPI_WEBHOOK_SECRET` (Secrets da função no Supabase).
+- A Edge Function **yampi/webhook** lê essa chave direto do banco (prioridade). Se não houver chave no config, usa a variável de ambiente `YAMPI_WEBHOOK_SECRET` (Secrets da função no Supabase).
 - Ou seja: tudo que você configura no admin (URL do webhook, chave secreta, copiar URL) fica salvo no Supabase (banco) e a função usa esses dados. Não é obrigatório configurar a chave nas Secrets do Supabase se você usar o campo no admin.
 
 ---
 
 ## 1. Deploy das Edge Functions
 
-As correções (pedido único por sessão, status correto) estão nas funções **checkout-router** e **yampi-webhook**. É preciso fazer o deploy no projeto Supabase que a loja usa.
+As correções (pedido único por sessão, status correto) estão nas funções **checkout/router** e **yampi/webhook**. É preciso fazer o deploy no projeto Supabase que a loja usa.
 
 ### No terminal (na pasta do projeto)
 
@@ -23,17 +23,17 @@ supabase link --project-ref SEU_PROJECT_REF
 
 # 3) Deploy das duas funções
 supabase functions deploy checkout-router
-supabase functions deploy yampi-webhook
+supabase functions deploy yampi/webhook
 ```
 
 Ou pelo **Dashboard Supabase**: Edge Functions → selecionar cada função → Deploy (se o deploy for feito via Git, basta o push no repositório que estiver conectado).
 
 ### Variáveis de ambiente / Secrets
 
-- **yampi-webhook:**
+- **yampi/webhook:**
   - **Recomendado:** configurar a chave no **admin do site** (Checkout → Yampi → Configurar → Chave secreta do webhook). A função lê de `integrations_checkout_providers.config.webhook_secret`; **não é obrigatório** definir secret no Supabase.
-  - **Opcional (fallback):** se quiser usar variável de ambiente, em Settings → Edge Functions → yampi-webhook → Secrets adicione `YAMPI_WEBHOOK_SECRET` com o mesmo valor que você usa na URL do webhook (`?token=...`). A função só usa esse valor se não houver `webhook_secret` no config do provider no banco.
-- **checkout-router:** usa só `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (já definidos pelo Supabase).
+  - **Opcional (fallback):** se quiser usar variável de ambiente, em Settings → Edge Functions → yampi/webhook → Secrets adicione `YAMPI_WEBHOOK_SECRET` com o mesmo valor que você usa na URL do webhook (`?token=...`). A função só usa esse valor se não houver `webhook_secret` no config do provider no banco.
+- **checkout/router:** usa só `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (já definidos pelo Supabase).
 
 Nenhuma migração de banco foi adicionada: a coluna `checkout_session_id` já existe em `orders`; o campo `webhook_secret` fica dentro do JSONB `config` de `integrations_checkout_providers`.
 
@@ -56,7 +56,7 @@ Se ainda não existe webhook apontando para o seu site, configure assim:
 
 - **Se a Yampi mostrar ou pedir uma chave secreta** ao criar o webhook: use essa mesma chave no Supabase e na URL.
 - **Se a Yampi não pedir chave:** crie você mesmo um segredo forte (ex.: string longa aleatória).
-- No **Supabase**: Project Settings → Edge Functions → **yampi-webhook** → Secrets. Adicione:
+- No **Supabase**: Project Settings → Edge Functions → **yampi/webhook** → Secrets. Adicione:
   - Nome: `YAMPI_WEBHOOK_SECRET`
   - Valor: a chave (a que a Yampi deu ou a que você criou).
 - Guarde esse valor; você vai usá-lo na URL na Yampi (`?token=...`).
@@ -66,7 +66,7 @@ Se ainda não existe webhook apontando para o seu site, configure assim:
 A URL da função no Supabase tem este formato:
 
 ```
-https://SEU_PROJECT_REF.supabase.co/functions/v1/yampi-webhook?token=SEU_SECRET
+https://SEU_PROJECT_REF.supabase.co/functions/v1/yampi/webhook?token=SEU_SECRET
 ```
 
 - Troque **SEU_PROJECT_REF** pelo ref do seu projeto (em Supabase: Settings → General → Reference ID).
@@ -77,7 +77,7 @@ https://SEU_PROJECT_REF.supabase.co/functions/v1/yampi-webhook?token=SEU_SECRET
 Exemplo (fictício):
 
 ```
-https://abcdefghijklmn.supabase.co/functions/v1/yampi-webhook?token=abc123seu_token_longo_aqui
+https://abcdefghijklmn.supabase.co/functions/v1/yampi/webhook?token=abc123seu_token_longo_aqui
 ```
 
 ### Passo 3 – Cadastrar na Yampi
@@ -104,9 +104,9 @@ O site usa esse webhook para criar/atualizar pedidos quando o pagamento é aprov
 A Yampi pode pedir ou exibir uma **chave secreta** ao criar o webhook (usada para assinar as requisições com HMAC-SHA256). Configure assim:
 
 1. **Use essa mesma chave em dois lugares (se não usar o admin):**
-   - **No Supabase:** Edge Functions → **yampi-webhook** → Secrets → adicione (ou edite) o secret **`YAMPI_WEBHOOK_SECRET`** com o valor exato da chave que a Yampi mostrou ou que você definiu na Yampi.
+   - **No Supabase:** Edge Functions → **yampi/webhook** → Secrets → adicione (ou edite) o secret **`YAMPI_WEBHOOK_SECRET`** com o valor exato da chave que a Yampi mostrou ou que você definiu na Yampi.
    - **Na URL do webhook na Yampi:** a URL deve terminar com `?token=CHAVE`, onde **CHAVE** é esse mesmo valor. Exemplo:  
-     `https://seu-projeto.supabase.co/functions/v1/yampi-webhook?token=chave_que_a_yampi_deu`
+     `https://seu-projeto.supabase.co/functions/v1/yampi/webhook?token=chave_que_a_yampi_deu`
 
 2. **Se usar o admin do site:** configure a chave em Checkout → Yampi → Configurar → Chave secreta do webhook e use o botão **Copiar URL** no bloco Webhook Yampi; a URL já virá com `?token=...`. A função lê a chave do banco (`integrations_checkout_providers.config.webhook_secret`), então não é obrigatório definir `YAMPI_WEBHOOK_SECRET` nas Secrets do Supabase.
 
@@ -138,7 +138,7 @@ Objetivo: permitir que um pedido aprovado na Yampi seja importado para o site (c
 1. Ler credenciais Yampi de `integrations_checkout_providers` (provider = `yampi`, ativo).
 2. Chamar `GET https://api.dooki.com.br/v2/{alias}/orders?filters[number]={yampi_order_id}&include=items,customer,shipping_address,transactions` (ajustar filtro conforme doc Yampi – pode ser `id` ou `number`).
 3. Se não retornar nenhum pedido, responder 404.
-4. Pegar o primeiro pedido do array `data` e normalizar o payload para o mesmo formato que o **yampi-webhook** usa (customer, items, value_total, value_shipment, value_discount, shipping_address, transactions, etc.).
+4. Pegar o primeiro pedido do array `data` e normalizar o payload para o mesmo formato que o **yampi/webhook** usa (customer, items, value_total, value_shipment, value_discount, shipping_address, transactions, etc.).
 5. Reutilizar a lógica do webhook:
    - Verificar se já existe `orders.external_reference = yampi_order_id`. Se existir e `idempotency_key` disser para atualizar, atualizar status/dados; senão retornar “já existe”.
    - Se não existir: criar `orders`, `order_items`, débito de estoque (`inventory_movements` + `decrement_stock`), `payments`, e, se aplicável, atualizar `customers` e `abandoned_carts`.
@@ -165,7 +165,7 @@ Objetivo: permitir que um pedido aprovado na Yampi seja importado para o site (c
 ## Próximos passos sugeridos
 
 1. Confirmar na documentação Yampi o filtro exato para um pedido (ex.: `filters[id]=` ou `filters[number]=`) e o shape de `data[0]` com `include=items,customer,...`.
-2. Implementar a Edge Function `yampi-import-order` (reaproveitando tipos e lógica do `yampi-webhook`).
+2. Implementar a Edge Function `yampi/import-order` (reaproveitando tipos e lógica do `yampi/webhook`).
 3. Proteger a função com checagem de admin (ex.: header ou JWT).
 4. (Opcional) Adicionar o botão e o campo no admin para chamar a função e exibir o resultado.
 

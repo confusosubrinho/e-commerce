@@ -160,7 +160,7 @@ export default function Orders() {
       return;
     }
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/reconcile-order`, {
+      const res = await fetch(`${FUNCTIONS_URL}/checkout/reconcile-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ order_id: orderId }),
@@ -186,7 +186,7 @@ export default function Orders() {
 
   const deleteOrderTestMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      const { data, error } = await supabase.functions.invoke('admin-commerce-action', {
+      const { data, error } = await supabase.functions.invoke('admin/commerce-action', {
         body: { action: 'delete_order_test', order_id: orderId },
       });
       if (error) throw error;
@@ -523,7 +523,7 @@ export default function Orders() {
         </div>
       ) : isMobile ? (
         /* Mobile: card layout */
-        <div className="space-y-2">
+        <div className="space-y-2 animate-content-in">
           {isLoading ? (
             <p className="text-center py-8 text-sm text-muted-foreground">Carregando...</p>
           ) : filteredOrders?.length === 0 ? (
@@ -569,7 +569,7 @@ export default function Orders() {
         </div>
       ) : (
         /* Desktop: table layout */
-        <div className="bg-background rounded-lg border">
+        <div className="bg-background rounded-lg border animate-content-in">
           <Table>
             <TableHeader>
               <TableRow>

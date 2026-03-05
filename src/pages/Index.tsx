@@ -1,5 +1,6 @@
 import { useEffect, lazy, Suspense, ComponentType } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
+import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
@@ -79,18 +80,22 @@ const Index = () => {
           <SectionFallback />
         </>
       ) : pagesSections && pagesSections.length > 0 ? (
-        pagesSections.map((section) => {
+        <>
+        {pagesSections.map((section, index) => {
           const Component = SECTION_COMPONENTS[section.section_type];
           if (!Component) return null;
           const isCategoryGrid = section.section_type === 'category_grid';
           return (
-            <Suspense key={section.id} fallback={isCategoryGrid ? <CategoryGridSkeleton /> : <SectionFallback />}>
-              <div className={isCategoryGrid ? 'content-lazy content-lazy-section-category' : 'content-lazy'}>
-                <Component config={section.config} />
-              </div>
-            </Suspense>
+            <FadeInOnScroll key={section.id} delay={index * 50} rootMargin="60px">
+              <Suspense fallback={isCategoryGrid ? <CategoryGridSkeleton /> : <SectionFallback />}>
+                <div className={isCategoryGrid ? 'content-lazy content-lazy-section-category' : 'content-lazy'}>
+                  <Component config={section.config} />
+                </div>
+              </Suspense>
+            </FadeInOnScroll>
           );
-        })
+        })}
+        </>
       ) : (
         <div className="container-custom py-16 text-center">
           <p className="text-muted-foreground mb-4">Nenhuma seção configurada para a página inicial.</p>

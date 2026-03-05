@@ -7,12 +7,12 @@ import { invokeEdgeFunction } from '../helpers/http.js';
 
 test.describe('Reprocess stripe webhook', () => {
   test('reprocess sem event_id retorna 400', async () => {
-    const res = await invokeEdgeFunction('reprocess-stripe-webhook', {});
+    const res = await invokeEdgeFunction('checkout/reprocess-stripe-webhook', {});
     expect(res.status).toBe(400);
   });
 
   test('reprocess com event_id inexistente retorna 404', async () => {
-    const res = await invokeEdgeFunction('reprocess-stripe-webhook', {
+    const res = await invokeEdgeFunction('checkout/reprocess-stripe-webhook', {
       event_id: 'evt_inexistente_000000000000',
     });
     expect(res.status).toBe(404);

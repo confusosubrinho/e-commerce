@@ -139,7 +139,7 @@ export default function CommerceHealth() {
       return;
     }
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/reprocess-stripe-webhook`, {
+      const res = await fetch(`${FUNCTIONS_URL}/checkout/reprocess-stripe-webhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ event_id: eventId }),
@@ -198,7 +198,7 @@ export default function CommerceHealth() {
   const expiredIds = (lists?.expired_reservation_order_ids ?? []) as string[];
 
   return (
-    <div className="p-6 max-w-3xl space-y-6">
+    <div className="p-6 max-w-3xl space-y-6 animate-content-in">
       <h1 className="text-2xl font-bold">Commerce Health</h1>
       <Card className={data?.ok ? 'border-green-500/50' : 'border-amber-500/50'}>
         <CardHeader className="pb-2">

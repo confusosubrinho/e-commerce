@@ -21,20 +21,25 @@ Validar fluxos do comprador, do admin e do backend (router, webhooks, reconcile,
 ### Comandos para rodar localmente
 
 ```bash
-# 1. Variáveis de ambiente (obrigatório para E2E)
-# Copie .env.e2e.example para .env.e2e e preencha SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.
-# Ou exporte no shell:
-#   export SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
-#   export E2E_ADMIN_EMAIL=qa-admin@example.com E2E_ADMIN_PASSWORD=qa-admin-e2e-secure  # opcional
+# 1. Variáveis de ambiente (obrigatório para E2E do painel admin)
+# Coloque no .env na raiz do projeto (ou .env.local):
+#   SUPABASE_URL=...
+#   SUPABASE_SERVICE_ROLE_KEY=...
+#   SUPABASE_ANON_KEY=...   # ou VITE_SUPABASE_ANON_KEY (para login E2E)
+# Opcional: E2E_ADMIN_EMAIL=qa-admin@example.com  E2E_ADMIN_PASSWORD=qa-admin-e2e-secure
+# O global-setup do Playwright carrega .env/.env.local da raiz; sem essas variáveis o seed é pulado e o login admin falha.
 
-# 2. Seed de dados QA (rodado automaticamente pelo globalSetup do Playwright)
+# 2. Seed de dados QA (rodado automaticamente pelo globalSetup do Playwright quando SUPABASE_* estão definidos)
 npm run seed:qa
 
 # 3. App (em outro terminal, ou deixe o webServer do Playwright subir)
 npm run dev
 
-# 4. Rodar E2E
+# 4. Rodar E2E (todos os testes)
 npm run test:e2e
+
+# 4b. Rodar só E2E do painel admin (navegação + duplo clique em botões críticos)
+npx playwright test e2e/admin-panel-full.spec.ts e2e/admin-smoke.spec.ts
 
 # 5. Ver report após falhas
 npm run test:e2e:report
@@ -125,6 +130,12 @@ O `global-setup` aborta se `NODE_ENV=production` ou `VITE_MODE=production`, para
 - admin-orders-pagination.spec.ts
 - admin-checkout-settings.spec.ts
 - admin-commerce-health-webhooks.spec.ts
+
+### Painel Admin — cobertura completa (e2e/admin-panel-full.spec.ts)
+- **Navegação:** 25 rotas (/admin, /admin/produtos, pedidos, clientes, cupons, banners, vendas, configurações, checkout-transparente, integrações, commerce-health, sistema, equipe, redes-sociais, preços, carrinhos-abandonados, avaliações, galeria, personalização, tema, páginas, notificações, ajuda). Cada rota é visitada após login e validada por texto visível.
+- **Duplo clique:** Novo produto (no máximo 1 dialog); Salvar produto (no máximo 2 toasts); health check checkout; Liberar/Reconciliar em commerce-health; busca em pedidos; Limpar logs em sistema.
+- **Outros:** Configurações e Integrações carregam; logout redireciona para /admin/login.
+- **Requisito:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_ANON_KEY` (ou VITE_*) no .env para o seed e o login.
 
 ### Fase 4 — Backend API (e2e/api/)
 - router-start-validation.spec.ts (400 inválido, 200 válido)

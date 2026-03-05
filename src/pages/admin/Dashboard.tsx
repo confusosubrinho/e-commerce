@@ -277,7 +277,7 @@ export default function Dashboard() {
           {[1,2,3,4].map(i => <Skeleton key={i} className="h-24" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 md:gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:gap-4 lg:grid-cols-4 animate-content-in">
           <KpiCard title="Receita" value={kpis?.revenue || 0} pct={kpis?.revenuePct || 0} icon={DollarSign} prefix="R$" />
           <KpiCard title="Pedidos" value={kpis?.orders || 0} pct={kpis?.ordersPct || 0} icon={ShoppingCart} />
           <KpiCard title="Ticket Médio" value={kpis?.ticket || 0} pct={kpis?.ticketPct || 0} icon={DollarSign} prefix="R$" />

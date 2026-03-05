@@ -10,6 +10,7 @@ import { getInstallmentDisplay } from '@/lib/pricingEngine';
 import { VariantSelectorModal } from './VariantSelectorModal';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
+import { FadeInOnScroll } from './FadeInOnScroll';
 
 interface ProductCarouselProps {
   products: Product[];
@@ -95,6 +96,7 @@ export function ProductCarousel({
 
   return (
     <>
+      <FadeInOnScroll>
       <section className={`py-12 ${isDark ? 'bg-secondary text-secondary-foreground' : ''}`}>
         <div className="container-custom">
           {title && (
@@ -285,6 +287,7 @@ export function ProductCarousel({
           </div>
         </div>
       </section>
+      </FadeInOnScroll>
 
       {/* Variant selector modal */}
       {variantProduct && (

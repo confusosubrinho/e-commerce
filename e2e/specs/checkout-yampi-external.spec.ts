@@ -11,7 +11,7 @@ test.describe('Checkout Yampi external', () => {
   });
 
   test('action=redirect retorna redirect_url (yampi)', async ({ page }) => {
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         await route.fulfill({

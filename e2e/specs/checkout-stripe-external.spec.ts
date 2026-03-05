@@ -11,7 +11,7 @@ test.describe('Checkout Stripe external', () => {
   });
 
   test('action=redirect retorna redirect_url', async ({ page }) => {
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         await route.fulfill({
@@ -37,7 +37,7 @@ test.describe('Checkout Stripe external', () => {
   });
 
   test('retorno /checkout/obrigado exibe mensagem de confirmação', async ({ page }) => {
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         await route.fulfill({

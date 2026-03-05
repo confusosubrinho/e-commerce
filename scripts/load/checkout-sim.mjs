@@ -11,7 +11,7 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const fnUrl = url.replace(/\/$/, '') + '/functions/v1/stripe-create-intent';
+const fnUrl = url.replace(/\/$/, '') + '/functions/v1/checkout/stripe-create-intent';
 
 async function oneRequest() {
   const start = Date.now();

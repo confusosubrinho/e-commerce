@@ -61,7 +61,7 @@ O action `resolve` usa primeiro a tabela `checkout_settings`. Se existir linha, 
 
 ## Admin UI
 
-A tela **Checkout & Pagamentos** lê `checkout_settings` para status (gateway, canal, experiência). Ao ativar/desativar Stripe ou Yampi, ou ao alterar o modo de checkout Stripe (embedded/external), a aplicação chama **update-checkout-settings** para manter a tabela canônica sincronizada.
+A tela **Checkout & Pagamentos** lê `checkout_settings` para status (gateway, canal, experiência). Ao ativar/desativar Stripe ou Yampi, ou ao alterar o modo de checkout Stripe (embedded/external), a aplicação chama **checkout/update-settings** para manter a tabela canônica sincronizada.
 
 ## Mapeamento antigo → novo
 

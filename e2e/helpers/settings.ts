@@ -18,7 +18,7 @@ export async function setCheckoutSettings(input: CheckoutSettingsInput): Promise
   const base = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   if (!base) throw new Error('E2E: SUPABASE_URL obrigatório');
   const token = await getAdminToken();
-  const url = base.replace(/\/$/, '') + '/functions/v1/update-checkout-settings';
+  const url = base.replace(/\/$/, '') + '/functions/v1/checkout/update-settings';
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },

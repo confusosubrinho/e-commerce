@@ -45,6 +45,6 @@ CREATE TRIGGER update_appmax_settings_updated_at
 INSERT INTO public.appmax_settings (environment, healthcheck_url, callback_url)
 VALUES (
   'sandbox',
-  'https://sojrvsbqkrbxoymlwtii.supabase.co/functions/v1/appmax-healthcheck',
+  'https://sojrvsbqkrbxoymlwtii.supabase.co/functions/v1/appmax/healthcheck',
   'https://vanessalima.lovable.app/admin/integrations/appmax/callback'
 );

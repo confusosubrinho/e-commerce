@@ -1,8 +1,9 @@
- import { Link } from 'react-router-dom';
- import { Product } from '@/types/database';
- import { ProductCard } from './ProductCard';
- import { Button } from '@/components/ui/button';
- import { ProductGridSkeleton } from './Skeletons';
+import { Link } from 'react-router-dom';
+import { Product } from '@/types/database';
+import { ProductCard } from './ProductCard';
+import { Button } from '@/components/ui/button';
+import { ProductGridSkeleton } from './Skeletons';
+import { FadeInOnScroll } from './FadeInOnScroll';
  
  interface ProductGridProps {
    products: Product[];
@@ -37,13 +38,14 @@
      );
    }
  
-   if (!products?.length) {
-     return null;
-   }
- 
-   return (
-     <section className="py-12">
-       <div className="container-custom">
+  if (!products?.length) {
+    return null;
+  }
+
+  return (
+    <FadeInOnScroll>
+    <section className="py-12">
+      <div className="container-custom">
          {title && (
            <div className="flex items-center justify-between mb-8">
              <div>
@@ -65,8 +67,9 @@
                <Link to={viewAllLink}>Ver mais</Link>
              </Button>
            </div>
-         )}
-       </div>
-     </section>
-   );
- }
+        )}
+      </div>
+    </section>
+    </FadeInOnScroll>
+  );
+}

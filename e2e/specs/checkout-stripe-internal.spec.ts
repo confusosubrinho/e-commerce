@@ -17,7 +17,7 @@ test.describe('Checkout Stripe internal', () => {
   });
 
   test('fluxo com mock: start -> render -> /checkout', async ({ page }) => {
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         await route.fulfill({
@@ -45,7 +45,7 @@ test.describe('Checkout Stripe internal', () => {
   });
 
   test('página checkout exibe área de pagamento ou loading', async ({ page }) => {
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         await route.fulfill({

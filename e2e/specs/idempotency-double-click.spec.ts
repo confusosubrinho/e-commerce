@@ -12,7 +12,7 @@ test.describe('Idempotência double-click', () => {
 
   test('duplo clique em Finalizar Compra nao dispara muitas chamadas', async ({ page }) => {
     let callCount = 0;
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       const body = route.request().postDataJSON() || {};
       if (body.route === 'start') {
         callCount += 1;

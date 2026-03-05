@@ -6,7 +6,7 @@ O front chama **sempre** o checkout-router com `route: "start"`. O router lê `c
 
 ## Request
 
-Enviado no body do POST para `/functions/v1/checkout-router`:
+Enviado no body do POST para `/functions/v1/checkout/router`:
 
 | Campo | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|

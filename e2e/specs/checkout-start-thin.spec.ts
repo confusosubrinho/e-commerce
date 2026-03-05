@@ -12,7 +12,7 @@ test.describe('Checkout Start thin client', () => {
 
   test('app chama checkout-router com route start', async ({ page }) => {
     let payload: { route?: string } | null = null;
-    await page.route('**/functions/v1/checkout-router**', async (route) => {
+    await page.route('**/functions/v1/checkout/router**', async (route) => {
       payload = route.request().postDataJSON() ?? {};
       await route.continue();
     });

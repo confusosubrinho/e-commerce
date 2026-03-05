@@ -87,6 +87,14 @@ export default {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        "fade-in-soft": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "fade-in-up": {
+          from: { opacity: "0", transform: "translateY(12px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
         "slide-up": {
           from: { opacity: "0", transform: "translateY(10px)" },
           to: { opacity: "1", transform: "translateY(0)" },
@@ -118,6 +126,8 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.2s ease-out",
+        "fade-in-soft": "fade-in-soft 0.45s ease-out",
+        "fade-in-up": "fade-in-up 0.4s ease-out",
         "slide-up": "slide-up 0.25s ease-out",
         "slide-in-right": "slide-in-right 0.25s ease-out",
         "shimmer": "shimmer 1.5s ease-in-out infinite",

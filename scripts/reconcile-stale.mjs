@@ -31,7 +31,7 @@ async function run() {
     process.exit(1);
   }
   const orders = await res.json();
-  const fnUrl = url.replace(/\/$/, '') + '/functions/v1/reconcile-order';
+  const fnUrl = url.replace(/\/$/, '') + '/functions/v1/checkout/reconcile-order';
   let reconciled = 0;
   for (const o of orders) {
     const r = await fetch(fnUrl, {

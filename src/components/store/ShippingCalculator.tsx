@@ -51,7 +51,7 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
         quantity: item.quantity,
       }));
 
-      const { data, error } = await supabase.functions.invoke('calculate-shipping', {
+      const { data, error } = await supabase.functions.invoke('checkout/calculate-shipping', {
         body: {
           postal_code_to: cleanCep,
           products: productsList,

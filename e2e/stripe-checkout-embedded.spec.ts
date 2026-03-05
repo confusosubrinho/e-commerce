@@ -132,7 +132,7 @@ test.describe('Stripe checkout embutido (cartão sem redirect)', () => {
     const tryAgainBtn = page.getByRole('button', { name: /tentar novamente/i });
 
     if (await payBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await page.route('**/functions/v1/stripe-create-intent**', (route) =>
+      await page.route('**/functions/v1/checkout/stripe-create-intent**', (route) =>
         route.fulfill({ status: 500, body: JSON.stringify({ error: 'Simulated failure' }) })
       );
       payBtn.click();

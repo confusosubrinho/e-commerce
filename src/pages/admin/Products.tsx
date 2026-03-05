@@ -20,6 +20,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { ProductSortSelect } from '@/components/ui/ProductSortSelect';
+import { sortProductList, DEFAULT_PRODUCT_SORT, type ProductSortKey } from '@/lib/productSort';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
@@ -79,7 +81,7 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [sortBy, setSortBy] = useState<string>('newest');
+  const [sortBy, setSortBy] = useState<ProductSortKey>(DEFAULT_PRODUCT_SORT);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -248,20 +250,13 @@ export default function Products() {
   if (sourceFilter === 'bling') filteredProducts = filteredProducts.filter(p => p.bling_product_id != null);
   else if (sourceFilter === 'manual') filteredProducts = filteredProducts.filter(p => p.bling_product_id == null);
 
-  switch (sortBy) {
-    case 'oldest': filteredProducts.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
-    case 'price-asc': filteredProducts.sort((a, b) => Number(a.sale_price || a.base_price) - Number(b.sale_price || b.base_price)); break;
-    case 'price-desc': filteredProducts.sort((a, b) => Number(b.sale_price || b.base_price) - Number(a.sale_price || a.base_price)); break;
-    case 'name-asc': filteredProducts.sort((a, b) => a.name.localeCompare(b.name)); break;
-    case 'name-desc': filteredProducts.sort((a, b) => b.name.localeCompare(a.name)); break;
-    default: filteredProducts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
+  filteredProducts = sortProductList(filteredProducts, sortBy);
 
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const clearFilters = () => {
-    setSortBy('newest'); setCategoryFilter('all'); setStatusFilter('all'); setSourceFilter('all');
+    setSortBy(DEFAULT_PRODUCT_SORT); setCategoryFilter('all'); setStatusFilter('all'); setSourceFilter('all');
     setActiveTab('active-stock'); setSearchQuery(''); setCurrentPage(1);
   };
 
@@ -344,7 +339,7 @@ export default function Products() {
     const syncTasks = eligibleProducts.map(product =>
       limit(async () => {
         try {
-          const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
+          const { data, error } = await supabase.functions.invoke('bling/sync-single-stock', {
             body: { product_id: product.id },
           });
           if (error || (data && !data.success)) {
@@ -381,7 +376,7 @@ export default function Products() {
     }
     setSyncingProductId(product.id);
     try {
-      const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
+      const { data, error } = await supabase.functions.invoke('bling/sync-single-stock', {
         body: { product_id: product.id },
       });
       if (error) throw new Error(error.message || 'Erro na sincronização');
@@ -492,7 +487,7 @@ export default function Products() {
     try {
       const text = await readFileAsText(file);
       toast({ title: 'Importação Tray iniciada...', description: 'Isso pode levar alguns minutos. Não feche a página.' });
-      const response = await supabase.functions.invoke('tray-import', { body: { csvData: text } });
+      const response = await supabase.functions.invoke('integrations/tray-import', { body: { csvData: text } });
       if (response.error) throw new Error(response.error.message || 'Erro na importação');
       const result = response.data;
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -635,19 +630,7 @@ export default function Products() {
 
         {(!isMobile || showFilters) && (
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-full sm:w-[160px]">
-                <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" /><SelectValue placeholder="Ordenar" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Mais recentes</SelectItem>
-                <SelectItem value="oldest">Mais antigos</SelectItem>
-                <SelectItem value="price-desc">Maior preço</SelectItem>
-                <SelectItem value="price-asc">Menor preço</SelectItem>
-                <SelectItem value="name-asc">Nome A-Z</SelectItem>
-                <SelectItem value="name-desc">Nome Z-A</SelectItem>
-              </SelectContent>
-            </Select>
+            <ProductSortSelect value={sortBy} onValueChange={setSortBy} variant="admin" triggerClassName="w-full sm:w-[160px]" />
             <Select value={sourceFilter} onValueChange={setSourceFilter}>
               <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Origem" /></SelectTrigger>
               <SelectContent>
@@ -699,7 +682,7 @@ export default function Products() {
           </Button>
         </div>
       ) : isMobile ? (
-        <div className="space-y-2">
+        <div className="space-y-2 animate-content-in">
           {isLoading ? (
             <p className="text-center py-8 text-muted-foreground">Carregando...</p>
           ) : paginatedProducts.length === 0 ? (
@@ -757,7 +740,7 @@ export default function Products() {
           )}
         </div>
       ) : (
-        <div className="bg-background rounded-lg border">
+        <div className="bg-background rounded-lg border animate-content-in">
           <Table>
             <TableHeader>
               <TableRow>

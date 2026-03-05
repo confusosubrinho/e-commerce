@@ -136,7 +136,7 @@ const persister =
 // Minimal page loading fallback
 function PageFallback() {
   return (
-    <div className="flex items-center justify-center py-20">
+    <div className="flex items-center justify-center py-20 animate-fade-in-soft">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
     </div>
   );
