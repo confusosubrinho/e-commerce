@@ -1710,7 +1710,7 @@ function BlingPanel() {
             variants: totalVariants,
           }));
           toast({ title: isNewOnly ? 'Buscando produtos novos...' : 'Sincronizando...', description: isNewOnly ? `Processando lote ${batchIndex + 1}...` : `Processando lote a partir do item ${offset}...` });
-          const { data, error } = await supabase.functions.invoke('bling/sync', {
+          const { data, error } = await supabase.functions.invoke('bling-sync', {
             body: { action: 'sync_products', limit: BATCH_SIZE, offset, ...extraBody },
           });
           if (error) throw error;
