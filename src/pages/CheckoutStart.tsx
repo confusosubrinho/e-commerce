@@ -15,6 +15,7 @@ export default function CheckoutStart() {
   const [error, setError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
   const hasStartedCheckout = useRef(false);
+  const redirectingToGateway = useRef(false);
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price);
@@ -25,7 +26,7 @@ export default function CheckoutStart() {
   useEffect(() => {
     captureAttribution();
 
-    if (items.length === 0) {
+    if (items.length === 0 && !redirectingToGateway.current) {
       navigate("/carrinho");
       return;
     }
@@ -83,7 +84,7 @@ export default function CheckoutStart() {
         if (errMsg) throw new Error(errMsg);
 
         if (data.action === "redirect" && data.redirect_url && data.redirect_url.startsWith("http")) {
-          clearCart();
+          redirectingToGateway.current = true;
           window.location.href = data.redirect_url;
           return;
         }
