@@ -1112,7 +1112,7 @@ function YampiSection({
   const syncVariations = async () => {
     setSyncingVariations(true);
     try {
-      const { data, error } = await supabase.functions.invoke("yampi/sync-variation-values");
+      const { data, error } = await supabase.functions.invoke("yampi-sync-variation-values");
       if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
