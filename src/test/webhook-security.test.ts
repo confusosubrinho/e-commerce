@@ -23,7 +23,7 @@ describe('Webhook security', () => {
 
   it('Stripe webhook com assinatura inválida retorna 400', async () => {
     if (!url) return;
-    const functionsUrl = url.replace(/\/$/, '') + '/functions/v1/checkout/stripe-webhook';
+    const functionsUrl = url.replace(/\/$/, '') + '/functions/v1/checkout-stripe-webhook';
     const res = await fetch(functionsUrl, {
       method: 'POST',
       headers: {
