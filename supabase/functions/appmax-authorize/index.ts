@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
 
     const healthcheckUrl =
       settings.healthcheck_url ||
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/appmax/healthcheck`;
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/appmax-healthcheck`;
 
     const authorizePayload: Record<string, string> = {
       external_key: externalKey,

@@ -122,7 +122,7 @@ serve(async (req) => {
         }
 
         // The callback URL is this same edge function
-        const callbackUrl = `${supabaseUrl}/functions/v1/bling/oauth`;
+        const callbackUrl = `${supabaseUrl}/functions/v1/bling-oauth`;
         const state = crypto.randomUUID();
 
         const authUrl = `https://bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${settings.bling_client_id}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}`;
