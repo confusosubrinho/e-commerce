@@ -10,7 +10,7 @@ import {
   encrypt,
   jsonResponse,
   maskSecret,
-} from "../../_shared/appmax.ts";
+} from "../_shared/appmax.ts";
 
 /** Structured error response with error_code + message */
 function healthError(error_code: string, message: string, status: number) {
