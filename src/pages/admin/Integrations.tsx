@@ -671,7 +671,7 @@ function AppmaxGatewayPanel() {
   const handleTestPing = async () => {
     setTestingPing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/healthcheck-ping', {});
+      const { data, error } = await supabase.functions.invoke('appmax-healthcheck-ping', {});
       if (error) throw new Error(error.message);
       if (data?.ok) {
         toast({ title: 'Endpoint acessível!', description: `Resposta em ${data.now}` });
