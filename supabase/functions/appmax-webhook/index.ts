@@ -2,7 +2,7 @@ import {
   corsHeaders,
   getServiceClient,
   logAppmax,
-} from "../../_shared/appmax.ts";
+} from "../_shared/appmax.ts";
 
 async function sha256(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);

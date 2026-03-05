@@ -11,7 +11,7 @@ import {
   requireAdmin,
   errorResponse,
   jsonResponse,
-} from "../../_shared/appmax.ts";
+} from "../_shared/appmax.ts";
 
 // ── Dynamic callback URL helpers ──
 

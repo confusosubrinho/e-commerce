@@ -9,7 +9,7 @@ import {
   errorResponse,
   jsonResponse,
   maskSecret,
-} from "../../_shared/appmax.ts";
+} from "../_shared/appmax.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
