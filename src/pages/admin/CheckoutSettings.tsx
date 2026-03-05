@@ -1089,7 +1089,7 @@ function YampiSection({
   const syncCategories = async () => {
     setSyncingCategories(true);
     try {
-      const { data, error } = await supabase.functions.invoke("yampi/sync-categories");
+      const { data, error } = await supabase.functions.invoke("yampi-sync-categories");
       if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
