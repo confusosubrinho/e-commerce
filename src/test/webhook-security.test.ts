@@ -48,7 +48,7 @@ describe('Webhook security', () => {
 
   it('reconcile-order com Bearer válido não retorna 401', async () => {
     if (!url || !key) return;
-    const functionsUrl = url.replace(/\/$/, '') + '/functions/v1/checkout/reconcile-order';
+    const functionsUrl = url.replace(/\/$/, '') + '/functions/v1/checkout-reconcile-order';
     const res = await fetch(functionsUrl, {
       method: 'POST',
       headers: {
