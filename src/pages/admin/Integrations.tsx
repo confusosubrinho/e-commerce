@@ -657,7 +657,7 @@ function AppmaxGatewayPanel() {
   const handleTestApi = async () => {
     setTestingApi(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/get-app-token', {});
+      const { data, error } = await supabase.functions.invoke('appmax-get-app-token', {});
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       toast({ title: 'API OK!', description: `Token obtido para ambiente ${data.environment}` });
