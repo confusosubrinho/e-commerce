@@ -9,22 +9,27 @@ const ALLOWED_ORIGINS = [
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/.*\.lovable\.app$/,
   /^https:\/\/.*\.lovableproject\.com$/,
+  /^https:\/\/.*\.vercel\.app$/,
+  /^https:\/\/.*\.netlify\.app$/,
 ];
+
+/** Origens extras via env (ex.: CORS_ALLOWED_ORIGINS=https://meu-app.com,https://outro.com) */
+function getExtraOrigins(): string[] {
+  const raw = Deno.env.get("CORS_ALLOWED_ORIGINS") ?? "";
+  return raw.split(",").map((o) => o.trim()).filter(Boolean);
+}
 
 export const getCorsHeaders = (origin: string | null) => {
   let allowedOrigin = "";
+  const extra = getExtraOrigins();
 
   if (origin) {
-    if (ALLOWED_ORIGINS.includes(origin)) {
+    if (ALLOWED_ORIGINS.includes(origin) || extra.includes(origin)) {
       allowedOrigin = origin;
     } else if (ALLOWED_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin))) {
       allowedOrigin = origin;
     }
   }
-
-  // Fallback to production domain if origin is null or not allowed
-  // However, for Edge Functions, if we want to deny access, we should probably not return the header or return a non-matching one.
-  // But usually returning the requested origin if valid is the way.
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin || ALLOWED_ORIGINS[0],

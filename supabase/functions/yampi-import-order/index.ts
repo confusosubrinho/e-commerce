@@ -65,12 +65,12 @@ Deno.serve(async (req) => {
   }
 
   const config = yampiProvider.config as Record<string, unknown>;
-  const alias = config?.store_alias as string;
+  const alias = config?.alias as string;
   const userToken = config?.user_token as string;
   const userSecretKey = config?.user_secret_key as string;
 
   if (!alias || !userToken || !userSecretKey) {
-    return jsonRes({ ok: false, error: "Credenciais Yampi incompletas (store_alias, user_token, user_secret_key)" }, 400);
+    return jsonRes({ ok: false, error: "Credenciais Yampi incompletas (alias, user_token, user_secret_key)" }, 400);
   }
 
   // ── Check if already imported ──

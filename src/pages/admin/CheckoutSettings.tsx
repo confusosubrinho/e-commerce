@@ -273,9 +273,10 @@ function CheckoutHealthCard({ toast }: { toast: ReturnType<typeof useToast>["toa
     setResult(null);
     const requestId = generateRequestId();
     try {
-      const { data, error } = await invokeCheckoutFunction<{ flow?: string; provider?: string; error?: string }>(
-        "checkout-create-session",
-        { body: { action: "resolve" } },
+      // Usa checkout-router (route resolve) para depender de uma única função no cliente e evitar CORS/404 por função não deployada
+      const { data, error } = await invokeCheckoutFunction<{ flow?: string; provider?: string; error?: string; success?: boolean }>(
+        "checkout-router",
+        { body: { route: "resolve" } },
         requestId
       );
       if (error) {
@@ -283,7 +284,7 @@ function CheckoutHealthCard({ toast }: { toast: ReturnType<typeof useToast>["toa
         toast({ title: "Health check falhou", description: error.message, variant: "destructive" });
         return;
       }
-      const ok = !data?.error;
+      const ok = data?.success !== false && !data?.error;
       setResult({
         ok,
         flow: data?.flow,
@@ -292,7 +293,7 @@ function CheckoutHealthCard({ toast }: { toast: ReturnType<typeof useToast>["toa
       });
       toast({
         title: ok ? "Saúde do checkout OK" : "Resposta com aviso",
-        description: ok ? `Fluxo: ${data?.flow ?? "—"}, Provider: ${data?.provider ?? "—"}` : data?.error as string,
+        description: ok ? `Fluxo: ${data?.flow ?? "—"}, Provider: ${data?.provider ?? "—"}` : (data?.error as string),
         variant: ok ? "default" : "destructive",
       });
     } catch (e) {
@@ -1174,7 +1175,7 @@ function YampiSection({
     }
   };
 
-  const webhookUrl = projectId ? `https://${projectId}.supabase.co/functions/v1/yampi/webhook` : "";
+  const webhookUrl = projectId ? `https://${projectId}.supabase.co/functions/v1/yampi-webhook` : "";
 
   return (
     <>
