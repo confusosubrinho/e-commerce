@@ -160,7 +160,7 @@ export default function Orders() {
       return;
     }
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/checkout/reconcile-order`, {
+      const res = await fetch(`${FUNCTIONS_URL}/checkout-reconcile-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ order_id: orderId }),
