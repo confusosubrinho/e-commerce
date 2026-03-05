@@ -500,7 +500,7 @@ export default function Checkout() {
         // External Stripe Checkout (redirect to Stripe hosted page)
         if (stripeConfig?.checkout_mode === 'external') {
           const { data: sessionResult, error: sessionError } = await invokeCheckoutFunction<{ error?: string; checkout_url?: string }>(
-            'checkout/stripe-create-intent',
+            'checkout-stripe-create-intent',
             {
               body: {
                 action: 'create_checkout_session',
