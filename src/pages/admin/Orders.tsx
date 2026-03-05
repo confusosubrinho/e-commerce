@@ -113,7 +113,7 @@ export default function Orders() {
       if (!selectedOrder?.id) return [];
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, sku_snapshot')
+        .select('id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot')
         .eq('order_id', selectedOrder.id)
         .order('created_at', { ascending: true });
       if (error) throw error;
