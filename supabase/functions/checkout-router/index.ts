@@ -354,7 +354,7 @@ Deno.serve(async (req) => {
     }
 
     if (channel === "external" && provider === "stripe") {
-      const targetUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/checkout/stripe-create-intent`;
+      const targetUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/checkout-stripe-create-intent`;
       const stripeRes = await fetchWithTimeout(
         targetUrl,
         {
