@@ -1141,7 +1141,7 @@ function YampiSection({
     try {
       while (true) {
         setImageProgress(`${skipExisting ? "Novos" : "Todos"}: ${offset + 1}-${offset + BATCH_SIZE}...`);
-        const { data, error } = await supabase.functions.invoke("yampi/sync-images", {
+        const { data, error } = await supabase.functions.invoke("yampi-sync-images", {
           body: { offset, limit: BATCH_SIZE, skip_existing: skipExisting },
         });
         if (data?.error) throw new Error(String(data.error));

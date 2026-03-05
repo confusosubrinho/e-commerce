@@ -332,7 +332,7 @@ function AppmaxEnvTab({ env }: { env: 'sandbox' | 'production' }) {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/authorize', {
+      const { data, error } = await supabase.functions.invoke('appmax-authorize', {
         body: { external_key: 'main-store', environment: env, store_name: 'vanessalima shoes - stdnj' },
       });
       if (error) throw new Error(error.message);

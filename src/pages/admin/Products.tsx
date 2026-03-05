@@ -487,7 +487,7 @@ export default function Products() {
     try {
       const text = await readFileAsText(file);
       toast({ title: 'Importação Tray iniciada...', description: 'Isso pode levar alguns minutos. Não feche a página.' });
-      const response = await supabase.functions.invoke('integrations/tray-import', { body: { csvData: text } });
+      const response = await supabase.functions.invoke('integrations-tray-import', { body: { csvData: text } });
       if (response.error) throw new Error(response.error.message || 'Erro na importação');
       const result = response.data;
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });

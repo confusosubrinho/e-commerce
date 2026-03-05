@@ -155,7 +155,7 @@ export default function SystemAndLogsPage() {
   const runCleanup = useMutation({
     mutationFn: async ({ jobType, mode }: { jobType: JobType; mode: 'dry_run' | 'execute' }) => {
       setRunningJob(`${jobType}-${mode}`);
-      const { data, error } = await supabase.functions.invoke('cron/cleanup-logs', { body: { job_type: jobType, mode } });
+      const { data, error } = await supabase.functions.invoke('cron-cleanup-logs', { body: { job_type: jobType, mode } });
       if (error) throw error;
       return data;
     },
