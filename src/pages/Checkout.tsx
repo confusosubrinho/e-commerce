@@ -616,7 +616,7 @@ export default function Checkout() {
       if (formData.paymentMethod === 'card') {
         try {
           const tokenizeResponse = await invokeCheckoutFunction<{ error?: string; token?: string }>(
-            'checkout/process-payment',
+            'checkout-process-payment',
             {
               body: {
                 action: 'tokenize_card',
