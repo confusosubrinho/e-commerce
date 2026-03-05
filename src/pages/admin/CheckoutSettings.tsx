@@ -105,7 +105,7 @@ export default function CheckoutSettings() {
   // PR8: atualizar tabela canônica checkout_settings via edge
   const updateCanonicalSettings = useMutation({
     mutationFn: async (payload: { active_provider: string; channel: string; experience: string; environment?: string; notes?: string; change_reason?: string }) => {
-      const { data, error } = await supabase.functions.invoke("checkout/update-settings", {
+      const { data, error } = await supabase.functions.invoke("checkout-update-settings", {
         body: { ...payload, request_id: generateRequestId() },
       });
       if (error) throw error;
