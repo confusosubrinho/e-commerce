@@ -160,7 +160,7 @@ export default function Orders() {
       return;
     }
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/checkout/reconcile-order`, {
+      const res = await fetch(`${FUNCTIONS_URL}/checkout-reconcile-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ order_id: orderId }),
@@ -186,7 +186,7 @@ export default function Orders() {
 
   const deleteOrderTestMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      const { data, error } = await supabase.functions.invoke('admin/commerce-action', {
+      const { data, error } = await supabase.functions.invoke('admin-commerce-action', {
         body: { action: 'delete_order_test', order_id: orderId },
       });
       if (error) throw error;
@@ -341,7 +341,7 @@ export default function Orders() {
       const token = session?.session?.access_token;
       if (!token) throw new Error('Sessão não encontrada');
 
-      const res = await fetch(`${FUNCTIONS_URL}/yampi/import-order`, {
+      const res = await fetch(`${FUNCTIONS_URL}/yampi-import-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ yampi_order_id: importYampiId.trim() }),

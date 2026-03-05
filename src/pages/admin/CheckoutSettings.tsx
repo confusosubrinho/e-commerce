@@ -105,7 +105,7 @@ export default function CheckoutSettings() {
   // PR8: atualizar tabela canônica checkout_settings via edge
   const updateCanonicalSettings = useMutation({
     mutationFn: async (payload: { active_provider: string; channel: string; experience: string; environment?: string; notes?: string; change_reason?: string }) => {
-      const { data, error } = await supabase.functions.invoke("checkout/update-settings", {
+      const { data, error } = await supabase.functions.invoke("checkout-update-settings", {
         body: { ...payload, request_id: generateRequestId() },
       });
       if (error) throw error;
@@ -629,7 +629,7 @@ function StripeSection({
     try {
       while (true) {
         setStripeSyncProgress(`Enviando produtos ${offset + 1}-${offset + batchSize}...`);
-        const { data, error } = await supabase.functions.invoke("checkout/stripe-catalog-sync", {
+        const { data, error } = await supabase.functions.invoke("checkout-stripe-catalog-sync", {
           body: { only_active: true, offset, limit: batchSize },
         });
         if (error) throw error;
@@ -1021,7 +1021,7 @@ function YampiSection({
   const testConnection = async () => {
     setTesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("integrations/test", {
+      const { data, error } = await supabase.functions.invoke("integrations-test", {
         body: { provider: "yampi" },
       });
       if (error) throw error;
@@ -1048,7 +1048,7 @@ function YampiSection({
     try {
       while (true) {
         setSyncProgress(`Processando ${offset + 1}-${offset + BATCH_SIZE}...`);
-        const { data, error } = await supabase.functions.invoke("yampi/catalog-sync", {
+        const { data, error } = await supabase.functions.invoke("yampi-catalog-sync", {
           body: { only_active: true, offset, limit: BATCH_SIZE, sync_run_id: syncRunId },
         });
         if (data?.error) throw new Error(String(data.error));
@@ -1089,7 +1089,7 @@ function YampiSection({
   const syncCategories = async () => {
     setSyncingCategories(true);
     try {
-      const { data, error } = await supabase.functions.invoke("yampi/sync-categories");
+      const { data, error } = await supabase.functions.invoke("yampi-sync-categories");
       if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
@@ -1112,7 +1112,7 @@ function YampiSection({
   const syncVariations = async () => {
     setSyncingVariations(true);
     try {
-      const { data, error } = await supabase.functions.invoke("yampi/sync-variation-values");
+      const { data, error } = await supabase.functions.invoke("yampi-sync-variation-values");
       if (data?.error) throw new Error(String(data.error));
       if (error) throw error;
       toast({
@@ -1141,7 +1141,7 @@ function YampiSection({
     try {
       while (true) {
         setImageProgress(`${skipExisting ? "Novos" : "Todos"}: ${offset + 1}-${offset + BATCH_SIZE}...`);
-        const { data, error } = await supabase.functions.invoke("yampi/sync-images", {
+        const { data, error } = await supabase.functions.invoke("yampi-sync-images", {
           body: { offset, limit: BATCH_SIZE, skip_existing: skipExisting },
         });
         if (data?.error) throw new Error(String(data.error));

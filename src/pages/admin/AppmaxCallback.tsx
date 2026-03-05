@@ -124,7 +124,7 @@ export default function AppmaxCallbackPage() {
     const t = setTimeout(async () => {
       try {
         const env = detectedEnv || 'sandbox';
-        const { data, error } = await supabase.functions.invoke('appmax/generate-merchant-keys', {
+        const { data, error } = await supabase.functions.invoke('appmax-generate-merchant-keys', {
           body: {
             external_key: externalKey,
             token: installToken,
@@ -164,7 +164,7 @@ export default function AppmaxCallbackPage() {
       setStatus('generating');
       const env = detectedEnv || 'sandbox';
 
-      const { data, error } = await supabase.functions.invoke('appmax/generate-merchant-keys', {
+      const { data, error } = await supabase.functions.invoke('appmax-generate-merchant-keys', {
         body: {
           external_key: externalKey,
           token: installToken,

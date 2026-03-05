@@ -332,7 +332,7 @@ function AppmaxEnvTab({ env }: { env: 'sandbox' | 'production' }) {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/authorize', {
+      const { data, error } = await supabase.functions.invoke('appmax-authorize', {
         body: { external_key: 'main-store', environment: env, store_name: 'vanessalima shoes - stdnj' },
       });
       if (error) throw new Error(error.message);
@@ -657,7 +657,7 @@ function AppmaxGatewayPanel() {
   const handleTestApi = async () => {
     setTestingApi(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/get-app-token', {});
+      const { data, error } = await supabase.functions.invoke('appmax-get-app-token', {});
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
       toast({ title: 'API OK!', description: `Token obtido para ambiente ${data.environment}` });
@@ -671,7 +671,7 @@ function AppmaxGatewayPanel() {
   const handleTestPing = async () => {
     setTestingPing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('appmax/healthcheck-ping', {});
+      const { data, error } = await supabase.functions.invoke('appmax-healthcheck-ping', {});
       if (error) throw new Error(error.message);
       if (data?.ok) {
         toast({ title: 'Endpoint acessível!', description: `Resposta em ${data.now}` });
@@ -1417,7 +1417,7 @@ function BlingMonitoringPanel() {
   const handleTestWebhook = async () => {
     setTestingWebhook(true);
     try {
-      const res = await supabase.functions.invoke('bling/webhook', {
+      const res = await supabase.functions.invoke('bling-webhook', {
         body: { action: 'test', event: 'test_ping', eventId: `test_${Date.now()}` },
       });
       toast({ title: 'Teste enviado!', description: 'Webhook processou com sucesso.' });
@@ -1631,7 +1631,7 @@ function BlingPanel() {
 
     setIsConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bling/oauth', {
+      const { data, error } = await supabase.functions.invoke('bling-oauth', {
         body: { action: 'get_auth_url' },
       });
 
@@ -1661,7 +1661,7 @@ function BlingPanel() {
     if (!isConnected) return;
     setLoadingStores(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bling/sync', {
+      const { data, error } = await supabase.functions.invoke('bling-sync', {
         body: { action: 'list_stores' },
       });
       if (error) throw error;
@@ -1710,7 +1710,7 @@ function BlingPanel() {
             variants: totalVariants,
           }));
           toast({ title: isNewOnly ? 'Buscando produtos novos...' : 'Sincronizando...', description: isNewOnly ? `Processando lote ${batchIndex + 1}...` : `Processando lote a partir do item ${offset}...` });
-          const { data, error } = await supabase.functions.invoke('bling/sync', {
+          const { data, error } = await supabase.functions.invoke('bling-sync', {
             body: { action: 'sync_products', limit: BATCH_SIZE, offset, ...extraBody },
           });
           if (error) throw error;
@@ -1754,7 +1754,7 @@ function BlingPanel() {
         setSyncProgress(null);
         toast({ title: `${label} concluída!`, description: isNewOnly ? `${totalImported} novos importados, ${totalVariants} variantes` : `${totalImported} importados, ${totalUpdated} atualizados, ${totalVariants} variantes, ${totalErrors} erros` });
       } else {
-        const { data, error } = await supabase.functions.invoke('bling/sync', {
+        const { data, error } = await supabase.functions.invoke('bling-sync', {
           body: { action, ...extraBody },
         });
         if (error) throw error;
@@ -2324,7 +2324,7 @@ function StripeGatewayPanel() {
     try {
       while (true) {
         setStripeSyncProgress(`Enviando produtos ${offset + 1}-${offset + batchSize}...`);
-        const { data, error } = await supabase.functions.invoke('checkout/stripe-catalog-sync', {
+        const { data, error } = await supabase.functions.invoke('checkout-stripe-catalog-sync', {
           body: { only_active: true, offset, limit: batchSize },
         });
         if (error) throw error;

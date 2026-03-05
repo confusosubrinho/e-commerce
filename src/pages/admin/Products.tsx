@@ -339,7 +339,7 @@ export default function Products() {
     const syncTasks = eligibleProducts.map(product =>
       limit(async () => {
         try {
-          const { data, error } = await supabase.functions.invoke('bling/sync-single-stock', {
+          const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
             body: { product_id: product.id },
           });
           if (error || (data && !data.success)) {
@@ -376,7 +376,7 @@ export default function Products() {
     }
     setSyncingProductId(product.id);
     try {
-      const { data, error } = await supabase.functions.invoke('bling/sync-single-stock', {
+      const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
         body: { product_id: product.id },
       });
       if (error) throw new Error(error.message || 'Erro na sincronização');
@@ -487,7 +487,7 @@ export default function Products() {
     try {
       const text = await readFileAsText(file);
       toast({ title: 'Importação Tray iniciada...', description: 'Isso pode levar alguns minutos. Não feche a página.' });
-      const response = await supabase.functions.invoke('integrations/tray-import', { body: { csvData: text } });
+      const response = await supabase.functions.invoke('integrations-tray-import', { body: { csvData: text } });
       if (response.error) throw new Error(response.error.message || 'Erro na importação');
       const result = response.data;
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
