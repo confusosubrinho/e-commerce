@@ -339,7 +339,7 @@ export default function Products() {
     const syncTasks = eligibleProducts.map(product =>
       limit(async () => {
         try {
-          const { data, error } = await supabase.functions.invoke('bling/sync-single-stock', {
+          const { data, error } = await supabase.functions.invoke('bling-sync-single-stock', {
             body: { product_id: product.id },
           });
           if (error || (data && !data.success)) {
