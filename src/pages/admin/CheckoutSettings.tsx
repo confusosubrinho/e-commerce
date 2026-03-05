@@ -629,7 +629,7 @@ function StripeSection({
     try {
       while (true) {
         setStripeSyncProgress(`Enviando produtos ${offset + 1}-${offset + batchSize}...`);
-        const { data, error } = await supabase.functions.invoke("checkout/stripe-catalog-sync", {
+        const { data, error } = await supabase.functions.invoke("checkout-stripe-catalog-sync", {
           body: { only_active: true, offset, limit: batchSize },
         });
         if (error) throw error;
