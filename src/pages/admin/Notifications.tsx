@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, Trash2, CheckCheck, ShoppingCart, PackageX, Star } from 'lucide-react';
+import { Bell, Trash2, CheckCheck, ShoppingCart, PackageX, Star, CreditCard, MessageCircle, Info, BellRing } from 'lucide-react';
+import { useBrowserNotificationPermission } from '@/hooks/useBrowserNotificationPermission';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -16,23 +17,28 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const TYPE_LABELS: Record<string, string> = {
   new_order: 'Pedido',
+  order_paid: 'Pago',
   low_stock: 'Estoque',
   new_review: 'Avaliação',
   cart_recovered: 'Carrinho',
   new_customer: 'Cliente',
+  system: 'Sistema',
 };
 const TYPE_COLORS: Record<string, string> = {
   new_order: 'bg-green-100 text-green-700',
+  order_paid: 'bg-emerald-100 text-emerald-700',
   low_stock: 'bg-red-100 text-red-700',
   new_review: 'bg-yellow-100 text-yellow-700',
   cart_recovered: 'bg-blue-100 text-blue-700',
   new_customer: 'bg-purple-100 text-purple-700',
+  system: 'bg-slate-100 text-slate-700',
 };
 
 export default function Notifications() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { supported: browserNotifySupported, permission: browserPermission, requestPermission, isRequesting } = useBrowserNotificationPermission();
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -98,14 +104,35 @@ export default function Notifications() {
         <p className="text-sm text-muted-foreground">Central de notificações do admin</p>
       </div>
 
+      {browserNotifySupported && browserPermission !== 'granted' && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm flex items-center gap-2">
+              <BellRing className="h-4 w-4 text-primary" />
+              {browserPermission === 'default'
+                ? 'Receba alertas no navegador (novos pedidos, estoque, etc.) mesmo com a aba em segundo plano.'
+                : 'As notificações do navegador estão bloqueadas. Ative nas configurações do site (ícone de cadeado na barra de endereço).'}
+            </span>
+            {browserPermission === 'default' && (
+              <Button size="sm" onClick={() => requestPermission()} disabled={isRequesting}>
+                {isRequesting ? 'Solicitando...' : 'Ativar notificações do navegador'}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex flex-wrap gap-2 items-center">
         <Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(0); }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="Tipo" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="new_order">Pedidos</SelectItem>
+            <SelectItem value="order_paid">Pagamentos</SelectItem>
             <SelectItem value="low_stock">Estoque</SelectItem>
             <SelectItem value="new_review">Avaliações</SelectItem>
+            <SelectItem value="cart_recovered">Carrinho</SelectItem>
+            <SelectItem value="system">Sistema</SelectItem>
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(0); }}>

@@ -293,6 +293,7 @@ Deno.serve(async (req) => {
           total_price: unitPrice * quantity,
           title_snapshot: productName,
           image_snapshot: imageSnapshot,
+          yampi_sku_id: skuId != null ? Number(skuId) : null,
         });
 
         if (localVariant?.id) {

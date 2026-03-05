@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     const variantIds = [...new Set(itemsInput.map((i) => i.variant_id))];
     const { data: variantsRows, error: variantsErr } = await supabase
       .from("product_variants")
-      .select("id, product_id, base_price, sale_price, products(base_price, sale_price, name)")
+      .select("id, product_id, base_price, sale_price, yampi_sku_id, products(base_price, sale_price, name)")
       .in("id", variantIds);
 
     if (variantsErr || !variantsRows?.length) {
@@ -152,16 +152,17 @@ Deno.serve(async (req) => {
       product_id: string | null;
       base_price: number | null;
       sale_price: number | null;
+      yampi_sku_id: number | null;
       products: { base_price?: number; sale_price?: number; name?: string } | null;
     };
-    const variantMap = new Map<string, { product_id: string | null; name: string; unit_price: number }>();
+    const variantMap = new Map<string, { product_id: string | null; name: string; unit_price: number; yampi_sku_id: number | null }>();
     for (const v of variantsRows as VariantRow[]) {
       const product = v.products;
       const base = v.base_price ?? product?.base_price ?? 0;
       const sale = v.sale_price ?? product?.sale_price ?? null;
       const unitPrice = typeof sale === "number" && sale >= 0 ? sale : (typeof base === "number" ? base : 0);
       const name = (product?.name as string) ?? "";
-      variantMap.set(v.id, { product_id: v.product_id ?? null, name, unit_price: Number(unitPrice) });
+      variantMap.set(v.id, { product_id: v.product_id ?? null, name, unit_price: Number(unitPrice), yampi_sku_id: v.yampi_sku_id ?? null });
     }
 
     const items: Array<{ variant_id: string; quantity: number; unit_price: number; product_name: string }> = [];
@@ -301,11 +302,12 @@ Deno.serve(async (req) => {
             total_price: i.unit_price * i.quantity,
             title_snapshot: i.product_name,
             image_snapshot: null as string | null,
+            yampi_sku_id: meta.yampi_sku_id,
           };
         });
         await supabase.from("order_items").insert(
-          fullItems.map(({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot }) =>
-            ({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot })
+          fullItems.map(({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, yampi_sku_id }) =>
+            ({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, yampi_sku_id })
           )
         );
       }

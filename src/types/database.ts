@@ -137,14 +137,19 @@ export interface Banner {
    shipping_state: string;
    shipping_zip: string;
    shipping_phone: string | null;
+   shipping_method?: string | null;
    tracking_code: string | null;
    coupon_code: string | null;
    notes: string | null;
-   created_at: string;
-   updated_at: string;
-   items?: OrderItem[];
-   customer?: Customer;
- }
+   payment_method?: string | null;
+   payment_status?: string | null;
+  installments?: number | null;
+  created_at: string;
+  updated_at: string;
+  yampi_created_at?: string | null;
+  items?: OrderItem[];
+  customer?: Customer;
+}
  
  export interface OrderItem {
    id: string;
@@ -156,6 +161,9 @@ export interface Banner {
    quantity: number;
    unit_price: number;
    total_price: number;
+   title_snapshot?: string | null;
+   image_snapshot?: string | null;
+   sku_snapshot?: string | null;
    created_at: string;
  }
  

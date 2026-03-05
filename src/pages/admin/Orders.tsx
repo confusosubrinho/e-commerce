@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Eye, MoreHorizontal, Calendar, DollarSign, ArrowUpDown, Filter, Download, Upload, SlidersHorizontal, ShoppingCart, Trash2, RefreshCw, Clock, PackagePlus } from 'lucide-react';
+import { Search, Eye, MoreHorizontal, Calendar, DollarSign, ArrowUpDown, Filter, Download, Upload, SlidersHorizontal, ShoppingCart, Trash2, RefreshCw, Clock, PackagePlus, Package } from 'lucide-react';
 import { HelpHint } from '@/components/HelpHint';
 import { AdminEmptyState } from '@/components/admin/AdminEmptyState';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -79,6 +79,7 @@ export default function Orders() {
   const isMobile = useIsMobile();
   const [orderToDeleteTest, setOrderToDeleteTest] = useState<Order | null>(null);
   const [reconcileOrderId, setReconcileOrderId] = useState<string | null>(null);
+  const [syncYampiOrderId, setSyncYampiOrderId] = useState<string | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importYampiId, setImportYampiId] = useState('');
   const [importLoading, setImportLoading] = useState(false);
@@ -112,7 +113,7 @@ export default function Orders() {
       if (!selectedOrder?.id) return [];
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot')
+        .select('id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, sku_snapshot')
         .eq('order_id', selectedOrder.id)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -181,6 +182,44 @@ export default function Orders() {
       toast({ title: 'Erro', description: (e as Error).message, variant: 'destructive' });
     } finally {
       setReconcileOrderId(null);
+    }
+  };
+
+  const runSyncYampi = async (orderId: string) => {
+    setSyncYampiOrderId(orderId);
+    const { data: session } = await supabase.auth.getSession();
+    const token = session?.session?.access_token;
+    if (!token) {
+      toast({ title: 'Erro', description: 'Sessão não encontrada.', variant: 'destructive' });
+      setSyncYampiOrderId(null);
+      return;
+    }
+    try {
+      const res = await fetch(`${FUNCTIONS_URL}/yampi-sync-order-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: 'Erro ao sincronizar', description: body?.error || res.statusText, variant: 'destructive' });
+        return;
+      }
+      if (body.ok) {
+        toast({ title: 'Sincronizado com Yampi', description: `Status: ${body.status}${body.payment_status ? ` • Pagamento: ${body.payment_status}` : ''}` });
+        queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+        if (selectedOrder?.id === orderId) {
+          const { data: updated } = await supabase.from('orders').select('*').eq('id', orderId).single();
+          if (updated) setSelectedOrder(updated as Order);
+          queryClient.invalidateQueries({ queryKey: ['admin-order-items', orderId] });
+        }
+      } else {
+        toast({ title: 'Erro', description: body?.error || 'Falha ao sincronizar.', variant: 'destructive' });
+      }
+    } catch (e) {
+      toast({ title: 'Erro', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setSyncYampiOrderId(null);
     }
   };
 
@@ -652,12 +691,50 @@ export default function Orders() {
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap gap-2 text-sm text-muted-foreground items-center">
                 {(selectedOrder as any).customer_email && (
                   <span>Email: {(selectedOrder as any).customer_email}</span>
                 )}
                 <Badge variant="outline" className="text-xs">{getProviderLabel((selectedOrder as any).provider)}</Badge>
+                {(() => {
+                  const ps = (selectedOrder as any).payment_status;
+                  const st = selectedOrder.status;
+                  const label =
+                    ps === 'refunded' ? 'Reembolsado'
+                    : ps === 'approved' || ['processing','shipped','delivered'].includes(st) ? 'Pagamento aprovado'
+                    : ps === 'pending' || st === 'pending' ? 'Pagamento pendente'
+                    : ps === 'failed' || st === 'cancelled' ? 'Pagamento não efetuado'
+                    : null;
+                  const style =
+                    label === 'Pagamento aprovado' ? 'bg-green-100 text-green-800 border-green-200'
+                    : label === 'Pagamento pendente' ? 'bg-amber-100 text-amber-800 border-amber-200'
+                    : label === 'Pagamento não efetuado' || label === 'Reembolsado' ? 'bg-red-100 text-red-800 border-red-200'
+                    : 'bg-muted';
+                  return label ? <Badge className={style}>{label}</Badge> : null;
+                })()}
               </div>
+              {((selectedOrder as any).payment_method || (selectedOrder as any).installments != null || (selectedOrder as any).shipping_method) && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  {(selectedOrder as any).payment_method && (
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium">Método de pagamento</p>
+                      <p className="font-medium">{(selectedOrder as any).payment_method}</p>
+                    </div>
+                  )}
+                  {(selectedOrder as any).installments != null && (selectedOrder as any).installments > 0 && (
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium">Parcelas</p>
+                      <p className="font-medium">{(selectedOrder as any).installments}x</p>
+                    </div>
+                  )}
+                  {(selectedOrder as any).shipping_method && (
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium">Método de envio</p>
+                      <p className="font-medium">{(selectedOrder as any).shipping_method}</p>
+                    </div>
+                  )}
+                </div>
+              )}
               {orderItemsLoading ? (
                 <p className="text-sm text-muted-foreground">Carregando itens...</p>
               ) : orderItems && orderItems.length > 0 ? (
@@ -667,6 +744,7 @@ export default function Orders() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="text-xs w-14">Foto</TableHead>
                           <TableHead className="text-xs">Produto</TableHead>
                           <TableHead className="text-xs w-16">Qtd</TableHead>
                           <TableHead className="text-xs text-right">Unit.</TableHead>
@@ -676,10 +754,27 @@ export default function Orders() {
                       <TableBody>
                         {orderItems.map((item) => (
                           <TableRow key={item.id}>
+                            <TableCell className="p-2">
+                              {(item as any).image_snapshot ? (
+                                <img
+                                  src={(item as any).image_snapshot}
+                                  alt=""
+                                  className="w-10 h-10 object-cover rounded border bg-muted"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded border bg-muted flex items-center justify-center text-muted-foreground">
+                                  <Package className="h-4 w-4" />
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell className="text-sm">
-                              <span className="font-medium">{item.title_snapshot || item.product_name}</span>
-                              {item.variant_info && (
-                                <span className="text-muted-foreground block text-xs">{item.variant_info}</span>
+                              <span className="font-medium">{(item as any).title_snapshot || item.product_name}</span>
+                              {((item as any).variant_info || (item as any).sku_snapshot) && (
+                                <span className="text-muted-foreground block text-xs">
+                                  {(item as any).variant_info}
+                                  {(item as any).sku_snapshot && !(item as any).variant_info && `SKU: ${(item as any).sku_snapshot}`}
+                                  {(item as any).sku_snapshot && (item as any).variant_info && ` • SKU: ${(item as any).sku_snapshot}`}
+                                </span>
                               )}
                             </TableCell>
                             <TableCell className="text-sm">{item.quantity}</TableCell>
@@ -697,9 +792,15 @@ export default function Orders() {
                   <h3 className="font-medium mb-2">Endereço de Entrega</h3>
                   <p>{selectedOrder.shipping_name ?? '—'}</p>
                   <p className="text-muted-foreground">
-                    {selectedOrder.shipping_address}<br />
-                    {selectedOrder.shipping_city} - {selectedOrder.shipping_state}<br />
-                    CEP: {selectedOrder.shipping_zip}
+                    {(selectedOrder.shipping_address || selectedOrder.shipping_city || selectedOrder.shipping_zip) ? (
+                      <>
+                        {selectedOrder.shipping_address && <>{selectedOrder.shipping_address}<br /></>}
+                        {(selectedOrder.shipping_city || selectedOrder.shipping_state) && <>{selectedOrder.shipping_city}{selectedOrder.shipping_state ? ` - ${selectedOrder.shipping_state}` : ''}<br /></>}
+                        {selectedOrder.shipping_zip && <>CEP: {selectedOrder.shipping_zip}</>}
+                      </>
+                    ) : (
+                      '—'
+                    )}
                   </p>
                   {selectedOrder.shipping_phone && <p>Tel: {selectedOrder.shipping_phone}</p>}
                 </div>
@@ -746,10 +847,31 @@ export default function Orders() {
                   Timeline
                 </h3>
                 <ul className="text-sm space-y-1 text-muted-foreground">
+                  {(selectedOrder as any).yampi_created_at && (
+                    <li>Data da compra (Yampi): {format(new Date((selectedOrder as any).yampi_created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</li>
+                  )}
                   <li>Criado em {format(new Date(selectedOrder.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</li>
                   <li>Última atualização: {format(new Date(selectedOrder.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}{(selectedOrder as any).last_webhook_event ? ` (${(selectedOrder as any).last_webhook_event})` : ''}</li>
                 </ul>
               </div>
+              {/* Sincronizar status com Yampi */}
+              {(selectedOrder as any).provider === 'yampi' && (selectedOrder as any).external_reference && (
+                <div className="pt-2 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runSyncYampi(selectedOrder.id)}
+                    disabled={syncYampiOrderId !== null}
+                  >
+                    {syncYampiOrderId === selectedOrder.id ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Sincronizar com Yampi
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Atualiza status, pagamento, rastreio e data da compra a partir da Yampi (use se houve falha ou atraso no webhook).
+                  </p>
+                </div>
+              )}
               {/* PR6: Conciliação — sync status com Stripe */}
               {(selectedOrder as any).provider === 'stripe' && (selectedOrder as any).transaction_id && (
                 <div className="pt-2 border-t">

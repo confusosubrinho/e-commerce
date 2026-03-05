@@ -134,6 +134,17 @@ Deno.serve(async (req) => {
 
   const shippingAddr = (yampiOrder.shipping_address as Record<string, unknown>) ||
     ((yampiOrder.shipping_address as Record<string, unknown>)?.data as Record<string, unknown>) || {};
+  const addr = (shippingAddr.data as Record<string, unknown>) || shippingAddr;
+  const street = String(addr.street || addr.address || addr.address_line1 || addr.line1 || "").trim();
+  const number = String(addr.number || addr.address_number || "").trim();
+  const neighborhood = String(addr.neighborhood || addr.district || addr.bairro || "").trim();
+  const complement = String(addr.complement || addr.address_line2 || addr.line2 || "").trim();
+  const city = String(addr.city || addr.city_name || shippingAddr.city || "").trim();
+  const state = String(addr.state || addr.state_short || addr.uf || shippingAddr.state || "").trim();
+  const zip = String(addr.zipcode || addr.zip || addr.postal_code || shippingAddr.zipcode || shippingAddr.zip || "").trim();
+  const addressParts = [street, number].filter(Boolean);
+  const shippingAddressLine = addressParts.length ? addressParts.join(", ") + (neighborhood ? ` - ${neighborhood}` : "") + (complement ? ` - ${complement}` : "") : (street || (shippingAddr.street as string) || (shippingAddr.address as string) || "");
+
   const shippingCost = Number(yampiOrder.value_shipment || yampiOrder.shipping_cost || 0);
   const discountAmount = Number(yampiOrder.value_discount || yampiOrder.discount || 0);
   const totalAmount = Number(yampiOrder.value_total || yampiOrder.total || 0);
@@ -152,6 +163,13 @@ Deno.serve(async (req) => {
   const transactionId = (firstTx.transaction_id as string) || (yampiOrder.transaction_id as string) || null;
   const trackingCode = (yampiOrder.tracking_code as string) || null;
 
+  const shippingOption = (yampiOrder.shipping_option as Record<string, unknown>) || {};
+  const shippingMethodName = (yampiOrder.shipping_option_name as string) ||
+    (shippingOption.name as string) ||
+    ((yampiOrder.delivery_option as Record<string, unknown>)?.name as string) ||
+    (yampiOrder.shipping_method as string) ||
+    null;
+
   // Map yampi status to local status
   const yampiStatus = String((yampiOrder.status as any)?.data?.alias || yampiOrder.status_alias || yampiOrder.status || "");
   let localStatus: string = "processing";
@@ -160,6 +178,17 @@ Deno.serve(async (req) => {
   else if (["delivered"].includes(yampiStatus)) localStatus = "delivered";
   else if (["cancelled", "refused", "refunded"].includes(yampiStatus)) localStatus = "cancelled";
   else if (["pending", "waiting_payment"].includes(yampiStatus)) localStatus = "pending";
+
+  const paymentStatusMap: Record<string, string> = {
+    paid: "approved", approved: "approved", payment_approved: "approved",
+    pending: "pending", waiting_payment: "pending",
+    cancelled: "failed", refused: "failed", refunded: "refunded",
+  };
+  const txStatus = (firstTx.status as string)?.toLowerCase() || yampiStatus;
+  const paymentStatus = paymentStatusMap[txStatus] || paymentStatusMap[yampiStatus] || (localStatus === "pending" ? "pending" : localStatus === "cancelled" ? "failed" : "approved");
+
+  const yampiOrderDate = (yampiOrder.created_at as string) || (yampiOrder.date as string) || (yampiOrder.order_date as string) || (yampiOrder.updated_at as string) || null;
+  const yampiCreatedAt = yampiOrderDate ? new Date(yampiOrderDate).toISOString() : null;
 
   // ── Create order ──
   const { data: order, error: orderErr } = await supabase
@@ -171,10 +200,10 @@ Deno.serve(async (req) => {
       shipping_cost: shippingCost,
       discount_amount: discountAmount,
       shipping_name: customerName,
-      shipping_address: (shippingAddr.street as string) || (shippingAddr.address as string) || "",
-      shipping_city: (shippingAddr.city as string) || "",
-      shipping_state: (shippingAddr.state as string) || "",
-      shipping_zip: (shippingAddr.zipcode as string) || (shippingAddr.zip as string) || "",
+      shipping_address: shippingAddressLine,
+      shipping_city: city,
+      shipping_state: state,
+      shipping_zip: zip,
       shipping_phone: customerPhone,
       customer_email: customerEmail,
       customer_cpf: customerCpf,
@@ -184,8 +213,11 @@ Deno.serve(async (req) => {
       installments,
       transaction_id: transactionId,
       tracking_code: trackingCode,
+      shipping_method: shippingMethodName,
+      payment_status: paymentStatus,
       status: localStatus,
       external_reference: yId,
+      yampi_created_at: yampiCreatedAt,
       notes: `Importado manualmente da Yampi (ID ${yId})`,
     } as Record<string, unknown>)
     .select("id, order_number")
@@ -202,13 +234,17 @@ Deno.serve(async (req) => {
     const skuId = yampiItem.sku_id || yampiItem.id;
     const quantity = Number(yampiItem.quantity || 1);
     const unitPrice = Number(yampiItem.price || yampiItem.price_sale || yampiItem.unit_price || 0);
-    const itemName = (yampiItem.name as string) || (yampiItem.product_name as string) || "Produto";
+    const yampiProduct = (yampiItem.product as Record<string, unknown>) || {};
+    const itemName = (yampiItem.name as string) || (yampiItem.product_name as string) || (yampiProduct.name as string) || "Produto";
+    const itemSku = (yampiItem.sku as string) || (yampiItem.sku_code as string) || (yampiItem.code as string) || ((yampiItem.sku as Record<string, unknown>)?.sku as string) || null;
+    const yampiItemImage = (yampiItem.image as Record<string, unknown>) || (yampiProduct.image as Record<string, unknown>) || {};
+    const itemImageUrl = (yampiItemImage.url as string) || (yampiItemImage.src as string) || (yampiItem.image_url as string) || null;
 
     let localVariant: Record<string, unknown> | null = null;
     if (skuId) {
       const { data: v } = await supabase
         .from("product_variants")
-        .select("id, product_id, size, color")
+        .select("id, product_id, size, color, sku")
         .eq("yampi_sku_id", Number(skuId))
         .maybeSingle();
       localVariant = v;
@@ -221,8 +257,8 @@ Deno.serve(async (req) => {
       if (p) productName = p.name;
     }
 
-    let imageSnapshot: string | null = null;
-    if (productId) {
+    let imageSnapshot: string | null = itemImageUrl || null;
+    if (productId && !imageSnapshot) {
       const { data: img } = await supabase
         .from("product_images")
         .select("url")
@@ -232,18 +268,25 @@ Deno.serve(async (req) => {
         .maybeSingle();
       imageSnapshot = img?.url || null;
     }
+    if (!imageSnapshot && itemImageUrl) imageSnapshot = itemImageUrl;
+
+    const variantDisplay = localVariant ? [localVariant.size, localVariant.color].filter(Boolean).join(" / ") : "";
+    const skuDisplay = itemSku || (localVariant?.sku as string) || "";
+    const variantInfo = [variantDisplay, skuDisplay].filter(Boolean).join(" • ") || (itemSku || null);
 
     await supabase.from("order_items").insert({
       order_id: order.id,
       product_id: productId,
       product_variant_id: (localVariant?.id as string) || null,
       product_name: productName,
-      variant_info: localVariant ? [localVariant.size, localVariant.color].filter(Boolean).join(" / ") : "",
+      variant_info: variantInfo || null,
       quantity,
       unit_price: unitPrice,
       total_price: unitPrice * quantity,
       title_snapshot: productName,
       image_snapshot: imageSnapshot,
+      sku_snapshot: itemSku || (localVariant?.sku as string) || null,
+      yampi_sku_id: skuId != null ? Number(skuId) : null,
     });
 
     if (localVariant?.id && localStatus !== "cancelled") {

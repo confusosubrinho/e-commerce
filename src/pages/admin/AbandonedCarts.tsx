@@ -1,11 +1,22 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MessageCircle, Mail, Search, ShoppingCart, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageCircle, Mail, Search, ShoppingCart, CheckCircle, ChevronDown, ChevronUp, Trash2, FlaskConical } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -33,12 +44,19 @@ interface AbandonedCart {
   contacted_via: string | null;
   contacted_at: string | null;
   created_at: string;
+  status?: 'pending' | 'contacted' | 'recovered';
+  is_test?: boolean;
 }
 
 export default function AbandonedCarts() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [expandedCart, setExpandedCart] = useState<string | null>(null);
+  const [showClearAllDialog, setShowClearAllDialog] = useState(false);
+  const [showClearTestDialog, setShowClearTestDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'contacted' | 'recovered'>('all');
+  const [testFilter, setTestFilter] = useState<'all' | 'real' | 'test'>('all');
 
   const { data: carts, isLoading, refetch } = useQuery({
     queryKey: ['abandoned-carts'],
@@ -87,6 +105,7 @@ export default function AbandonedCarts() {
     await supabase.from('abandoned_carts').update({
       contacted_via: 'whatsapp',
       contacted_at: new Date().toISOString(),
+      status: 'contacted',
     } as any).eq('id', cart.id);
     refetch();
   };
@@ -102,6 +121,7 @@ export default function AbandonedCarts() {
     await supabase.from('abandoned_carts').update({
       contacted_via: 'email',
       contacted_at: new Date().toISOString(),
+      status: 'contacted',
     } as any).eq('id', cart.id);
     refetch();
   };
@@ -110,12 +130,55 @@ export default function AbandonedCarts() {
     await supabase.from('abandoned_carts').update({
       recovered: true,
       recovered_at: new Date().toISOString(),
+      status: 'recovered',
     } as any).eq('id', id);
     refetch();
     toast({ title: 'Carrinho marcado como recuperado!' });
   };
 
+  const toggleTest = async (cart: AbandonedCart) => {
+    await supabase.from('abandoned_carts').update({ is_test: !cart.is_test } as any).eq('id', cart.id);
+    refetch();
+    toast({ title: cart.is_test ? 'Carrinho marcado como real' : 'Carrinho marcado como teste' });
+  };
+
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('abandoned_carts').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['abandoned-carts'] });
+      refetch();
+      setShowClearAllDialog(false);
+      toast({ title: 'Carrinhos abandonados limpos.', description: 'Todos os registros foram removidos.' });
+    },
+    onError: (e: Error) => {
+      toast({ title: 'Erro ao limpar', description: e.message, variant: 'destructive' });
+    },
+  });
+
+  const clearTestMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('abandoned_carts').delete().eq('is_test', true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['abandoned-carts'] });
+      refetch();
+      setShowClearTestDialog(false);
+      toast({ title: 'Carrinhos de teste removidos.' });
+    },
+    onError: (e: Error) => {
+      toast({ title: 'Erro ao limpar testes', description: e.message, variant: 'destructive' });
+    },
+  });
+
   const filtered = (carts || []).filter(c => {
+    const status = c.status ?? (c.recovered ? 'recovered' : c.contacted_via ? 'contacted' : 'pending');
+    if (statusFilter !== 'all' && status !== statusFilter) return false;
+    if (testFilter === 'real' && c.is_test) return false;
+    if (testFilter === 'test' && !c.is_test) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return (
@@ -128,9 +191,10 @@ export default function AbandonedCarts() {
 
   const stats = {
     total: carts?.length || 0,
-    recovered: carts?.filter(c => c.recovered).length || 0,
-    pending: carts?.filter(c => !c.recovered && !c.contacted_via).length || 0,
-    totalValue: carts?.filter(c => !c.recovered).reduce((sum, c) => sum + c.subtotal, 0) || 0,
+    recovered: carts?.filter(c => c.status === 'recovered' || c.recovered).length || 0,
+    pending: carts?.filter(c => c.status === 'pending' || (!c.recovered && !c.contacted_via)).length || 0,
+    test: carts?.filter(c => c.is_test).length || 0,
+    totalValue: carts?.filter(c => c.status !== 'recovered' && !c.recovered).reduce((sum, c) => sum + c.subtotal, 0) || 0,
   };
 
   return (
@@ -143,10 +207,24 @@ export default function AbandonedCarts() {
           </h1>
           <p className="text-muted-foreground">Recupere vendas entrando em contato com clientes</p>
         </div>
+        {(carts?.length ?? 0) > 0 && (
+          <div className="flex gap-2">
+            {stats.test > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setShowClearTestDialog(true)} className="text-amber-600 border-amber-200 hover:bg-amber-50">
+                <FlaskConical className="h-4 w-4 mr-2" />
+                Limpar apenas testes
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowClearAllDialog(true)} className="text-destructive border-destructive/50 hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Limpar todos
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Total</p>
           <p className="text-2xl font-bold">{stats.total}</p>
@@ -160,12 +238,16 @@ export default function AbandonedCarts() {
           <p className="text-2xl font-bold text-primary">{stats.recovered}</p>
         </div>
         <div className="border rounded-lg p-4">
+          <p className="text-sm text-muted-foreground">Testes</p>
+          <p className="text-2xl font-bold text-amber-600">{stats.test}</p>
+        </div>
+        <div className="border rounded-lg p-4">
           <p className="text-sm text-muted-foreground">Valor Pendente</p>
           <p className="text-2xl font-bold">{formatPrice(stats.totalValue)}</p>
         </div>
       </div>
 
-      <div className="flex gap-4 items-center">
+      <div className="flex flex-wrap gap-4 items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -175,6 +257,27 @@ export default function AbandonedCarts() {
             className="pl-9"
           />
         </div>
+        <Select value={statusFilter} onValueChange={(v: 'all' | 'pending' | 'contacted' | 'recovered') => setStatusFilter(v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="pending">Pendente</SelectItem>
+            <SelectItem value="contacted">Contatado</SelectItem>
+            <SelectItem value="recovered">Recuperado</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={testFilter} onValueChange={(v: 'all' | 'real' | 'test') => setTestFilter(v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            <SelectItem value="real">Apenas reais</SelectItem>
+            <SelectItem value="test">Apenas testes</SelectItem>
+          </SelectContent>
+        </Select>
         <Badge variant="outline">{filtered.length} carrinhos</Badge>
       </div>
 
@@ -229,16 +332,24 @@ export default function AbandonedCarts() {
                       {format(new Date(cart.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                     </TableCell>
                     <TableCell>
-                      {cart.recovered ? (
-                        <Badge className="bg-primary/10 text-primary border-primary/20">Recuperado</Badge>
-                      ) : cart.contacted_via ? (
-                        <Badge variant="outline">Contatado via {cart.contacted_via}</Badge>
-                      ) : (
-                        <Badge variant="secondary">Pendente</Badge>
-                      )}
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {cart.status === 'recovered' || cart.recovered ? (
+                          <Badge className="bg-primary/10 text-primary border-primary/20">Recuperado</Badge>
+                        ) : cart.status === 'contacted' || cart.contacted_via ? (
+                          <Badge variant="outline">Contatado via {cart.contacted_via}</Badge>
+                        ) : (
+                          <Badge variant="secondary">Pendente</Badge>
+                        )}
+                        {cart.is_test && (
+                          <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Teste</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" onClick={() => toggleTest(cart)} title={cart.is_test ? 'Marcar como real' : 'Marcar como teste'}>
+                          <FlaskConical className={cn("h-4 w-4", cart.is_test && "text-amber-600")} />
+                        </Button>
                         <Button size="icon" variant="ghost" onClick={() => handleWhatsApp(cart)} title="WhatsApp" disabled={!cart.phone}>
                           <MessageCircle className="h-4 w-4 text-[#25D366]" />
                         </Button>
@@ -283,6 +394,49 @@ export default function AbandonedCarts() {
           </Table>
         </div>
       )}
+
+      <AlertDialog open={showClearAllDialog} onOpenChange={(open) => !clearAllMutation.isPending && setShowClearAllDialog(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar todos os carrinhos abandonados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todos os {carts?.length ?? 0} registro(s) de carrinhos abandonados serão excluídos permanentemente.
+              Use apenas para limpar dados de teste. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearAllMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => clearAllMutation.mutate()}
+              disabled={clearAllMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {clearAllMutation.isPending ? 'Limpando...' : 'Limpar todos'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showClearTestDialog} onOpenChange={(open) => !clearTestMutation.isPending && setShowClearTestDialog(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover apenas carrinhos de teste?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Serão excluídos apenas os {stats.test} carrinho(s) marcado(s) como teste. Carrinhos reais não serão alterados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearTestMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => clearTestMutation.mutate()}
+              disabled={clearTestMutation.isPending}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+            >
+              {clearTestMutation.isPending ? 'Removendo...' : 'Limpar apenas testes'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
