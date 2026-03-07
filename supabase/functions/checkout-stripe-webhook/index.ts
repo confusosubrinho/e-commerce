@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     return error;
   }
 
-  /** Restore stock for an order */
+  /** Restore stock for an order with audit trail */
   async function restoreStock(orderId: string) {
     const { data: items } = await supabase
       .from("order_items")
@@ -117,10 +117,27 @@ Deno.serve(async (req) => {
 
     for (const item of items || []) {
       if (item.product_variant_id) {
-        await supabase.rpc("increment_stock", {
-          p_variant_id: item.product_variant_id,
-          p_quantity: item.quantity,
-        });
+        // Check if already released/refunded to avoid double restore
+        const { data: alreadyReleased } = await supabase
+          .from("inventory_movements")
+          .select("id")
+          .eq("order_id", orderId)
+          .eq("variant_id", item.product_variant_id)
+          .in("type", ["release", "refund"])
+          .maybeSingle();
+
+        if (!alreadyReleased) {
+          await supabase.rpc("increment_stock", {
+            p_variant_id: item.product_variant_id,
+            p_quantity: item.quantity,
+          });
+          await supabase.from("inventory_movements").insert({
+            variant_id: item.product_variant_id,
+            order_id: orderId,
+            type: "refund",
+            quantity: item.quantity,
+          });
+        }
       }
     }
   }
@@ -390,14 +407,21 @@ Deno.serve(async (req) => {
         console.log(`🛒 checkout.session.completed: session=${session.id}, order_id=${orderId || "N/A"}, payment_status=${session.payment_status}`);
 
         if (orderId) {
+          // Check if already paid by payment_intent.succeeded (avoid overwriting)
+          const { data: currentOrder } = await supabase
+            .from("orders")
+            .select("status")
+            .eq("id", orderId)
+            .maybeSingle();
+
           const updateData: Record<string, unknown> = {
             customer_email: session.customer_details?.email || null,
             last_webhook_event: "checkout.session.completed",
             external_reference: session.id,
           };
 
-          // When payment is completed, mark order as paid so the thank-you page shows correct status immediately (aligned with stripe-samples/checkout-one-time-payments)
-          if (session.payment_status === "paid") {
+          // Only update status if not already paid (payment_intent.succeeded may have fired first)
+          if (session.payment_status === "paid" && currentOrder?.status !== "paid") {
             updateData.status = "paid";
             updateData.transaction_id = piId || updateData.transaction_id;
             updateData.payment_method = session.payment_method_types?.[0] || "card";
