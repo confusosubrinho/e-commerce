@@ -743,7 +743,7 @@ export default function Checkout() {
     const guestToken = stripePixData.guestToken;
 
     const onStatusUpdate = (status: string) => {
-      if (status === 'processing' || status === 'succeeded') {
+      if (['paid', 'processing', 'succeeded'].includes(status)) {
         clearCart();
         setStripePixData(null);
         setStripeOrderId(null);
