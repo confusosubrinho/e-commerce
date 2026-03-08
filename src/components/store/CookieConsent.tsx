@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
 const COOKIE_CONSENT_KEY = 'cookie-consent-accepted';
 
-export function CookieConsent() {
+export const CookieConsent = React.forwardRef<HTMLDivElement>(function CookieConsent(_props, ref) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export function CookieConsent() {
         return () => clearTimeout(timer);
       }
     } catch {
-      // localStorage unavailable (e.g. private browsing on some browsers)
+      // localStorage unavailable
     }
   }, []);
 
@@ -28,7 +28,7 @@ export function CookieConsent() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 animate-fade-in">
+    <div ref={ref} className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 animate-fade-in">
       <div className="bg-background border border-border rounded-xl shadow-lg p-4 space-y-3">
         <p className="text-sm text-muted-foreground leading-relaxed">
           Usamos cookies para melhorar sua experiência. Ao continuar navegando, você concorda com nossa{' '}
@@ -47,4 +47,4 @@ export function CookieConsent() {
       </div>
     </div>
   );
-}
+});

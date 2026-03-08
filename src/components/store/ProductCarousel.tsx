@@ -37,10 +37,35 @@ export function ProductCarousel({
   const { data: settings } = useStoreSettings();
   const { data: pricingConfig } = usePricingConfig();
   const [variantProduct, setVariantProduct] = useState<Product | null>(null);
-
-  // Botões de scroll usam o mesmo ref
+  const [activePageIndex, setActivePageIndex] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const whatsappNumber = settings?.contact_whatsapp?.replace(/\D/g, '') || '5542991120205';
+
+  // Track scroll position for mobile dots
+  const updateScrollIndicator = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) { setTotalPages(1); setActivePageIndex(0); return; }
+    const itemWidth = 220; // approximate card width + gap
+    const pages = Math.max(1, Math.ceil(el.scrollWidth / el.clientWidth));
+    setTotalPages(pages);
+    const progress = el.scrollLeft / maxScroll;
+    setActivePageIndex(Math.round(progress * (pages - 1)));
+  }, [scrollRef]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScrollIndicator();
+    el.addEventListener('scroll', updateScrollIndicator, { passive: true });
+    window.addEventListener('resize', updateScrollIndicator);
+    return () => {
+      el.removeEventListener('scroll', updateScrollIndicator);
+      window.removeEventListener('resize', updateScrollIndicator);
+    };
+  }, [updateScrollIndicator, products]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -72,7 +97,6 @@ export function ProductCarousel({
           {title && (
             <div className="mb-8">
               <h2 className="text-2xl font-bold">{title}</h2>
-
               {subtitle && <p className={`mt-1 ${darkBg ? 'text-secondary-foreground/70' : 'text-muted-foreground'}`}>{subtitle}</p>}
             </div>
           )}
@@ -130,15 +154,16 @@ export function ProductCarousel({
             >
               <ChevronRight className="h-5 w-5" />
             </Button>
-            {/* Gradientes nas bordas para transição visual suave */}
+
+            {/* Fade gradients on edges */}
             <div
-              className="absolute left-0 top-0 bottom-4 w-8 z-[1] pointer-events-none hidden md:block"
+              className="absolute left-0 top-0 bottom-4 w-8 z-[1] pointer-events-none"
               style={{
                 background: `linear-gradient(to right, ${isDark ? 'hsl(var(--secondary))' : 'hsl(var(--background))'}, transparent)`,
               }}
             />
             <div
-              className="absolute right-0 top-0 bottom-4 w-8 z-[1] pointer-events-none hidden md:block"
+              className="absolute right-0 top-0 bottom-4 w-8 z-[1] pointer-events-none"
               style={{
                 background: `linear-gradient(to left, ${isDark ? 'hsl(var(--secondary))' : 'hsl(var(--background))'}, transparent)`,
               }}
@@ -302,6 +327,22 @@ export function ProductCarousel({
                 );
               })}
             </div>
+
+            {/* Mobile scroll dots */}
+            {totalPages > 1 && (
+              <div className="flex md:hidden justify-center gap-1.5 pt-2">
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      i === activePageIndex
+                        ? 'bg-primary'
+                        : 'bg-primary/25'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
