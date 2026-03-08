@@ -131,9 +131,7 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
 }
 
 // ─── Update stock for a single Bling product ID + update sync status ───
-// When blingId matches a VARIANT (bling_variant_id): update that variant only.
-// When blingId matches a PRODUCT (bling_product_id) and the product has multiple variants:
-//   do NOT apply the single value to the first variant only (would zero/wrong one). Fetch stock per variant from API instead.
+// Fix 4: Check for recent local inventory movements before overwriting stock
 async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string): Promise<string> {
   if (newStock === undefined && !token) return "no_data";
 
@@ -145,6 +143,13 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
       return "skipped_inactive";
     }
     if (newStock !== undefined) {
+      // Check for recent local movements (sales/reserves in last 10 min)
+      const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
+      const hasRecent = await hasRecentLocalMovements(supabase, variantMatch.id, 10);
+      if (hasRecent) {
+        console.log(`[webhook] Skipping stock overwrite for variant ${variantMatch.id} (bling_id=${blingProductId}) — recent local movements detected`);
+        return "skipped_recent_movement";
+      }
       await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", variantMatch.id);
       await supabase.from("products").update({
         bling_sync_status: "synced",
@@ -182,6 +187,14 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
       }
     }
     if (variantCount === 1 && newStock !== undefined) {
+      // Check for recent local movements
+      const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
+      const singleVariantId = variants[0].id;
+      const hasRecent = await hasRecentLocalMovements(supabase, singleVariantId, 10);
+      if (hasRecent) {
+        console.log(`[webhook] Skipping stock overwrite for single-variant product (bling_id=${blingProductId}) — recent local movements detected`);
+        return "skipped_recent_movement";
+      }
       await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("product_id", product.id);
       await supabase.from("products").update({
         bling_sync_status: "synced",
@@ -373,8 +386,15 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
         const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
         const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
         if (match) {
-          await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
-          stockUpdated = true;
+          // Check for recent local movements before overwriting
+          const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
+          const hasRecent = await hasRecentLocalMovements(supabase, match.variantId, 10);
+          if (hasRecent) {
+            console.log(`[webhook] Skipping stock overwrite in syncStockOnly for variant ${match.variantId} — recent local movements`);
+          } else {
+            await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
+            stockUpdated = true;
+          }
         }
       }
     }
