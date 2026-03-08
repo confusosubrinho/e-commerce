@@ -1065,7 +1065,26 @@ serve(async (req) => {
         break;
       }
       case "generate_nfe": result = await generateNfe(token, parseInt(payload.bling_order_id)); break;
-      case "order_to_nfe": { const or = await createOrder(supabase, token, payload.order_id); const nf = await generateNfe(token, or.bling_order_id); result = { ...or, ...nf }; break; }
+      case "order_to_nfe": {
+        // Check for existing bling_order_id to avoid duplicates
+        const { data: nfeOrder } = await supabase.from("orders").select("id, notes").eq("id", payload.order_id).maybeSingle();
+        let orderResult;
+        if (nfeOrder?.notes?.includes("bling_order_id:")) {
+          const existingBlingId = nfeOrder.notes.match(/bling_order_id:(\d+)/)?.[1];
+          orderResult = { bling_order_id: parseInt(existingBlingId || "0"), duplicate: true };
+        } else {
+          orderResult = await createOrder(supabase, token, payload.order_id);
+          if (orderResult.bling_order_id) {
+            const existingNotes = nfeOrder?.notes || "";
+            await supabase.from("orders").update({
+              notes: `${existingNotes} | bling_order_id:${orderResult.bling_order_id}`.trim(),
+            }).eq("id", payload.order_id);
+          }
+        }
+        const nf = await generateNfe(token, orderResult.bling_order_id);
+        result = { ...orderResult, ...nf };
+        break;
+      }
       default: return new Response(JSON.stringify({ error: "Ação inválida" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
