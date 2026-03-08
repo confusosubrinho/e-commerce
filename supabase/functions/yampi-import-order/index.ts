@@ -372,14 +372,19 @@ Deno.serve(async (req) => {
     });
 
     if (localVariant?.id && localStatus !== "cancelled") {
-      await supabase.rpc("decrement_stock", { p_variant_id: localVariant.id, p_quantity: quantity });
-      await supabase.from("inventory_movements").insert({
-        variant_id: localVariant.id,
-        order_id: order.id,
-        type: "debit",
-        quantity,
-      });
-      itemsStockDebited += 1;
+      const stockResult = await supabase.rpc("decrement_stock", { p_variant_id: localVariant.id, p_quantity: quantity });
+      const stockData = stockResult.data as { success: boolean; error?: string } | null;
+      if (stockData && !stockData.success) {
+        console.warn(`[yampi-import] decrement_stock failed for variant ${localVariant.id}: ${stockData.error} — skipping inventory_movement`);
+      } else {
+        await supabase.from("inventory_movements").insert({
+          variant_id: localVariant.id,
+          order_id: order.id,
+          type: "debit",
+          quantity,
+        });
+        itemsStockDebited += 1;
+      }
     }
   }
 
