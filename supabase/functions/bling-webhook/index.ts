@@ -417,6 +417,16 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
     if (skipAll) {
       console.log(`[webhook] Skipping stock overwrite in syncStockOnly no-variation for product ${productId} — recent local movements`);
     } else {
+      // Get old stocks for audit trail
+      for (const pv of (prodVariants || [])) {
+        const { data: oldVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", pv.id).maybeSingle();
+        const oldQty = oldVar?.stock_quantity ?? 0;
+        if (qty !== oldQty) {
+          await supabase.from("inventory_movements").insert({
+            variant_id: pv.id, quantity: qty - oldQty, type: "bling_sync",
+          }).then(() => {}).catch(() => {});
+        }
+      }
       await supabase.from("product_variants").update({ stock_quantity: qty }).eq("product_id", productId);
       stockUpdated = true;
     }
