@@ -794,8 +794,9 @@ async function createOrder(supabase: any, token: string, orderId: string) {
   const headers = blingHeaders(token);
   const { data: order, error: orderError } = await supabase.from("orders").select("*, order_items(*)").eq("id", orderId).maybeSingle();
   if (orderError || !order) throw new Error(`Pedido não encontrado: ${orderError?.message || orderId}`);
-  const cpfMatch = order.notes?.match(/CPF:\s*([\d.\-]+)/);
-  const cpf = cpfMatch ? cpfMatch[1].replace(/\D/g, "") : "";
+  // Use customer_cpf column as primary source, fallback to regex in notes
+  const cpfRaw = order.customer_cpf || order.notes?.match(/CPF:\s*([\d.\-]+)/)?.[1] || "";
+  const cpf = cpfRaw.replace(/\D/g, "");
   const itens = [];
   for (const item of (order.order_items || [])) {
     let codigo = item.product_id?.substring(0, 8) || "PROD";
