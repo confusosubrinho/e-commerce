@@ -124,8 +124,8 @@ export default function Checkout() {
     stripeConfig?.is_active === true &&
     !!stripeConfig?.publishable_key &&
     stripeConfig?.checkout_mode !== 'external';
-  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
-  const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(routerState?.clientSecret ?? null);
+  const [stripeOrderId, setStripeOrderId] = useState<string | null>(routerState?.orderId ?? null);
   /** PIX on checkout: QR + code displayed on same page, no redirect */
   const [stripePixData, setStripePixData] = useState<{
     pixQrUrl: string;
@@ -135,7 +135,8 @@ export default function Checkout() {
     guestToken: string;
   } | null>(null);
 
-  // IMPROVEMENT #5: Payment error state
+  // Track whether order was pre-created by CheckoutStart router
+  const orderFromRouter = !!(routerState?.orderId && routerState?.clientSecret);
   const [paymentError, setPaymentError] = useState<{
     message: string;
     suggestion: string;
