@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { hasRecentLocalMovements } from "../_shared/blingStockPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +10,7 @@ const corsHeaders = {
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
 
-function createSupabase(authHeader?: string) {
+function createSupabase() {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -42,14 +44,25 @@ serve(async (req) => {
 
     const supabase = createSupabase();
 
-    // Check admin role
+    // Check admin role — try user_roles first, then admin_members fallback
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .eq("role", "admin")
       .maybeSingle();
-    if (!roleData) throw new Error("Acesso negado: apenas administradores");
+
+    if (!roleData) {
+      // Fallback: check admin_members
+      const { data: memberData } = await supabase
+        .from("admin_members")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["owner", "manager", "operator"])
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!memberData) throw new Error("Acesso negado: apenas administradores");
+    }
 
     const { product_id } = await req.json();
     if (!product_id) throw new Error("product_id é obrigatório");
@@ -86,7 +99,6 @@ serve(async (req) => {
     // 4. Resolve bling_product_id (or find by SKU)
     let blingProductId = product.bling_product_id;
 
-    // Bug 2 Fix: Resolve SKU search variable correctly
     let searchSku = product.sku;
 
     if (!blingProductId) {
@@ -110,7 +122,6 @@ serve(async (req) => {
             message: "Produto sem vínculo com o Bling e sem SKU para busca",
           }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
-        // Use variant SKU for search
         searchSku = firstSku;
       }
     }
@@ -120,7 +131,7 @@ serve(async (req) => {
 
     // If no bling_product_id, search by SKU
     if (!blingProductId) {
-      const searchRes = await fetch(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
+      const searchRes = await fetchWithTimeout(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
       const searchJson = await searchRes.json();
       const found = searchJson?.data?.[0];
       if (!found) {
@@ -139,7 +150,7 @@ serve(async (req) => {
     }
 
     // 5. Fetch product detail from Bling to get variations
-    const detailRes = await fetch(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
+    const detailRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
     const detailJson = await detailRes.json();
     const detail = detailJson?.data;
     if (!detail) throw new Error("Não foi possível obter detalhes do produto no Bling");
@@ -151,6 +162,7 @@ serve(async (req) => {
       .eq("product_id", product_id);
 
     let updatedVariants = 0;
+    let skippedRecent = 0;
 
     // Collect all bling IDs to fetch stock in batch
     const blingIds: number[] = [];
@@ -185,7 +197,7 @@ serve(async (req) => {
       const batch = uniqueIds.slice(i, i + 50);
       const idsParam = batch.map(id => `idsProdutos[]=${id}`).join("&");
       try {
-        const stockRes = await fetch(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
+        const stockRes = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
         const stockJson = await stockRes.json();
         for (const s of (stockJson?.data || [])) {
           stockMap.set(s.produto?.id, s.saldoVirtualTotal ?? 0);
@@ -193,7 +205,7 @@ serve(async (req) => {
       } catch (_) { /* ignore stock fetch errors for individual batches */ }
     }
 
-    // 7. Update local variants with Bling stock
+    // 7. Update local variants with Bling stock (with hasRecentLocalMovements protection)
     if (detail.variacoes?.length) {
       for (const bv of detail.variacoes) {
         const stock = stockMap.get(bv.id) ?? 0;
@@ -201,7 +213,18 @@ serve(async (req) => {
         
         if (localVar) {
           if (localVar.stock_quantity !== stock) {
+            // Check for recent local movements before overwriting
+            const hasRecent = await hasRecentLocalMovements(supabase, localVar.id, 10);
+            if (hasRecent) {
+              console.log(`[single-stock] Skipping variant ${localVar.id} — recent local movements`);
+              skippedRecent++;
+              continue;
+            }
             await supabase.from("product_variants").update({ stock_quantity: stock }).eq("id", localVar.id);
+            // Record inventory movement for audit
+            await supabase.from("inventory_movements").insert({
+              variant_id: localVar.id, quantity: stock - localVar.stock_quantity, type: "bling_sync",
+            }).then(() => {}).catch(() => {});
             updatedVariants++;
           }
         } else {
@@ -210,8 +233,24 @@ serve(async (req) => {
           if (sku) {
             const skuVar = variantBySku.get(sku);
             if (skuVar) {
+              // Check for recent local movements
+              const hasRecent = await hasRecentLocalMovements(supabase, skuVar.id, 10);
+              if (hasRecent) {
+                console.log(`[single-stock] Skipping SKU-matched variant ${skuVar.id} — recent local movements`);
+                skippedRecent++;
+                // Still link the bling_variant_id even if skipping stock
+                await supabase.from("product_variants").update({ bling_variant_id: bv.id }).eq("id", skuVar.id);
+                continue;
+              }
+              const oldStock = skuVar.stock_quantity ?? 0;
               const updates: any = { stock_quantity: stock, bling_variant_id: bv.id };
               await supabase.from("product_variants").update(updates).eq("id", skuVar.id);
+              // Record inventory movement
+              if (stock !== oldStock) {
+                await supabase.from("inventory_movements").insert({
+                  variant_id: skuVar.id, quantity: stock - oldStock, type: "bling_sync",
+                }).then(() => {}).catch(() => {});
+              }
               updatedVariants++;
             }
           }
@@ -223,7 +262,21 @@ serve(async (req) => {
       if (localVariants?.length) {
         for (const lv of localVariants) {
           if (lv.stock_quantity !== parentStock) {
+            // Check for recent local movements
+            const hasRecent = await hasRecentLocalMovements(supabase, lv.id, 10);
+            if (hasRecent) {
+              console.log(`[single-stock] Skipping variant ${lv.id} (no-variation product) — recent local movements`);
+              skippedRecent++;
+              continue;
+            }
+            const oldStock = lv.stock_quantity ?? 0;
             await supabase.from("product_variants").update({ stock_quantity: parentStock }).eq("id", lv.id);
+            // Record inventory movement
+            if (parentStock !== oldStock) {
+              await supabase.from("inventory_movements").insert({
+                variant_id: lv.id, quantity: parentStock - oldStock, type: "bling_sync",
+              }).then(() => {}).catch(() => {});
+            }
             updatedVariants++;
           }
         }
@@ -244,13 +297,14 @@ serve(async (req) => {
       changed_by: user.id,
       change_type: "bling_stock_sync",
       fields_changed: ["stock_quantity"],
-      notes: `Sincronização manual de estoque via Bling. ${updatedVariants} variante(s) atualizada(s).`,
-      after_data: { updated_variants: updatedVariants, synced_at: now },
+      notes: `Sincronização manual de estoque via Bling. ${updatedVariants} variante(s) atualizada(s)${skippedRecent > 0 ? `, ${skippedRecent} ignorada(s) por movimentos recentes` : ''}.`,
+      after_data: { updated_variants: updatedVariants, skipped_recent: skippedRecent, synced_at: now },
     });
 
     return new Response(JSON.stringify({
       success: true,
       updated_variants: updatedVariants,
+      skipped_recent: skippedRecent,
       synced_at: now,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

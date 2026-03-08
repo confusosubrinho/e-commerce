@@ -116,7 +116,7 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
 
 // ─── Update stock for a single Bling product ID + update sync status ───
 // Fix 4: Check for recent local inventory movements before overwriting stock
-async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string): Promise<string> {
+async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string, depth: number = 0): Promise<string> {
   if (newStock === undefined && !token) return "no_data";
 
   const { data: variantMatch } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingProductId).maybeSingle();
