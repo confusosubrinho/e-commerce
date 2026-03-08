@@ -853,12 +853,10 @@ export default function Orders() {
                   </div>
                 </div>
               </div>
-              {selectedOrder.tracking_code && (
-                <div>
-                  <h3 className="font-medium mb-2">Rastreamento</h3>
-                  <p className="text-muted-foreground">{selectedOrder.tracking_code}</p>
-                </div>
-              )}
+              <TrackingCodeEditor order={selectedOrder} onUpdated={(code) => {
+                setSelectedOrder({ ...selectedOrder, tracking_code: code } as Order);
+                queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+              }} />
               {selectedOrder.notes && (
                 <div>
                   <h3 className="font-medium mb-2">Observações</h3>
