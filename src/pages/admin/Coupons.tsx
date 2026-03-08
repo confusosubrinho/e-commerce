@@ -19,6 +19,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Coupon } from '@/types/database';
 import { logAudit } from '@/lib/auditLogger';
 import { exportToCSV } from '@/lib/csv';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Coupons() {
   const queryClient = useQueryClient();
