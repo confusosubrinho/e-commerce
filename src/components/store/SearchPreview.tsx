@@ -76,6 +76,19 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
             }}
             className="w-full h-12 pl-5 pr-12 text-base rounded-full border-2 border-muted bg-muted/50 focus:bg-background focus:border-primary"
           />
+          {query.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setIsOpen(false);
+              }}
+              className="absolute right-12 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Limpar busca"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
           <Button
             type="submit"
             variant="ghost"

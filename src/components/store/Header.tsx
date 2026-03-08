@@ -398,7 +398,7 @@ export function Header() {
                                   </Button>
                                 </div>
                                 <p className="font-bold text-sm">
-                                  {formatPrice(Number(item.product.sale_price || item.product.base_price) * item.quantity)}
+                                  {formatPrice(getCartItemUnitPrice(item) * item.quantity)}
                                 </p>
                               </div>
                             </div>
