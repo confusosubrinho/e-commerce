@@ -58,18 +58,37 @@ export default function Customers() {
   const [currentPage, setCurrentPage] = useState(1);
   const CUSTOMERS_PER_PAGE = 50;
 
-  const { data: customers, isLoading } = useQuery({
-    queryKey: ['admin-customers'],
+  const { data: customersResult, isLoading } = useQuery({
+    queryKey: ['admin-customers', currentPage, sortBy],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const from = (currentPage - 1) * CUSTOMERS_PER_PAGE;
+      const to = from + CUSTOMERS_PER_PAGE - 1;
+
+      let sortCol = 'created_at';
+      let ascending = false;
+      switch (sortBy) {
+        case 'oldest': sortCol = 'created_at'; ascending = true; break;
+        case 'spent-desc': sortCol = 'total_spent'; ascending = false; break;
+        case 'spent-asc': sortCol = 'total_spent'; ascending = true; break;
+        case 'orders-desc': sortCol = 'total_orders'; ascending = false; break;
+        case 'orders-asc': sortCol = 'total_orders'; ascending = true; break;
+        case 'name-asc': sortCol = 'full_name'; ascending = true; break;
+        case 'name-desc': sortCol = 'full_name'; ascending = false; break;
+        case 'newest': default: sortCol = 'created_at'; ascending = false; break;
+      }
+
+      const { data, error, count } = await supabase
         .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
+        .select('*', { count: 'exact' })
+        .order(sortCol, { ascending })
+        .range(from, to);
       if (error) throw error;
-      return data as Customer[];
+      return { customers: (data || []) as Customer[], total: count || 0 };
     },
   });
+
+  const customers = customersResult?.customers;
+  const totalCustomers = customersResult?.total || 0;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -112,34 +131,7 @@ export default function Customers() {
     filteredCustomers = filteredCustomers.filter(c => (c.total_orders || 0) >= Number(minOrders));
   }
 
-  // Sort
-  switch (sortBy) {
-    case 'oldest':
-      filteredCustomers.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      break;
-    case 'spent-desc':
-      filteredCustomers.sort((a, b) => Number(b.total_spent) - Number(a.total_spent));
-      break;
-    case 'spent-asc':
-      filteredCustomers.sort((a, b) => Number(a.total_spent) - Number(b.total_spent));
-      break;
-    case 'orders-desc':
-      filteredCustomers.sort((a, b) => (b.total_orders || 0) - (a.total_orders || 0));
-      break;
-    case 'orders-asc':
-      filteredCustomers.sort((a, b) => (a.total_orders || 0) - (b.total_orders || 0));
-      break;
-    case 'name-asc':
-      filteredCustomers.sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? ''));
-      break;
-    case 'name-desc':
-      filteredCustomers.sort((a, b) => (b.full_name ?? '').localeCompare(a.full_name ?? ''));
-      break;
-    case 'newest':
-    default:
-      filteredCustomers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      break;
-  }
+  // Sort is now done server-side, no client-side sort needed
 
   const clearFilters = () => {
     setSortBy('newest');
@@ -506,8 +498,9 @@ export default function Customers() {
       )}
 
       {(() => {
-        const totalCustomerPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
-        const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * CUSTOMERS_PER_PAGE, currentPage * CUSTOMERS_PER_PAGE);
+        const totalCustomerPages = Math.ceil(totalCustomers / CUSTOMERS_PER_PAGE);
+        // Client-side filters applied on current page data
+        const paginatedCustomers = filteredCustomers;
 
         return (
           <>
@@ -602,7 +595,7 @@ export default function Customers() {
               <div className="flex items-center justify-center gap-2 pt-2">
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>‹</Button>
                 <span className="text-sm text-muted-foreground">
-                  Página {currentPage} de {totalCustomerPages} ({filteredCustomers.length} clientes)
+                  Página {currentPage} de {totalCustomerPages} ({totalCustomers} clientes)
                 </span>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => setCurrentPage(p => Math.min(totalCustomerPages, p + 1))} disabled={currentPage === totalCustomerPages}>›</Button>
               </div>

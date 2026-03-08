@@ -85,9 +85,21 @@ export default function SalesDashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from('orders')
-        .select('*, items:order_items(*)')
+        .select('id, total_amount, status, created_at, notes, payment_method')
         .gte('created_at', startDate)
         .order('created_at', { ascending: false });
+      return data || [];
+    },
+  });
+
+  // Separate query for top products — avoids heavy join on order_items
+  const { data: orderItemsForTop } = useQuery({
+    queryKey: ['sales-order-items-top', period],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('order_items')
+        .select('product_name, quantity, total_price')
+        .gte('created_at', startDate);
       return data || [];
     },
   });
@@ -163,20 +175,18 @@ export default function SalesDashboard() {
     return Object.entries(map).map(([key, value]) => ({ name: labels[key] || key, value }));
   }, [orders]);
 
-  // Top products
+  // Top products — uses separate lightweight query
   const topProducts = useMemo(() => {
-    if (!orders) return [];
+    if (!orderItemsForTop) return [];
     const map: Record<string, { name: string; qty: number; revenue: number }> = {};
-    orders.forEach(o => {
-      (o.items as any[])?.forEach((item: any) => {
-        const key = item.product_name;
-        if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
-        map[key].qty += item.quantity;
-        map[key].revenue += Number(item.total_price || 0);
-      });
+    orderItemsForTop.forEach((item) => {
+      const key = item.product_name;
+      if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
+      map[key].qty += item.quantity;
+      map[key].revenue += Number(item.total_price || 0);
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-  }, [orders]);
+  }, [orderItemsForTop]);
 
   // Payment method breakdown (from notes field)
   const paymentData = useMemo(() => {

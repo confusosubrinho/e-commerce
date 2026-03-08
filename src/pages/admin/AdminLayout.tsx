@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AdminErrorIndicator } from '@/components/store/AdminErrorIndicator';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -139,7 +139,7 @@ const mobileTabItems = [
 function useFilteredMenu() {
   const { role, can } = useAdminRole();
 
-  return allMenuItems.reduce<MenuItem[]>((acc, item) => {
+  return useMemo(() => allMenuItems.reduce<MenuItem[]>((acc, item) => {
     // Check top-level permission
     if (item.permission && !can(item.permission)) return acc;
 
@@ -159,7 +159,7 @@ function useFilteredMenu() {
       acc.push(item);
     }
     return acc;
-  }, []);
+  }, []), [role, can]);
 }
 
 function AdminSidebar() {
