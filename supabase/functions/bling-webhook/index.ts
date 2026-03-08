@@ -370,8 +370,9 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
       const varBlingId = s.produto?.id;
       const qty = s.saldoVirtualTotal ?? 0;
       if (varBlingId) {
-        // Direct variant update (skip full updateStockForBlingId to avoid redundant product status update)
-        const match = await findVariantByBlingIdOrSku(supabase, varBlingId);
+        // Bug 5 Fix: Extract token from headers and pass to findVariantByBlingIdOrSku for SKU fallback
+        const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
+        const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
         if (match) {
           await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
           stockUpdated = true;
