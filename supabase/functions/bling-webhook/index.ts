@@ -133,7 +133,16 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
         console.log(`[webhook] Skipping stock overwrite for variant ${variantMatch.id} (bling_id=${blingProductId}) — recent local movements detected`);
         return "skipped_recent_movement";
       }
+      // Get current stock for audit trail
+      const { data: currentVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", variantMatch.id).maybeSingle();
+      const oldStock = currentVar?.stock_quantity ?? 0;
       await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", variantMatch.id);
+      // Record inventory movement for audit
+      if (newStock !== oldStock) {
+        await supabase.from("inventory_movements").insert({
+          variant_id: variantMatch.id, quantity: newStock - oldStock, type: "bling_sync",
+        }).then(() => {}).catch(() => {});
+      }
       await supabase.from("products").update({
         bling_sync_status: "synced",
         bling_last_synced_at: new Date().toISOString(),
