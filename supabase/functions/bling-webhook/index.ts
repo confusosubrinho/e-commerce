@@ -563,6 +563,43 @@ async function batchStockSync(supabase: any) {
     }
   }
 
+  // ─── Retry failed webhook events (up to 3 retries) ───
+  try {
+    const { data: failedEvents } = await supabase
+      .from("bling_webhook_events")
+      .select("id, bling_product_id, retries")
+      .eq("status", "failed")
+      .lt("retries", 3)
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    if (failedEvents?.length) {
+      console.log(`[cron] Retrying ${failedEvents.length} failed webhook events`);
+      for (const evt of failedEvents) {
+        try {
+          if (evt.bling_product_id) {
+            const retryResult = await updateStockForBlingId(supabase, evt.bling_product_id, undefined, token);
+            if (retryResult === "updated" || retryResult === "skipped_recent_movement") {
+              await supabase.from("bling_webhook_events").update({
+                status: "processed", processed_at: new Date().toISOString(), retries: evt.retries + 1,
+              }).eq("id", evt.id);
+            } else {
+              await supabase.from("bling_webhook_events").update({
+                retries: evt.retries + 1, last_error: `Retry result: ${retryResult}`,
+              }).eq("id", evt.id);
+            }
+          }
+        } catch (retryErr: any) {
+          await supabase.from("bling_webhook_events").update({
+            retries: evt.retries + 1, last_error: retryErr.message?.substring(0, 500),
+          }).eq("id", evt.id);
+        }
+      }
+    }
+  } catch (retryBatchErr: any) {
+    console.error("[cron] Failed event retry error:", retryBatchErr.message);
+  }
+
   // Log the run
   await supabase.from("bling_sync_runs").insert({
     started_at: runStarted,
