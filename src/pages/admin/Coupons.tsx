@@ -30,6 +30,7 @@ export default function Coupons() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
   const [activeTab, setActiveTab] = useState('list');
+  const [couponToDelete, setCouponToDelete] = useState<string | null>(null);
 
   // Bulk generation state
   const [bulkPrefix, setBulkPrefix] = useState('');
