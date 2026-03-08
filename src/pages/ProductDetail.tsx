@@ -489,12 +489,15 @@ export default function ProductDetail() {
           <div className="space-y-4">
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium text-primary mb-2">PIX</h4>
-              <p className="text-2xl font-bold">{formatPrice(currentPrice)}</p>
               {applyPix && pixDiscountAmount > 0 ? (
                 <>
+                  <p className="text-lg text-muted-foreground line-through">{formatPrice(currentPrice)}</p>
+                  <p className="text-2xl font-bold text-primary">{formatPrice(currentPrice - pixDiscountAmount)}</p>
                   <p className="text-sm text-muted-foreground">À vista com {pixDiscountPercent}% de desconto no PIX</p>
                 </>
-              ) : null}
+              ) : (
+                <p className="text-2xl font-bold">{formatPrice(currentPrice)}</p>
+              )}
             </div>
             <div className="p-4 border rounded-lg">
               <h4 className="font-medium mb-2">Cartão de Crédito</h4>
