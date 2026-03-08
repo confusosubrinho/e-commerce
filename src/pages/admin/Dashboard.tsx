@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Package, ShoppingCart, Users, DollarSign, Settings2, TrendingUp, TrendingDown, Plus, Clock, Star, AlertTriangle } from 'lucide-react';
+import { formatPrice, ORDER_STATUS_CHART_COLORS, ORDER_STATUS_LABELS } from '@/lib/formatters';
 import { HelpHint } from '@/components/HelpHint';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatPrice, formatDate } from '@/lib/formatters';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Eye, Mail, Phone, Calendar, DollarSign, ArrowUpDown, ShoppingBag, Download, Upload, Loader2, CheckCircle, AlertCircle, Users, MoreHorizontal } from 'lucide-react';
