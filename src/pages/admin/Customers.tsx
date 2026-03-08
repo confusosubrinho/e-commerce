@@ -131,34 +131,7 @@ export default function Customers() {
     filteredCustomers = filteredCustomers.filter(c => (c.total_orders || 0) >= Number(minOrders));
   }
 
-  // Sort
-  switch (sortBy) {
-    case 'oldest':
-      filteredCustomers.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      break;
-    case 'spent-desc':
-      filteredCustomers.sort((a, b) => Number(b.total_spent) - Number(a.total_spent));
-      break;
-    case 'spent-asc':
-      filteredCustomers.sort((a, b) => Number(a.total_spent) - Number(b.total_spent));
-      break;
-    case 'orders-desc':
-      filteredCustomers.sort((a, b) => (b.total_orders || 0) - (a.total_orders || 0));
-      break;
-    case 'orders-asc':
-      filteredCustomers.sort((a, b) => (a.total_orders || 0) - (b.total_orders || 0));
-      break;
-    case 'name-asc':
-      filteredCustomers.sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? ''));
-      break;
-    case 'name-desc':
-      filteredCustomers.sort((a, b) => (b.full_name ?? '').localeCompare(a.full_name ?? ''));
-      break;
-    case 'newest':
-    default:
-      filteredCustomers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      break;
-  }
+  // Sort is now done server-side, no client-side sort needed
 
   const clearFilters = () => {
     setSortBy('newest');
