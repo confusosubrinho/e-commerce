@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "Produto sem yampi_product_id mapeado" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const res = await fetch(`${yampiBase}/catalog/skus/${variant.yampi_sku_id}`, {
+      const { fetchWithTimeout } = await import("../_shared/fetchWithTimeout.ts");
+      const res = await fetchWithTimeout(`${yampiBase}/catalog/skus/${variant.yampi_sku_id}`, {
         method: "PUT",
         headers: yampiHeaders,
         body: JSON.stringify({
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
           quantity: variant.stock_quantity,
           quantity_managed: true,
         }),
-      });
+      }, 25_000);
 
       const data = await res.json();
       results.push({

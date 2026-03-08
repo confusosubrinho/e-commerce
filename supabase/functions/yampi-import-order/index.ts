@@ -511,7 +511,9 @@ async function importSingleOrder(
 
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     order_number: "TEMP", subtotal, total_amount: totalAmount, shipping_cost: shippingCost, discount_amount: discountAmount,
-    shipping_name: customerName, shipping_address: street, shipping_city: city, shipping_state: state, shipping_zip: zip,
+    shipping_name: customerName,
+    shipping_address: [street, number].filter(Boolean).join(", ") + (neighborhood ? ` - ${neighborhood}` : "") + (complement ? ` - ${complement}` : "") || street,
+    shipping_city: city, shipping_state: state, shipping_zip: zip,
     shipping_phone: customerPhone, customer_email: customerEmail, customer_cpf: customerCpf,
     provider: "yampi", gateway, payment_method: paymentMethod, installments, transaction_id: transactionId,
     status: localStatus, external_reference: yId, yampi_order_number: yampiOrderNumber,
