@@ -846,15 +846,15 @@ export default function ProductDetail() {
             </div>
             </div>{/* close variantSectionRef */}
 
-            <div className="hidden md:block">
-              <label className="block font-medium mb-2">Quantidade</label>
+            <div>
+              <label className="block font-medium mb-2 hidden md:block">Quantidade</label>
               <div className="flex items-center gap-4">
                 <div className="flex items-center border rounded-lg">
-                  <Button variant="ghost" size="icon" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Diminuir quantidade">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10" onClick={() => setQuantity(Math.max(1, quantity - 1))} aria-label="Diminuir quantidade">
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-12 text-center font-medium" aria-live="polite">{quantity}</span>
-                  <Button variant="ghost" size="icon" onClick={() => {
+                  <span className="w-10 md:w-12 text-center font-medium" aria-live="polite">{quantity}</span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10" onClick={() => {
                     const maxStock = selectedVariant?.stock_quantity || 99;
                     setQuantity(Math.min(quantity + 1, maxStock));
                   }} aria-label="Aumentar quantidade">
