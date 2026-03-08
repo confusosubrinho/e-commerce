@@ -203,7 +203,15 @@ Deno.serve(async (req) => {
               await supabase.from("customers").insert({ email: customerEmail, full_name: customerName, phone: customerPhone, total_orders: 1, total_spent: totalAmount });
             }
           }
-          await supabase.from("email_automation_logs").insert({ recipient_email: customerEmail || "unknown", recipient_name: customerName, status: "pending" });
+          // Link email automation log to active automation
+          const { data: activeAutomation } = await supabase.from("email_automations")
+            .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
+          await supabase.from("email_automation_logs").insert({
+            recipient_email: customerEmail || "unknown",
+            recipient_name: customerName,
+            status: "pending",
+            automation_id: activeAutomation?.id || null,
+          });
 
           // Auto-push order to Bling
           try {
