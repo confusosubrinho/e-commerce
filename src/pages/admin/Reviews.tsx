@@ -85,7 +85,7 @@ export default function Reviews() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const { error } = await supabase.from('product_reviews').update({ status } as any).in('id', ids);
+      const { error } = await (supabase.from('product_reviews').update({ status }) as any).in('id', ids);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -98,8 +98,8 @@ export default function Reviews() {
 
   const submitReply = useMutation({
     mutationFn: async ({ id, reply }: { id: string; reply: string }) => {
-      const { error } = await supabase.from('product_reviews')
-        .update({ admin_reply: reply, replied_at: new Date().toISOString() } as any)
+      const { error } = await (supabase.from('product_reviews')
+        .update({ admin_reply: reply, replied_at: new Date().toISOString() }) as any)
         .eq('id', id);
       if (error) throw error;
     },

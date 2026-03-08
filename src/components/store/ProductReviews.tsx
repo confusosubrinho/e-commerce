@@ -26,6 +26,7 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [cooldown, setCooldown] = useState(false);
 
   const { data: reviews, refetch } = useQuery({
     queryKey: ['reviews', productId],
@@ -94,6 +95,8 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
       setTitle('');
       setComment('');
       setRating(5);
+      setCooldown(true);
+      setTimeout(() => setCooldown(false), 30_000);
       refetch();
     } catch (error) {
       toast({
@@ -156,8 +159,9 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
             <Button 
               className="w-full mt-6" 
               onClick={() => setShowForm(!showForm)}
+              disabled={cooldown}
             >
-              Escrever Avaliação
+              {cooldown ? 'Aguarde...' : 'Escrever Avaliação'}
             </Button>
           </div>
 
@@ -261,10 +265,10 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
                          Compra verificada
                        </div>
                      )}
-                     {(review as any).admin_reply && (
+                     {review.admin_reply && (
                        <div className="bg-muted/50 rounded-lg p-3 mt-3 text-sm">
                          <p className="font-semibold text-xs text-primary mb-1">Resposta da loja:</p>
-                         <p className="text-muted-foreground">{(review as any).admin_reply}</p>
+                         <p className="text-muted-foreground">{review.admin_reply}</p>
                        </div>
                      )}
                   </div>
