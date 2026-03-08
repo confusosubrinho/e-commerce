@@ -47,4 +47,6 @@ function CookieConsentInner(_props: Record<string, never>, ref: React.ForwardedR
       </div>
     </div>
   );
-});
+}
+
+export const CookieConsent = React.forwardRef(CookieConsentInner);

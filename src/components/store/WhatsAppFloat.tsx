@@ -48,4 +48,6 @@ function WhatsAppFloatInner(_props: Record<string, never>, ref: React.ForwardedR
       </span>
     </a>
   );
-});
+}
+
+export const WhatsAppFloat = React.forwardRef(WhatsAppFloatInner);
