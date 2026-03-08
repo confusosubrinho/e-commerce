@@ -58,18 +58,37 @@ export default function Customers() {
   const [currentPage, setCurrentPage] = useState(1);
   const CUSTOMERS_PER_PAGE = 50;
 
-  const { data: customers, isLoading } = useQuery({
-    queryKey: ['admin-customers'],
+  const { data: customersResult, isLoading } = useQuery({
+    queryKey: ['admin-customers', currentPage, sortBy],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const from = (currentPage - 1) * CUSTOMERS_PER_PAGE;
+      const to = from + CUSTOMERS_PER_PAGE - 1;
+
+      let sortCol = 'created_at';
+      let ascending = false;
+      switch (sortBy) {
+        case 'oldest': sortCol = 'created_at'; ascending = true; break;
+        case 'spent-desc': sortCol = 'total_spent'; ascending = false; break;
+        case 'spent-asc': sortCol = 'total_spent'; ascending = true; break;
+        case 'orders-desc': sortCol = 'total_orders'; ascending = false; break;
+        case 'orders-asc': sortCol = 'total_orders'; ascending = true; break;
+        case 'name-asc': sortCol = 'full_name'; ascending = true; break;
+        case 'name-desc': sortCol = 'full_name'; ascending = false; break;
+        case 'newest': default: sortCol = 'created_at'; ascending = false; break;
+      }
+
+      const { data, error, count } = await supabase
         .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500);
+        .select('*', { count: 'exact' })
+        .order(sortCol, { ascending })
+        .range(from, to);
       if (error) throw error;
-      return data as Customer[];
+      return { customers: (data || []) as Customer[], total: count || 0 };
     },
   });
+
+  const customers = customersResult?.customers;
+  const totalCustomers = customersResult?.total || 0;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
