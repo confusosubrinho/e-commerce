@@ -153,8 +153,8 @@ export function BannerCarousel() {
               role="tab"
               aria-selected={index === currentIndex}
               aria-label={`Slide ${index + 1} de ${displayBanners.length}`}
-              className={`w-3 h-3 rounded-full transition-colors ${
-                index === currentIndex ? 'bg-secondary' : 'bg-secondary/40'
+              className={`w-3 h-3 rounded-full transition-colors ring-1 ring-black/20 shadow-sm ${
+                index === currentIndex ? 'bg-white' : 'bg-white/50'
               }`}
             />
           ))}

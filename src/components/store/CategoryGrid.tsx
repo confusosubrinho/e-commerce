@@ -58,6 +58,16 @@ export function CategoryGrid() {
             <ChevronRight className="h-5 w-5" />
           </Button>
 
+          {/* Mobile fade gradients to indicate scrollable content */}
+          <div
+            className="absolute left-0 top-0 bottom-4 w-6 z-[1] pointer-events-none md:hidden"
+            style={{ background: 'linear-gradient(to right, hsl(var(--background)), transparent)' }}
+          />
+          <div
+            className="absolute right-0 top-0 bottom-4 w-6 z-[1] pointer-events-none md:hidden"
+            style={{ background: 'linear-gradient(to left, hsl(var(--background)), transparent)' }}
+          />
+
           <div
             ref={scrollRef}
             className="flex gap-6 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory cursor-grab active:cursor-grabbing touch-pan-x"

@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useStoreContact, formatPhone } from '@/hooks/useStoreContact';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ContactForm() {
   const { toast } = useToast();
@@ -13,14 +14,25 @@ export function ContactForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const { error } = await supabase.from('contact_messages' as any).insert({
+        name: form.name,
+        email: form.email,
+        phone: form.phone || null,
+        subject: form.subject,
+        message: form.message,
+      });
+      if (error) throw error;
       toast({ title: 'Mensagem enviada!', description: 'Retornaremos em breve.' });
       setForm({ name: '', email: '', phone: '', subject: '', message: '' });
+    } catch {
+      toast({ title: 'Erro ao enviar', description: 'Tente novamente mais tarde.', variant: 'destructive' });
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
