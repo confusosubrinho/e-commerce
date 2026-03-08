@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
     }
 
     // ===== #10 DELIVERED EVENTS =====
-    if (deliveredEvents.includes(event)) {
+    if (deliveredEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
       if (externalRef) {
         const { data: existingOrder } = await supabase
