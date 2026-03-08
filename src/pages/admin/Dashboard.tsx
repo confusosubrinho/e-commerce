@@ -22,20 +22,8 @@ const PERIOD_OPTIONS = [
   { value: '90', label: '90 dias' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#eab308',
-  processing: '#3b82f6',
-  shipped: '#8b5cf6',
-  delivered: '#22c55e',
-  cancelled: '#ef4444',
-};
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendente',
-  processing: 'Processando',
-  shipped: 'Enviado',
-  delivered: 'Entregue',
-  cancelled: 'Cancelado',
-};
+const STATUS_COLORS = ORDER_STATUS_CHART_COLORS;
+const STATUS_LABELS = ORDER_STATUS_LABELS;
 
 function StoreHealthCard() {
   const { data: health } = useQuery({
