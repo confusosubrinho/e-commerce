@@ -265,10 +265,10 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
                          Compra verificada
                        </div>
                      )}
-                     {(review as any).admin_reply && (
+                     {review.admin_reply && (
                        <div className="bg-muted/50 rounded-lg p-3 mt-3 text-sm">
                          <p className="font-semibold text-xs text-primary mb-1">Resposta da loja:</p>
-                         <p className="text-muted-foreground">{(review as any).admin_reply}</p>
+                         <p className="text-muted-foreground">{review.admin_reply}</p>
                        </div>
                      )}
                   </div>
