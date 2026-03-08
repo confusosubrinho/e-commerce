@@ -66,7 +66,6 @@ export default function Settings() {
         store_name: settings.store_name || '',
         logo_url: settings.logo_url || '',
         favicon_url: (settings as any).favicon_url || '',
-        soft_descriptor: (settings as any).soft_descriptor || '',
         contact_email: settings.contact_email || '',
         contact_phone: settings.contact_phone || '',
         contact_whatsapp: settings.contact_whatsapp || '',
