@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 export default function Team() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
@@ -89,12 +91,12 @@ export default function Team() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Equipe & Acessos</h1>
-          <p className="text-muted-foreground">Gerencie quem pode acessar o painel administrativo</p>
+          <h1 className="text-xl md:text-3xl font-bold">Equipe & Acessos</h1>
+          <p className="text-sm text-muted-foreground">Gerencie quem pode acessar o painel administrativo</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button><UserPlus className="h-4 w-4 mr-2" />Convidar</Button>
+            <Button size={isMobile ? 'sm' : 'default'}><UserPlus className="h-4 w-4 mr-2" />Convidar</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Convidar Membro</DialogTitle></DialogHeader>
@@ -123,70 +125,42 @@ export default function Team() {
         </Dialog>
       </div>
 
-      <div className="bg-background rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Membro</TableHead>
-              <TableHead>Função</TableHead>
-              <TableHead>Último Acesso</TableHead>
-              <TableHead>Ativo</TableHead>
-              <TableHead className="w-[80px]" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8">Carregando...</TableCell></TableRow>
-            ) : members?.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum membro cadastrado</TableCell></TableRow>
-            ) : members?.map(m => (
-              <TableRow key={m.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                      {(m.full_name || m.email)[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium">{m.full_name || '—'}</p>
-                      <p className="text-xs text-muted-foreground">{m.email}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    value={m.role}
-                    onValueChange={v => updateMutation.mutate({ id: m.id, updates: { role: v } })}
-                    disabled={m.role === 'owner'}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <Badge className={ROLE_COLORS[m.role as AdminRole] || 'bg-muted'}>
-                        {ROLE_LABELS[m.role as AdminRole] || m.role}
-                      </Badge>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manager">Gerente</SelectItem>
-                      <SelectItem value="operator">Operador</SelectItem>
-                      <SelectItem value="viewer">Visualizador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+      ) : members?.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">Nenhum membro cadastrado</div>
+      ) : isMobile ? (
+        <div className="space-y-3">
+          {members?.map(m => (
+            <div key={m.id} className="bg-background border rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                  {(m.full_name || m.email)[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{m.full_name || '—'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                </div>
+                <Badge className={ROLE_COLORS[m.role as AdminRole] || 'bg-muted'}>
+                  {ROLE_LABELS[m.role as AdminRole] || m.role}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
                   {m.last_access
-                    ? formatDistanceToNow(new Date(m.last_access), { addSuffix: true, locale: ptBR })
-                    : 'Nunca'}
-                </TableCell>
-                <TableCell>
+                    ? `Último acesso: ${formatDistanceToNow(new Date(m.last_access), { addSuffix: true, locale: ptBR })}`
+                    : 'Nunca acessou'}
+                </span>
+                <div className="flex items-center gap-2">
                   <Switch
                     checked={m.is_active}
                     onCheckedChange={c => updateMutation.mutate({ id: m.id, updates: { is_active: c } })}
                     disabled={m.role === 'owner'}
                   />
-                </TableCell>
-                <TableCell>
                   {m.role !== 'owner' && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-destructive">
+                        <Button variant="ghost" size="icon" className="text-destructive h-8 w-8">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </AlertDialogTrigger>
@@ -194,7 +168,7 @@ export default function Team() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remover membro?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            O membro <strong>{m.full_name || m.email}</strong> será removido permanentemente da equipe. Esta ação não pode ser desfeita.
+                            O membro <strong>{m.full_name || m.email}</strong> será removido permanentemente da equipe.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -206,12 +180,98 @@ export default function Team() {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
-                </TableCell>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-background rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Membro</TableHead>
+                <TableHead>Função</TableHead>
+                <TableHead>Último Acesso</TableHead>
+                <TableHead>Ativo</TableHead>
+                <TableHead className="w-[80px]" />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {members?.map(m => (
+                <TableRow key={m.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                        {(m.full_name || m.email)[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium">{m.full_name || '—'}</p>
+                        <p className="text-xs text-muted-foreground">{m.email}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={m.role}
+                      onValueChange={v => updateMutation.mutate({ id: m.id, updates: { role: v } })}
+                      disabled={m.role === 'owner'}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <Badge className={ROLE_COLORS[m.role as AdminRole] || 'bg-muted'}>
+                          {ROLE_LABELS[m.role as AdminRole] || m.role}
+                        </Badge>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manager">Gerente</SelectItem>
+                        <SelectItem value="operator">Operador</SelectItem>
+                        <SelectItem value="viewer">Visualizador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {m.last_access
+                      ? formatDistanceToNow(new Date(m.last_access), { addSuffix: true, locale: ptBR })
+                      : 'Nunca'}
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={m.is_active}
+                      onCheckedChange={c => updateMutation.mutate({ id: m.id, updates: { is_active: c } })}
+                      disabled={m.role === 'owner'}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {m.role !== 'owner' && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-destructive">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              O membro <strong>{m.full_name || m.email}</strong> será removido permanentemente da equipe.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(m.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Remover
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
