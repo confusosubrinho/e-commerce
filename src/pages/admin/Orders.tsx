@@ -295,7 +295,10 @@ export default function Orders() {
   const searchLower = searchQuery.toLowerCase();
   let filteredOrders = orders?.filter(o =>
     (o.order_number ?? '').toLowerCase().includes(searchLower) ||
-    (o.shipping_name ?? '').toLowerCase().includes(searchLower)
+    (o.shipping_name ?? '').toLowerCase().includes(searchLower) ||
+    ((o as any).customer_email ?? '').toLowerCase().includes(searchLower) ||
+    ((o as any).external_reference ?? '').toLowerCase().includes(searchLower) ||
+    ((o as any).yampi_order_number ?? '').toLowerCase().includes(searchLower)
   ) || [];
 
   // Status filter
