@@ -116,7 +116,7 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
 
 // ─── Update stock for a single Bling product ID + update sync status ───
 // Fix 4: Check for recent local inventory movements before overwriting stock
-async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string): Promise<string> {
+async function updateStockForBlingId(supabase: any, blingProductId: number, newStock?: number, token?: string, depth: number = 0): Promise<string> {
   if (newStock === undefined && !token) return "no_data";
 
   const { data: variantMatch } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingProductId).maybeSingle();
@@ -242,12 +242,16 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
   }
 
   if (newStock === undefined && token) {
+    if (depth >= 1) {
+      console.log(`[webhook] Max recursion depth reached for bling_id=${blingProductId}, skipping stock fetch`);
+      return "max_depth";
+    }
     try {
       const res = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers: blingHeaders(token) });
       const json = await res.json();
       const stock = json?.data?.[0]?.saldoVirtualTotal ?? null;
       if (stock !== null) {
-        return await updateStockForBlingId(supabase, blingProductId, stock, token);
+        return await updateStockForBlingId(supabase, blingProductId, stock, token, depth + 1);
       }
     } catch (err) {
       console.error(`[webhook] Error fetching stock for ${blingProductId}:`, err);
