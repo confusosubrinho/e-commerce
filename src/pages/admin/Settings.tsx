@@ -38,7 +38,6 @@ export default function Settings() {
     store_name: '',
     logo_url: '',
     favicon_url: '',
-    soft_descriptor: '',
     contact_email: '',
     contact_phone: '',
     contact_whatsapp: '',
