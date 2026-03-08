@@ -26,6 +26,7 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [cooldown, setCooldown] = useState(false);
 
   const { data: reviews, refetch } = useQuery({
     queryKey: ['reviews', productId],
