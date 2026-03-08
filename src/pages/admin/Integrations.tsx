@@ -1678,7 +1678,7 @@ function BlingPanel() {
   useEffect(() => {
     if (isConnected) fetchStores();
   }, [isConnected, fetchStores]);
-  const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bling/oauth`;
+  const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bling-oauth`;
 
   const handleSync = async (action: string, label: string, extraBody?: Record<string, any>) => {
     setSyncing(action);
