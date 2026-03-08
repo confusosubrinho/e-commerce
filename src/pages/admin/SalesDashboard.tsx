@@ -175,20 +175,18 @@ export default function SalesDashboard() {
     return Object.entries(map).map(([key, value]) => ({ name: labels[key] || key, value }));
   }, [orders]);
 
-  // Top products
+  // Top products — uses separate lightweight query
   const topProducts = useMemo(() => {
-    if (!orders) return [];
+    if (!orderItemsForTop) return [];
     const map: Record<string, { name: string; qty: number; revenue: number }> = {};
-    orders.forEach(o => {
-      (o.items as any[])?.forEach((item: any) => {
-        const key = item.product_name;
-        if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
-        map[key].qty += item.quantity;
-        map[key].revenue += Number(item.total_price || 0);
-      });
+    orderItemsForTop.forEach((item) => {
+      const key = item.product_name;
+      if (!map[key]) map[key] = { name: key, qty: 0, revenue: 0 };
+      map[key].qty += item.quantity;
+      map[key].revenue += Number(item.total_price || 0);
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-  }, [orders]);
+  }, [orderItemsForTop]);
 
   // Payment method breakdown (from notes field)
   const paymentData = useMemo(() => {

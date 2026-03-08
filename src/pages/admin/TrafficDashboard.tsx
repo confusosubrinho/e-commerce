@@ -108,12 +108,18 @@ export default function TrafficDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Globe className="h-6 w-6" />
-          Tráfego & UTM
-        </h1>
-        <p className="text-muted-foreground">Acompanhe a origem do tráfego do seu site</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Globe className="h-6 w-6" />
+            Tráfego & UTM
+          </h1>
+          <p className="text-muted-foreground">Acompanhe a origem do tráfego do seu site</p>
+        </div>
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+          <SelectContent>{PERIOD_OPTIONS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (

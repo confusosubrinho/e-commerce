@@ -498,8 +498,9 @@ export default function Customers() {
       )}
 
       {(() => {
-        const totalCustomerPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
-        const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * CUSTOMERS_PER_PAGE, currentPage * CUSTOMERS_PER_PAGE);
+        const totalCustomerPages = Math.ceil(totalCustomers / CUSTOMERS_PER_PAGE);
+        // Client-side filters applied on current page data
+        const paginatedCustomers = filteredCustomers;
 
         return (
           <>
@@ -594,7 +595,7 @@ export default function Customers() {
               <div className="flex items-center justify-center gap-2 pt-2">
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>‹</Button>
                 <span className="text-sm text-muted-foreground">
-                  Página {currentPage} de {totalCustomerPages} ({filteredCustomers.length} clientes)
+                  Página {currentPage} de {totalCustomerPages} ({totalCustomers} clientes)
                 </span>
                 <Button variant="outline" size="sm" className="h-8 px-3" onClick={() => setCurrentPage(p => Math.min(totalCustomerPages, p + 1))} disabled={currentPage === totalCustomerPages}>›</Button>
               </div>
