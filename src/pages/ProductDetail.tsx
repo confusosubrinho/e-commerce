@@ -746,9 +746,9 @@ export default function ProductDetail() {
                 {formatPrice(currentPrice)}
               </p>
               {applyPix && pixDiscountAmount > 0 ? (
-                <>
-                  <p className="text-sm text-muted-foreground">no Pix ({pixDiscountPercent}% off)</p>
-                </>
+                <p className="text-sm font-semibold text-primary">
+                  {formatPrice(currentPrice - pixDiscountAmount)} no Pix ({pixDiscountPercent}% off)
+                </p>
               ) : null}
               {installmentDisplay && (
                 <>
