@@ -85,7 +85,7 @@ export default function Reviews() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const { error } = await supabase.from('product_reviews').update({ status } as any).in('id', ids);
+      const { error } = await (supabase.from('product_reviews').update({ status }) as any).in('id', ids);
       if (error) throw error;
     },
     onSuccess: () => {
