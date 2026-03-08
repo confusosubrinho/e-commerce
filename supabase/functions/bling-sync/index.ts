@@ -816,7 +816,12 @@ async function createOrder(supabase: any, token: string, orderId: string) {
   const itens = [];
   for (const item of (order.order_items || [])) {
     let codigo = item.product_id?.substring(0, 8) || "PROD";
-    if (item.product_id) { const { data: prod } = await supabase.from("products").select("sku, bling_product_id").eq("id", item.product_id).maybeSingle(); if (prod?.sku) codigo = prod.sku; }
+    // Priority: variant SKU > product SKU > fallback
+    if (item.product_variant_id) {
+      const { data: variant } = await supabase.from("product_variants").select("sku").eq("id", item.product_variant_id).maybeSingle();
+      if (variant?.sku) codigo = variant.sku;
+      else if (item.product_id) { const { data: prod } = await supabase.from("products").select("sku").eq("id", item.product_id).maybeSingle(); if (prod?.sku) codigo = prod.sku; }
+    } else if (item.product_id) { const { data: prod } = await supabase.from("products").select("sku, bling_product_id").eq("id", item.product_id).maybeSingle(); if (prod?.sku) codigo = prod.sku; }
     itens.push({ descricao: item.product_name, quantidade: item.quantity, valor: item.unit_price, codigo });
   }
   const blingOrder = {
