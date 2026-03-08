@@ -386,8 +386,15 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
         const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
         const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
         if (match) {
-          await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
-          stockUpdated = true;
+          // Check for recent local movements before overwriting
+          const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
+          const hasRecent = await hasRecentLocalMovements(supabase, match.variantId, 10);
+          if (hasRecent) {
+            console.log(`[webhook] Skipping stock overwrite in syncStockOnly for variant ${match.variantId} — recent local movements`);
+          } else {
+            await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
+            stockUpdated = true;
+          }
         }
       }
     }
