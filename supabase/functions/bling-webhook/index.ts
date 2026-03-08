@@ -128,7 +128,6 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
     }
     if (newStock !== undefined) {
       // Check for recent local movements (sales/reserves in last 10 min)
-      const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
       const hasRecent = await hasRecentLocalMovements(supabase, variantMatch.id, 10);
       if (hasRecent) {
         console.log(`[webhook] Skipping stock overwrite for variant ${variantMatch.id} (bling_id=${blingProductId}) — recent local movements detected`);
