@@ -471,7 +471,14 @@ async function upsertParentWithVariants(
     }
     const { data: existingDefault } = await supabase.from("product_variants").select("id").eq("product_id", productId).eq("size", "Único").maybeSingle();
     if (existingDefault) {
-      if (config.sync_stock || imported) await supabase.from("product_variants").update({ stock_quantity: stockQty }).eq("id", existingDefault.id);
+      if (config.sync_stock || imported) {
+        const hasRecent = await hasRecentLocalMovements(supabase, existingDefault.id, 10);
+        if (!hasRecent) {
+          await supabase.from("product_variants").update({ stock_quantity: stockQty }).eq("id", existingDefault.id);
+        } else {
+          console.log(`[sync] Skipping stock overwrite for "Único" variant ${existingDefault.id} — recent local movements`);
+        }
+      }
     } else {
       await supabase.from("product_variants").insert({ product_id: productId, size: "Único", stock_quantity: stockQty, is_active: true });
     }
