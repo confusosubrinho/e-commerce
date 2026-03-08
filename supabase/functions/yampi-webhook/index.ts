@@ -340,18 +340,23 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Insert payment record
-      await supabase.from("payments").insert({
-        order_id: order.id,
-        provider: "yampi",
-        status: "approved",
-        payment_method: paymentMethod,
-        gateway,
-        transaction_id: transactionId,
-        installments,
-        amount: totalAmount,
-        raw: payload,
-      });
+      // Insert payment record (with idempotency check)
+      const existingPaymentCheck2 = transactionId
+        ? await supabase.from("payments").select("id").eq("order_id", order.id).eq("transaction_id", transactionId).maybeSingle()
+        : { data: null };
+      if (!existingPaymentCheck2.data) {
+        await supabase.from("payments").insert({
+          order_id: order.id,
+          provider: "yampi",
+          status: "approved",
+          payment_method: paymentMethod,
+          gateway,
+          transaction_id: transactionId,
+          installments,
+          amount: totalAmount,
+          raw: payload,
+        });
+      }
 
       // Mark abandoned cart as recovered
       if (sessionId) {
