@@ -1,12 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const BLING_TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -21,16 +20,14 @@ serve(async (req) => {
     const url = new URL(req.url);
     const action = url.searchParams.get("action");
 
-    // ─── Handle OAuth callback from Bling ───
+    // ─── Handle OAuth callback from Bling (public — needed for redirect) ───
     if (action === "callback" || url.searchParams.has("code")) {
       const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state");
 
       if (!code) {
         return new Response("Código de autorização não recebido", { status: 400 });
       }
 
-      // Get client credentials from store_settings
       const { data: settings } = await supabase
         .from("store_settings")
         .select("id, bling_client_id, bling_client_secret")
@@ -41,20 +38,16 @@ serve(async (req) => {
         return new Response("Client ID e Secret do Bling não configurados", { status: 400 });
       }
 
-      // Exchange authorization code for tokens
       const basicAuth = btoa(`${settings.bling_client_id}:${settings.bling_client_secret}`);
 
-      const tokenResponse = await fetch(BLING_TOKEN_URL, {
+      const tokenResponse = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Authorization: `Basic ${basicAuth}`,
           Accept: "application/json",
         },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code: code,
-        }),
+        body: new URLSearchParams({ grant_type: "authorization_code", code }),
       });
 
       const tokenData = await tokenResponse.json();
@@ -68,11 +61,9 @@ serve(async (req) => {
         );
       }
 
-      // Calculate token expiry
       const expiresAt = new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString();
 
-      // Save tokens to store_settings
-      const { error: updateError } = await supabase
+      await supabase
         .from("store_settings")
         .update({
           bling_access_token: tokenData.access_token,
@@ -81,11 +72,6 @@ serve(async (req) => {
         } as any)
         .eq("id", settings.id);
 
-      if (updateError) {
-        console.error("Error saving Bling tokens:", updateError);
-      }
-
-      // Return success page that closes the popup
       return new Response(
         `<html>
           <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4">
@@ -103,10 +89,57 @@ serve(async (req) => {
       );
     }
 
-    // ─── Generate authorization URL ───
+    // ─── POST actions require admin JWT ───
     if (req.method === "POST") {
+      // Validate admin auth
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: "Token inválido" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userId = claimsData.claims.sub;
+      const { data: adminCheck } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (!adminCheck) {
+        const { data: memberCheck } = await supabase
+          .from("admin_members")
+          .select("role")
+          .eq("user_id", userId)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (!memberCheck) {
+          return new Response(JSON.stringify({ error: "Acesso negado" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       const body = await req.json();
 
+      // ─── Generate authorization URL ───
       if (body.action === "get_auth_url") {
         const { data: settings } = await supabase
           .from("store_settings")
@@ -121,10 +154,8 @@ serve(async (req) => {
           );
         }
 
-        // The callback URL is this same edge function
         const callbackUrl = `${supabaseUrl}/functions/v1/bling-oauth`;
         const state = crypto.randomUUID();
-
         const authUrl = `https://bling.com.br/Api/v3/oauth/authorize?response_type=code&client_id=${settings.bling_client_id}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}`;
 
         return new Response(
@@ -133,60 +164,27 @@ serve(async (req) => {
         );
       }
 
-      // ─── Refresh token ───
+      // ─── Refresh token (uses shared optimistic locking) ───
       if (body.action === "refresh_token") {
-        const { data: settings } = await supabase
-          .from("store_settings")
-          .select("id, bling_client_id, bling_client_secret, bling_refresh_token")
-          .limit(1)
-          .maybeSingle();
+        try {
+          const newToken = await getValidTokenSafe(supabase);
+          // Read updated expiry
+          const { data: updated } = await supabase
+            .from("store_settings")
+            .select("bling_token_expires_at")
+            .limit(1)
+            .maybeSingle();
 
-        if (!settings?.bling_refresh_token) {
           return new Response(
-            JSON.stringify({ error: "Refresh token não encontrado. Reconecte o Bling." }),
+            JSON.stringify({ success: true, expires_at: updated?.bling_token_expires_at }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } catch (err: any) {
+          return new Response(
+            JSON.stringify({ error: err.message }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-
-        const basicAuth = btoa(`${settings.bling_client_id}:${settings.bling_client_secret}`);
-
-        const tokenResponse = await fetch(BLING_TOKEN_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${basicAuth}`,
-            Accept: "application/json",
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: settings.bling_refresh_token,
-          }),
-        });
-
-        const tokenData = await tokenResponse.json();
-
-        if (!tokenResponse.ok || !tokenData.access_token) {
-          return new Response(
-            JSON.stringify({ error: "Falha ao renovar token", details: tokenData }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        const expiresAt = new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString();
-
-        await supabase
-          .from("store_settings")
-          .update({
-            bling_access_token: tokenData.access_token,
-            bling_refresh_token: tokenData.refresh_token,
-            bling_token_expires_at: expiresAt,
-          } as any)
-          .eq("id", settings.id);
-
-        return new Response(
-          JSON.stringify({ success: true, expires_at: expiresAt }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
       }
 
       // ─── Check connection status ───
@@ -204,6 +202,23 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ connected: isConnected, expired: isExpired }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ─── Disconnect Bling ───
+      if (body.action === "disconnect") {
+        await supabase
+          .from("store_settings")
+          .update({
+            bling_access_token: null,
+            bling_refresh_token: null,
+            bling_token_expires_at: null,
+          } as any)
+          .not("id", "is", null);
+
+        return new Response(
+          JSON.stringify({ success: true, message: "Bling desconectado" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

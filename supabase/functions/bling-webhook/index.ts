@@ -403,8 +403,19 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
     const stockRes = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers });
     const stockJson = await stockRes.json();
     const qty = stockJson?.data?.[0]?.saldoVirtualTotal ?? 0;
-    await supabase.from("product_variants").update({ stock_quantity: qty }).eq("product_id", productId);
-    stockUpdated = true;
+    // Check recent local movements for all variants of this product
+    const { data: prodVariants } = await supabase.from("product_variants").select("id").eq("product_id", productId);
+    const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
+    let skipAll = false;
+    for (const pv of (prodVariants || [])) {
+      if (await hasRecentLocalMovements(supabase, pv.id, 10)) { skipAll = true; break; }
+    }
+    if (skipAll) {
+      console.log(`[webhook] Skipping stock overwrite in syncStockOnly no-variation for product ${productId} — recent local movements`);
+    } else {
+      await supabase.from("product_variants").update({ stock_quantity: qty }).eq("product_id", productId);
+      stockUpdated = true;
+    }
   }
 
   if (stockUpdated) {
@@ -502,6 +513,7 @@ async function batchStockSync(supabase: any) {
         errorDetails.push({ batch_start: i, error: JSON.stringify(json).substring(0, 200) });
         continue;
       }
+      const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
       for (const stock of (json?.data || [])) {
         const blingId = stock.produto?.id;
         const qty = stock.saldoVirtualTotal ?? 0;
@@ -509,10 +521,14 @@ async function batchStockSync(supabase: any) {
         const variantIds = blingIdToVariants.get(blingId);
         if (variantIds) {
           for (const vid of variantIds) {
+            const hasRecent = await hasRecentLocalMovements(supabase, vid, 10);
+            if (hasRecent) {
+              console.log(`[cron] Skipping stock overwrite for variant ${vid} (bling_id=${blingId}) — recent local movements`);
+              continue;
+            }
             await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid);
+            updated++;
           }
-          updated += variantIds.length;
-          // Track product for sync status update
           const pid = blingIdToProductId.get(blingId);
           if (pid) updatedProductIds.add(pid);
         }
@@ -545,6 +561,43 @@ async function batchStockSync(supabase: any) {
       }).in("id", batch);
       batch = [];
     }
+  }
+
+  // ─── Retry failed webhook events (up to 3 retries) ───
+  try {
+    const { data: failedEvents } = await supabase
+      .from("bling_webhook_events")
+      .select("id, bling_product_id, retries")
+      .eq("status", "failed")
+      .lt("retries", 3)
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    if (failedEvents?.length) {
+      console.log(`[cron] Retrying ${failedEvents.length} failed webhook events`);
+      for (const evt of failedEvents) {
+        try {
+          if (evt.bling_product_id) {
+            const retryResult = await updateStockForBlingId(supabase, evt.bling_product_id, undefined, token);
+            if (retryResult === "updated" || retryResult === "skipped_recent_movement") {
+              await supabase.from("bling_webhook_events").update({
+                status: "processed", processed_at: new Date().toISOString(), retries: evt.retries + 1,
+              }).eq("id", evt.id);
+            } else {
+              await supabase.from("bling_webhook_events").update({
+                retries: evt.retries + 1, last_error: `Retry result: ${retryResult}`,
+              }).eq("id", evt.id);
+            }
+          }
+        } catch (retryErr: any) {
+          await supabase.from("bling_webhook_events").update({
+            retries: evt.retries + 1, last_error: retryErr.message?.substring(0, 500),
+          }).eq("id", evt.id);
+        }
+      }
+    }
+  } catch (retryBatchErr: any) {
+    console.error("[cron] Failed event retry error:", retryBatchErr.message);
   }
 
   // Log the run
