@@ -54,6 +54,8 @@ Deno.serve(async (req) => {
     if (event === "order.status.updated") {
       if (["paid", "approved", "payment_approved"].includes(statusValue)) effectiveEvent = "order.paid";
       else if (["cancelled", "canceled", "refused", "refunded"].includes(statusValue)) effectiveEvent = "order.cancelled";
+      else if (["shipped", "sent", "sending"].includes(statusValue)) effectiveEvent = "order.shipped";
+      else if (["delivered"].includes(statusValue)) effectiveEvent = "order.delivered";
     }
 
     // ===== PAYMENT APPROVED -> UPDATE EXISTING (by session) OR CREATE ORDER =====
