@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPrice } from '@/lib/formatters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Pencil, Trash2, Download } from 'lucide-react';
