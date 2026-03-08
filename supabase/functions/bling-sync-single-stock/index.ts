@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
-const BLING_TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 
 function createSupabase(authHeader?: string) {
   return createClient(
@@ -16,32 +15,11 @@ function createSupabase(authHeader?: string) {
   );
 }
 
-async function getValidToken(supabase: any): Promise<string> {
-  const { data: settings, error } = await supabase
-    .from("store_settings")
-    .select("id, bling_client_id, bling_client_secret, bling_access_token, bling_refresh_token, bling_token_expires_at")
-    .limit(1).maybeSingle();
-  if (error || !settings) throw new Error("Configurações não encontradas");
-  if (!settings.bling_access_token) throw new Error("Bling não conectado. Autorize primeiro nas Integrações.");
+// Use shared token refresh with optimistic locking
+import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 
-  const expiresAt = settings.bling_token_expires_at ? new Date(settings.bling_token_expires_at) : new Date(0);
-  if (expiresAt.getTime() - 300000 < Date.now() && settings.bling_refresh_token) {
-    const basicAuth = btoa(`${settings.bling_client_id}:${settings.bling_client_secret}`);
-    const tokenResponse = await fetch(BLING_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basicAuth}`, Accept: "application/json" },
-      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: settings.bling_refresh_token }),
-    });
-    const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || !tokenData.access_token) throw new Error("Token do Bling expirado. Reconecte o Bling.");
-    await supabase.from("store_settings").update({
-      bling_access_token: tokenData.access_token,
-      bling_refresh_token: tokenData.refresh_token,
-      bling_token_expires_at: new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString(),
-    } as any).eq("id", settings.id);
-    return tokenData.access_token;
-  }
-  return settings.bling_access_token;
+async function getValidToken(supabase: any): Promise<string> {
+  return getValidTokenSafe(supabase);
 }
 
 serve(async (req) => {
@@ -108,9 +86,12 @@ serve(async (req) => {
     // 4. Resolve bling_product_id (or find by SKU)
     let blingProductId = product.bling_product_id;
 
+    // Bug 2 Fix: Resolve SKU search variable correctly
+    let searchSku = product.sku;
+
     if (!blingProductId) {
       // Try to find by SKU in Bling
-      if (!product.sku) {
+      if (!searchSku) {
         // Also check variant SKUs
         const { data: variants } = await supabase
           .from("product_variants")
@@ -129,6 +110,8 @@ serve(async (req) => {
             message: "Produto sem vínculo com o Bling e sem SKU para busca",
           }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
+        // Use variant SKU for search
+        searchSku = firstSku;
       }
     }
 
@@ -137,7 +120,6 @@ serve(async (req) => {
 
     // If no bling_product_id, search by SKU
     if (!blingProductId) {
-      const searchSku = product.sku;
       const searchRes = await fetch(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
       const searchJson = await searchRes.json();
       const found = searchJson?.data?.[0];

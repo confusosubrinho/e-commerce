@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getFirstImportFields, getConfigAwareUpdateFields, DEFAULT_SYNC_CONFIG } from "../_shared/bling-sync-fields.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { fetchWithRateLimit } from "../_shared/blingFetchWithRateLimit.ts";
+import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
 
 const corsHeaders = {
@@ -10,24 +12,11 @@ const corsHeaders = {
 };
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
-const BLING_TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 const BLING_RATE_LIMIT_MS = 340;
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchWithRateLimit(url: string, options: RequestInit): Promise<Response> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetchWithTimeout(url, options);
-    if (res.status === 429) {
-      const waitMs = (attempt + 1) * 1500;
-      console.log(`Rate limited, waiting ${waitMs}ms before retry...`);
-      await sleep(waitMs);
-      continue;
-    }
-    return res;
-  }
-  return fetchWithTimeout(url, options);
-}
+// fetchWithRateLimit is now imported from _shared/blingFetchWithRateLimit.ts
 
 const STANDARD_SIZES = ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
 
@@ -81,30 +70,9 @@ async function getSyncConfig(supabase: any): Promise<BlingSyncConfig> {
   };
 }
 
+// getValidToken is now imported as getValidTokenSafe from _shared/blingTokenRefresh.ts
 async function getValidToken(supabase: any): Promise<string> {
-  const { data: settings, error } = await supabase
-    .from("store_settings")
-    .select("id, bling_client_id, bling_client_secret, bling_access_token, bling_refresh_token, bling_token_expires_at")
-    .limit(1).maybeSingle();
-  if (error || !settings) throw new Error("Configurações não encontradas");
-  if (!settings.bling_access_token) throw new Error("Bling não conectado. Autorize primeiro nas Integrações.");
-  const expiresAt = settings.bling_token_expires_at ? new Date(settings.bling_token_expires_at) : new Date(0);
-  if (expiresAt.getTime() - 300000 < Date.now() && settings.bling_refresh_token) {
-    const basicAuth = btoa(`${settings.bling_client_id}:${settings.bling_client_secret}`);
-    const tokenResponse = await fetchWithTimeout(BLING_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basicAuth}`, Accept: "application/json" },
-      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: settings.bling_refresh_token }),
-    });
-    const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || !tokenData.access_token) throw new Error("Token do Bling expirado. Reconecte o Bling.");
-    await supabase.from("store_settings").update({
-      bling_access_token: tokenData.access_token, bling_refresh_token: tokenData.refresh_token,
-      bling_token_expires_at: new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString(),
-    } as any).eq("id", settings.id);
-    return tokenData.access_token;
-  }
-  return settings.bling_access_token;
+  return getValidTokenSafe(supabase);
 }
 
 function blingHeaders(token: string) {
@@ -862,7 +830,44 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // ─── Bug 1 Fix: Add admin authentication ───
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const supabase = createSupabase();
+
+    // Check admin role
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleData) {
+      // Also check admin_members
+      const { data: memberData } = await supabase
+        .from("admin_members")
+        .select("role, is_active")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!memberData) {
+        return new Response(JSON.stringify({ error: "Acesso negado: apenas administradores" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
     const { action, ...payload } = await req.json();
     const token = await getValidToken(supabase);
     const config = await getSyncConfig(supabase);
@@ -1033,7 +1038,24 @@ serve(async (req) => {
         break;
       }
 
-      case "create_order": result = await createOrder(supabase, token, payload.order_id); break;
+      case "create_order": {
+        // Bug 6 Fix: Check for duplicate and save bling_order_id
+        const { data: existingOrder } = await supabase.from("orders").select("id, notes").eq("id", payload.order_id).maybeSingle();
+        if (existingOrder?.notes?.includes("bling_order_id:")) {
+          result = { bling_order_id: existingOrder.notes.match(/bling_order_id:(\d+)/)?.[1], duplicate: true };
+        } else {
+          const orderResult = await createOrder(supabase, token, payload.order_id);
+          // Save bling_order_id back to order
+          if (orderResult.bling_order_id) {
+            const existingNotes = existingOrder?.notes || "";
+            await supabase.from("orders").update({
+              notes: `${existingNotes} | bling_order_id:${orderResult.bling_order_id}`.trim(),
+            }).eq("id", payload.order_id);
+          }
+          result = orderResult;
+        }
+        break;
+      }
       case "generate_nfe": result = await generateNfe(token, parseInt(payload.bling_order_id)); break;
       case "order_to_nfe": { const or = await createOrder(supabase, token, payload.order_id); const nf = await generateNfe(token, or.bling_order_id); result = { ...or, ...nf }; break; }
       default: return new Response(JSON.stringify({ error: "Ação inválida" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });

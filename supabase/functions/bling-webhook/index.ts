@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getConfigAwareUpdateFields, DEFAULT_SYNC_CONFIG } from "../_shared/bling-sync-fields.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { fetchWithRateLimit } from "../_shared/blingFetchWithRateLimit.ts";
+import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
 
 const corsHeaders = {
@@ -10,7 +12,6 @@ const corsHeaders = {
 };
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
-const BLING_TOKEN_URL = "https://api.bling.com.br/Api/v3/oauth/token";
 
 function createSupabase() {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -64,45 +65,9 @@ async function getSyncConfig(supabase: any): Promise<BlingSyncConfig> {
   };
 }
 
+// Use shared token refresh with optimistic locking
 async function getValidToken(supabase: any): Promise<string> {
-  const { data: settings, error } = await supabase
-    .from("store_settings")
-    .select("id, bling_client_id, bling_client_secret, bling_access_token, bling_refresh_token, bling_token_expires_at")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !settings) throw new Error("Configurações não encontradas");
-  if (!settings.bling_access_token) throw new Error("Bling não conectado");
-
-  const expiresAt = settings.bling_token_expires_at ? new Date(settings.bling_token_expires_at) : new Date(0);
-  const isExpired = expiresAt.getTime() - 300000 < Date.now();
-
-  if (isExpired && settings.bling_refresh_token) {
-    const basicAuth = btoa(`${settings.bling_client_id}:${settings.bling_client_secret}`);
-    const tokenResponse = await fetchWithTimeout(BLING_TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${basicAuth}`,
-        Accept: "application/json",
-      },
-      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: settings.bling_refresh_token }),
-    });
-    const tokenData = await tokenResponse.json();
-    if (!tokenResponse.ok || !tokenData.access_token) {
-      throw new Error("Token do Bling expirado");
-    }
-
-    await supabase.from("store_settings").update({
-      bling_access_token: tokenData.access_token,
-      bling_refresh_token: tokenData.refresh_token,
-      bling_token_expires_at: new Date(Date.now() + (tokenData.expires_in || 21600) * 1000).toISOString(),
-    } as any).eq("id", settings.id);
-
-    return tokenData.access_token;
-  }
-
-  return settings.bling_access_token;
+  return getValidTokenSafe(supabase);
 }
 
 function blingHeaders(token: string) {
@@ -336,13 +301,53 @@ async function syncProductFields(supabase: any, headers: any, productId: string,
     bling_last_error: null,
   }).eq("id", productId);
 
-  // Sync images only if toggle is on
+  // Bug 4 Fix: Re-upload images to storage instead of using raw Bling URLs (which expire)
   if (config.sync_images && detail.midia?.imagens?.internas?.length) {
     await supabase.from("product_images").delete().eq("product_id", productId);
-    const images = detail.midia.imagens.internas.map((img: any, idx: number) => ({
-      product_id: productId, url: img.link, is_primary: idx === 0, display_order: idx, alt_text: detail.nome,
-    }));
-    await supabase.from("product_images").insert(images);
+    const images: any[] = [];
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    for (let idx = 0; idx < detail.midia.imagens.internas.length; idx++) {
+      const img = detail.midia.imagens.internas[idx];
+      let finalUrl = img.link;
+      try {
+        // Skip if already a Supabase URL without expiration
+        if (finalUrl.includes(supabaseUrl) && !finalUrl.includes("Expires=")) {
+          // Already in storage, use as-is
+        } else {
+          // Download and re-upload to storage
+          const response = await fetchWithTimeout(finalUrl);
+          if (response.ok) {
+            const blob = await response.blob();
+            const contentType = response.headers.get("content-type") || "image/jpeg";
+            const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+            const fileName = `bling/${productId}/${idx}-${Date.now()}.${ext}`;
+            const { error: uploadError } = await supabase.storage
+              .from("product-media")
+              .upload(fileName, blob, { contentType, upsert: true });
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage
+                .from("product-media")
+                .getPublicUrl(fileName);
+              finalUrl = publicUrl;
+            } else {
+              console.warn(`[webhook] Image upload failed: ${uploadError.message}`);
+              finalUrl = finalUrl.split("?")[0]; // Strip query params as fallback
+            }
+          } else {
+            finalUrl = finalUrl.split("?")[0];
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[webhook] Image re-upload error: ${err.message}`);
+        finalUrl = finalUrl.split("?")[0];
+      }
+      images.push({
+        product_id: productId, url: finalUrl, is_primary: idx === 0, display_order: idx, alt_text: detail.nome,
+      });
+    }
+    if (images.length > 0) {
+      await supabase.from("product_images").insert(images);
+    }
   }
 
   // Sync stock (always if sync_stock is on)
@@ -364,8 +369,9 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
       const varBlingId = s.produto?.id;
       const qty = s.saldoVirtualTotal ?? 0;
       if (varBlingId) {
-        // Direct variant update (skip full updateStockForBlingId to avoid redundant product status update)
-        const match = await findVariantByBlingIdOrSku(supabase, varBlingId);
+        // Bug 5 Fix: Extract token from headers and pass to findVariantByBlingIdOrSku for SKU fallback
+        const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
+        const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
         if (match) {
           await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
           stockUpdated = true;
@@ -498,9 +504,16 @@ async function batchStockSync(supabase: any) {
     }
   }
 
-  // P0.1/P0.2 FIX: Update sync status for ALL products that had stock updated
+  // Improvement 2: Mark ALL checked products as synced (not just those with stock changes)
+  // This clears "error" status for products that were successfully checked
+  const allCheckedProductIds = new Set<string>(updatedProductIds);
+  for (const blingId of allBlingIds) {
+    const pid = blingIdToProductId.get(blingId);
+    if (pid) allCheckedProductIds.add(pid);
+  }
+
   const now = new Date().toISOString();
-  const productIdsArr = [...updatedProductIds];
+  const productIdsArr = [...allCheckedProductIds];
   let batch: string[] = [];
   for (let i = 0; i < productIdsArr.length; i++) {
     batch.push(productIdsArr[i]);
