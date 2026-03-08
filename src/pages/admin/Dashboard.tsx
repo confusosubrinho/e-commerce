@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Package, ShoppingCart, Users, DollarSign, Settings2, TrendingUp, TrendingDown, Plus, Clock, Star, AlertTriangle } from 'lucide-react';
+import { formatPrice, ORDER_STATUS_CHART_COLORS, ORDER_STATUS_LABELS } from '@/lib/formatters';
 import { HelpHint } from '@/components/HelpHint';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,20 +23,8 @@ const PERIOD_OPTIONS = [
   { value: '90', label: '90 dias' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#eab308',
-  processing: '#3b82f6',
-  shipped: '#8b5cf6',
-  delivered: '#22c55e',
-  cancelled: '#ef4444',
-};
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendente',
-  processing: 'Processando',
-  shipped: 'Enviado',
-  delivered: 'Entregue',
-  cancelled: 'Cancelado',
-};
+const STATUS_COLORS = ORDER_STATUS_CHART_COLORS;
+const STATUS_LABELS = ORDER_STATUS_LABELS;
 
 function StoreHealthCard() {
   const { data: health } = useQuery({
@@ -82,7 +71,7 @@ function StoreHealthCard() {
   );
 }
 
-const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+// formatPrice imported from @/lib/formatters
 
 type RechartsModule = typeof import('recharts');
 

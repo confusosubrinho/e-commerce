@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPrice } from '@/lib/formatters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -90,8 +91,7 @@ export default function AbandonedCarts() {
     enabled: !!expandedCart,
   });
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+  // formatPrice imported from @/lib/formatters
 
   const handleWhatsApp = async (cart: AbandonedCart) => {
     if (!cart.phone) {

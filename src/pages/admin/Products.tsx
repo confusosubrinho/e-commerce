@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
+import { formatPrice } from '@/lib/formatters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Trash2, Search, MoreHorizontal, Pencil, ArrowUpDown, Download, Upload, PackageX, EyeOff, CheckCircle, Store, ChevronDown, RefreshCw, Power, PowerOff, Edit3, X, AlertCircle, Clock, Loader2, Package } from 'lucide-react';
@@ -199,8 +200,7 @@ export default function Products() {
     if (!open) setEditingProduct(null);
   };
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+  // formatPrice imported from @/lib/formatters
 
   const isOutOfStock = (p: Product) => {
     if (!p.variants || p.variants.length === 0) return false;

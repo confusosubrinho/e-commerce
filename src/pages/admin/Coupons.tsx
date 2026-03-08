@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatPrice } from '@/lib/formatters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Pencil, Trash2, Download } from 'lucide-react';
@@ -192,7 +193,7 @@ export default function Coupons() {
     }
   };
 
-  const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+  // formatPrice imported from @/lib/formatters
 
   const TYPE_LABELS: Record<string, string> = {
     standard: 'Padrão',

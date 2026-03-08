@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { formatPrice, formatDate } from '@/lib/formatters';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Eye, Mail, Phone, Calendar, DollarSign, ArrowUpDown, ShoppingBag, Download, Upload, Loader2, CheckCircle, AlertCircle, Users, MoreHorizontal } from 'lucide-react';
@@ -91,16 +92,7 @@ export default function Customers() {
   const customers = customersResult?.customers;
   const totalCustomers = customersResult?.total || 0;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
-  };
+  // formatPrice and formatDate imported from @/lib/formatters
 
   // Apply filters (null-safe: full_name/email can be null)
   const searchLower = searchQuery.toLowerCase();
