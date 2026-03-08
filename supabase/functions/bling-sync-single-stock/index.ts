@@ -108,9 +108,12 @@ serve(async (req) => {
     // 4. Resolve bling_product_id (or find by SKU)
     let blingProductId = product.bling_product_id;
 
+    // Bug 2 Fix: Resolve SKU search variable correctly
+    let searchSku = product.sku;
+
     if (!blingProductId) {
       // Try to find by SKU in Bling
-      if (!product.sku) {
+      if (!searchSku) {
         // Also check variant SKUs
         const { data: variants } = await supabase
           .from("product_variants")
@@ -129,6 +132,8 @@ serve(async (req) => {
             message: "Produto sem vínculo com o Bling e sem SKU para busca",
           }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
+        // Use variant SKU for search
+        searchSku = firstSku;
       }
     }
 
@@ -137,7 +142,6 @@ serve(async (req) => {
 
     // If no bling_product_id, search by SKU
     if (!blingProductId) {
-      const searchSku = product.sku;
       const searchRes = await fetch(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
       const searchJson = await searchRes.json();
       const found = searchJson?.data?.[0];
