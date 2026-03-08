@@ -203,7 +203,15 @@ Deno.serve(async (req) => {
               await supabase.from("customers").insert({ email: customerEmail, full_name: customerName, phone: customerPhone, total_orders: 1, total_spent: totalAmount });
             }
           }
-          await supabase.from("email_automation_logs").insert({ recipient_email: customerEmail || "unknown", recipient_name: customerName, status: "pending" });
+          // Link email automation log to active automation
+          const { data: activeAutomation } = await supabase.from("email_automations")
+            .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
+          await supabase.from("email_automation_logs").insert({
+            recipient_email: customerEmail || "unknown",
+            recipient_name: customerName,
+            status: "pending",
+            automation_id: activeAutomation?.id || null,
+          });
 
           // Auto-push order to Bling
           try {
@@ -451,10 +459,14 @@ Deno.serve(async (req) => {
       }
 
       // #4 Log email automation trigger
+      // Link email automation log to active automation
+      const { data: activeAutomation2 } = await supabase.from("email_automations")
+        .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
       await supabase.from("email_automation_logs").insert({
         recipient_email: customerEmail || "unknown",
         recipient_name: customerName,
         status: "pending",
+        automation_id: activeAutomation2?.id || null,
       }).then(() => {
         console.log("[yampi-webhook] Email automation log created for order", order.id);
       });
@@ -603,17 +615,25 @@ Deno.serve(async (req) => {
           : event.includes("chargeback") ? "chargeback"
           : "cancelled";
 
-        await supabase.from("payments").insert({
-          order_id: existingOrder.id,
-          provider: "yampi",
-          status: cancelledPaymentStatus,
-          payment_method: paymentMethod,
-          gateway,
-          transaction_id: transactionId,
-          installments,
-          amount: totalAmount,
-          raw: payload,
-        });
+        const { data: existingPayment } = await supabase
+          .from("payments").select("id").eq("order_id", existingOrder.id).maybeSingle();
+        if (existingPayment) {
+          await supabase.from("payments")
+            .update({ status: cancelledPaymentStatus, raw: payload })
+            .eq("id", existingPayment.id);
+        } else {
+          await supabase.from("payments").insert({
+            order_id: existingOrder.id,
+            provider: "yampi",
+            status: cancelledPaymentStatus,
+            payment_method: paymentMethod,
+            gateway,
+            transaction_id: transactionId,
+            installments,
+            amount: totalAmount,
+            raw: payload,
+          });
+        }
       }
       if (existingOrder) {
         await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: cancelHash, payload });
@@ -628,13 +648,14 @@ Deno.serve(async (req) => {
     const stack = err instanceof Error ? err.stack : undefined;
     console.error("yampi-webhook error:", msg, stack);
 
-    // P3: Log failure body to app_logs for debugging
+    // Log failure to error_logs for debugging
     try {
-      await supabase.from("app_logs").insert({
-        level: "error",
-        scope: "yampi-webhook",
-        message: `Webhook processing failed: ${msg}`,
-        meta: { stack, url: req.url },
+      await supabase.from("error_logs").insert({
+        error_type: "yampi-webhook",
+        error_message: `Webhook processing failed: ${msg}`,
+        error_stack: stack || null,
+        page_url: req.url,
+        severity: "error",
       });
     } catch (_) { /* best-effort */ }
 
