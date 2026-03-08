@@ -382,6 +382,14 @@ export default function Checkout() {
       const userId = session?.session?.user?.id || null;
       const idempotencyKey = cartId;
 
+      // ─── If order was pre-created by checkout-router, skip order creation ───
+      if (orderFromRouter && stripeOrderId && stripeClientSecret) {
+        // Order already exists with validated prices; Stripe Elements are already showing.
+        // Payment is handled by StripePaymentForm component via confirmCardPayment.
+        setIsLoading(false);
+        return;
+      }
+
       const { data: existingOrder } = await supabase
         .from('orders')
         .select('id, order_number, status')
@@ -389,19 +397,36 @@ export default function Checkout() {
         .maybeSingle();
 
       if (existingOrder) {
-        if (['pending', 'processing'].includes(existingOrder.status)) {
-          toast({
-            title: 'Checkout já iniciado em outra aba',
-            description: 'Redirecionando para o pedido em andamento.',
-            variant: 'default',
+        // Only redirect to confirmation if order is already paid/completed
+        if (['paid', 'completed', 'shipped', 'delivered'].includes(existingOrder.status)) {
+          setIsSubmitted(true);
+          navigate(`/pedido-confirmado/${existingOrder.id}`, {
+            state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
+            replace: true,
           });
+          return;
         }
-        setIsSubmitted(true);
-        navigate(`/pedido-confirmado/${existingOrder.id}`, {
-          state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
-          replace: true,
-        });
-        return;
+        // For pending/processing orders, reuse the existing order for payment
+        if (['pending', 'processing'].includes(existingOrder.status)) {
+          // If Stripe is active, create a PaymentIntent for the existing order
+          if (isStripeActive) {
+            setStripeOrderId(existingOrder.id);
+            // Fall through to Stripe flow below using existing order
+          } else {
+            // For other providers, redirect to confirmation
+            toast({
+              title: 'Checkout já iniciado',
+              description: 'Redirecionando para o pedido em andamento.',
+              variant: 'default',
+            });
+            setIsSubmitted(true);
+            navigate(`/pedido-confirmado/${existingOrder.id}`, {
+              state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
+              replace: true,
+            });
+            return;
+          }
+        }
       }
 
       const guestToken = userId ? null : crypto.randomUUID();
