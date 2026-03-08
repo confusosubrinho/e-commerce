@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getConfigAwareUpdateFields, DEFAULT_SYNC_CONFIG } from "../_shared/bling-sync-fields.ts";
+import { getConfigAwareUpdateFields, DEFAULT_SYNC_CONFIG, getSyncConfig } from "../_shared/bling-sync-fields.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { fetchWithRateLimit } from "../_shared/blingFetchWithRateLimit.ts";
 import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
+import { hasRecentLocalMovements } from "../_shared/blingStockPush.ts";
 import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
 
 const corsHeaders = {
