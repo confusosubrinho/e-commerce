@@ -167,7 +167,7 @@ export default function Dashboard() {
         supabase.from('customers').select('id', { count: 'exact' }).gte('created_at', prevPeriodStart.toISOString()).lt('created_at', periodStart.toISOString()),
       ]);
       const activeCurrentOrders = currentOrders.data?.filter(o => o.status !== 'cancelled') || [];
-      const activePrevOrders = prevOrders.data?.filter(o => (o as any).status !== 'cancelled') || [];
+      const activePrevOrders = prevOrders.data?.filter(o => o.status !== 'cancelled') || [];
       const curRevenue = activeCurrentOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const prevRevenue = activePrevOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
       const curCount = activeCurrentOrders.length;
