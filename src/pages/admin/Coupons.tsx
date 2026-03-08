@@ -346,7 +346,7 @@ export default function Coupons() {
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(coupon)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(coupon.id)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setCouponToDelete(coupon.id)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

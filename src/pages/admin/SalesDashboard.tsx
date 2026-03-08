@@ -133,7 +133,7 @@ export default function SalesDashboard() {
     prevStart.setDate(prevStart.getDate() - parseInt(period) * 2);
     const prevEnd = new Date();
     prevEnd.setDate(prevEnd.getDate() - parseInt(period));
-    const prev = allOrders.filter(o => new Date(o.created_at) >= prevStart && new Date(o.created_at) < prevEnd);
+    const prev = allOrders.filter(o => o.status !== 'cancelled' && new Date(o.created_at) >= prevStart && new Date(o.created_at) < prevEnd);
     return {
       revenue: prev.reduce((s, o) => s + Number(o.total_amount || 0), 0),
       count: prev.length,

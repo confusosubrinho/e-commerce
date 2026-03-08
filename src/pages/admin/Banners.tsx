@@ -346,7 +346,7 @@ export default function Banners() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(banner)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(banner.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setBannerToDelete(banner.id)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
               </CardContent>
