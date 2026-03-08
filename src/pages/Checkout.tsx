@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Check, ChevronRight, Truck, CreditCard, MapPin, ArrowLeft, Plus, Minus, Loader2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +83,7 @@ function luhnCheck(num: string): boolean {
 
 export default function Checkout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { items, subtotal, clearCart, updateQuantity, selectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId } = useCart();
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
@@ -96,6 +97,15 @@ export default function Checkout() {
   const [customerIp, setCustomerIp] = useState('0.0.0.0');
   const idempotencyKeyRef = useRef<string>(cartId);
   const submitInProgressRef = useRef(false);
+
+  // ─── Read navigation state from CheckoutStart (router "render" action) ───
+  const routerState = location.state as {
+    orderId?: string;
+    provider?: string;
+    requestId?: string;
+    orderAccessToken?: string;
+    clientSecret?: string;
+  } | null;
 
   // Provider ativo (fonte única: integrations_checkout) — define qual formulário mostrar
   const { data: checkoutConfig } = useQuery({
@@ -114,8 +124,8 @@ export default function Checkout() {
     stripeConfig?.is_active === true &&
     !!stripeConfig?.publishable_key &&
     stripeConfig?.checkout_mode !== 'external';
-  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
-  const [stripeOrderId, setStripeOrderId] = useState<string | null>(null);
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(routerState?.clientSecret ?? null);
+  const [stripeOrderId, setStripeOrderId] = useState<string | null>(routerState?.orderId ?? null);
   /** PIX on checkout: QR + code displayed on same page, no redirect */
   const [stripePixData, setStripePixData] = useState<{
     pixQrUrl: string;
@@ -125,7 +135,8 @@ export default function Checkout() {
     guestToken: string;
   } | null>(null);
 
-  // IMPROVEMENT #5: Payment error state
+  // Track whether order was pre-created by CheckoutStart router
+  const orderFromRouter = !!(routerState?.orderId && routerState?.clientSecret);
   const [paymentError, setPaymentError] = useState<{
     message: string;
     suggestion: string;
@@ -371,30 +382,15 @@ export default function Checkout() {
       const userId = session?.session?.user?.id || null;
       const idempotencyKey = cartId;
 
-      const { data: existingOrder } = await supabase
-        .from('orders')
-        .select('id, order_number, status')
-        .eq('idempotency_key', idempotencyKey)
-        .maybeSingle();
-
-      if (existingOrder) {
-        if (['pending', 'processing'].includes(existingOrder.status)) {
-          toast({
-            title: 'Checkout já iniciado em outra aba',
-            description: 'Redirecionando para o pedido em andamento.',
-            variant: 'default',
-          });
-        }
-        setIsSubmitted(true);
-        navigate(`/pedido-confirmado/${existingOrder.id}`, {
-          state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
-          replace: true,
-        });
+      // ─── If order was pre-created by checkout-router, skip order creation ───
+      if (orderFromRouter && stripeOrderId && stripeClientSecret) {
+        // Order already exists with validated prices; Stripe Elements are already showing.
+        // Payment is handled by StripePaymentForm component via confirmCardPayment.
+        setIsLoading(false);
         return;
       }
 
-      const guestToken = userId ? null : crypto.randomUUID();
-
+      // Compute order total early (needed for both new and reused orders)
       let orderTotal: number;
       if (formData.paymentMethod === 'pix') {
         orderTotal = finalTotal;
@@ -404,6 +400,99 @@ export default function Checkout() {
       } else {
         orderTotal = finalTotal;
       }
+
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('id, order_number, status')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+
+      if (existingOrder) {
+        // Only redirect to confirmation if order is already paid/completed
+        if (['paid', 'completed', 'shipped', 'delivered'].includes(existingOrder.status)) {
+          setIsSubmitted(true);
+          navigate(`/pedido-confirmado/${existingOrder.id}`, {
+            state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
+            replace: true,
+          });
+          return;
+        }
+        // For pending/processing orders, reuse the existing order for payment
+        if (['pending', 'processing'].includes(existingOrder.status)) {
+          if (isStripeActive) {
+            const reusedOrderId = existingOrder.id;
+            const reusedGuestToken = userId ? null : crypto.randomUUID();
+
+            const productsForStripe = items.map(item => ({
+              sku: item.product.sku || item.product.id,
+              name: item.product.name,
+              quantity: item.quantity,
+              price: getCartItemUnitPrice(item),
+              variant_id: item.variant.id,
+              product_id: item.product.id,
+            }));
+
+            const { data: intentResult, error: intentError } = await invokeCheckoutFunction<{ error?: string; client_secret?: string; pix_qr_url?: string; pix_emv?: string; pix_expires_at?: number }>(
+              'checkout-stripe-create-intent',
+              {
+                body: {
+                  action: 'create_payment_intent',
+                  order_id: reusedOrderId,
+                  amount: orderTotal,
+                  payment_method: formData.paymentMethod === 'card' ? 'card' : 'pix',
+                  customer_email: formData.email,
+                  customer_name: formData.name,
+                  products: productsForStripe,
+                  coupon_code: appliedCoupon?.code || null,
+                  discount_amount: discount,
+                  installments: selectedInstallments,
+                  order_access_token: reusedGuestToken,
+                },
+              },
+              requestId
+            );
+
+            if (intentError || intentResult?.error) {
+              throw new Error(intentResult?.error || intentError?.message || 'Erro ao criar pagamento Stripe');
+            }
+
+            if (formData.paymentMethod === 'pix' && intentResult.pix_qr_url) {
+              setStripePixData({
+                pixQrUrl: intentResult.pix_qr_url,
+                pixEmv: intentResult.pix_emv ?? null,
+                pixExpiresAt: intentResult.pix_expires_at ?? Math.floor(Date.now() / 1000) + 30 * 60,
+                orderNumber: existingOrder.order_number,
+                guestToken: reusedGuestToken ?? '',
+              });
+              setStripeOrderId(reusedOrderId);
+              setIsLoading(false);
+              return;
+            }
+
+            setStripeClientSecret(intentResult.client_secret ?? null);
+            setStripeOrderId(reusedOrderId);
+            setIsLoading(false);
+            return;
+          } else {
+            toast({
+              title: 'Checkout já iniciado',
+              description: 'Redirecionando para o pedido em andamento.',
+              variant: 'default',
+            });
+            setIsSubmitted(true);
+            navigate(`/pedido-confirmado/${existingOrder.id}`, {
+              state: { orderId: existingOrder.id, orderNumber: existingOrder.order_number },
+              replace: true,
+            });
+            return;
+          }
+        }
+      }
+
+      const guestToken = userId ? null : crypto.randomUUID();
+
+      // Determine provider name
+      const providerName = isStripeActive ? 'stripe' : (activeProvider || 'appmax');
 
       // 1. Create order (cart_id enforces one active checkout per cart in DB)
       const { data: order, error: orderError } = await supabase
@@ -429,7 +518,7 @@ export default function Checkout() {
           idempotency_key: idempotencyKey,
           access_token: guestToken,
           notes: null,
-          provider: isStripeActive ? 'stripe' : 'appmax',
+          provider: providerName,
         } as any)
         .select()
         .single();
