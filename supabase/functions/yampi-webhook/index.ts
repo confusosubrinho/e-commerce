@@ -394,7 +394,7 @@ Deno.serve(async (req) => {
     }
 
     // ===== #10 SHIPPED EVENTS =====
-    if (shippedEvents.includes(event)) {
+    if (shippedEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
       const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || resourceData?.shipment?.tracking_code || null;
 
