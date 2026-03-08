@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { AdminErrorIndicator } from '@/components/store/AdminErrorIndicator';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
