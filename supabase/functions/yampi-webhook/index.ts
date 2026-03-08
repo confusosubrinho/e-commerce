@@ -459,10 +459,14 @@ Deno.serve(async (req) => {
       }
 
       // #4 Log email automation trigger
+      // Link email automation log to active automation
+      const { data: activeAutomation2 } = await supabase.from("email_automations")
+        .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
       await supabase.from("email_automation_logs").insert({
         recipient_email: customerEmail || "unknown",
         recipient_name: customerName,
         status: "pending",
+        automation_id: activeAutomation2?.id || null,
       }).then(() => {
         console.log("[yampi-webhook] Email automation log created for order", order.id);
       });
