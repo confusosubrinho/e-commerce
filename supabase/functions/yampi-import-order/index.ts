@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
   try {
     const res = await fetch(searchUrl, {
       headers: {
-        "User-Token": userToken,
-        "User-Secret-Key": userSecretKey,
+        "User-Token": userToken2,
+        "User-Secret-Key": userSecretKey2,
         Accept: "application/json",
       },
     });
