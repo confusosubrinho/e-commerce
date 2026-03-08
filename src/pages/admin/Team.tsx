@@ -184,9 +184,27 @@ export default function Team() {
                 </TableCell>
                 <TableCell>
                   {m.role !== 'owner' && (
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(m.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remover membro?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            O membro <strong>{m.full_name || m.email}</strong> será removido permanentemente da equipe. Esta ação não pode ser desfeita.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(m.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Remover
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
                 </TableCell>
               </TableRow>
