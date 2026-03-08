@@ -70,7 +70,7 @@ function StoreHealthCard() {
   );
 }
 
-const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+// formatPrice imported from @/lib/formatters
 
 type RechartsModule = typeof import('recharts');
 
