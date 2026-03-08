@@ -825,12 +825,11 @@ export default function Checkout() {
   }, [shippingZip]);
 
   // Clear selected shipping when checkout CEP diverges from cart CEP
-  const { setSelectedShipping: clearShipping } = useCart();
   useEffect(() => {
     const formCepClean = formData.cep.replace(/\D/g, '');
     const cartCepClean = (shippingZip || '').replace(/\D/g, '');
     if (formCepClean.length === 8 && cartCepClean.length === 8 && formCepClean !== cartCepClean) {
-      clearShipping(null);
+      setSelectedShipping(null);
     }
   }, [formData.cep, shippingZip]);
 
