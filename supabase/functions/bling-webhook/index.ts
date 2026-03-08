@@ -494,8 +494,19 @@ async function batchStockSync(supabase: any) {
   let errorsCount = 0;
   const errorDetails: any[] = [];
   const updatedProductIds = new Set<string>();
+  const cronStartTime = Date.now();
+  const TIMEOUT_SAFETY_MS = 50_000; // Stop at 50s to allow cleanup before edge function timeout
+  let timedOut = false;
   
   for (let i = 0; i < allBlingIds.length; i += 50) {
+    // Timeout guard: stop if we're close to the edge function limit
+    if (Date.now() - cronStartTime > TIMEOUT_SAFETY_MS) {
+      timedOut = true;
+      console.warn(`[cron] Timeout guard: stopping after ${i} IDs (${allBlingIds.length} total). ${allBlingIds.length - i} pending.`);
+      errorDetails.push({ reason: `timeout_guard`, processed: i, total: allBlingIds.length, pending: allBlingIds.length - i });
+      break;
+    }
+
     const batch = allBlingIds.slice(i, i + 50);
     const idsParam = batch.map(id => `idsProdutos[]=${id}`).join("&");
     try {
@@ -508,7 +519,6 @@ async function batchStockSync(supabase: any) {
         errorDetails.push({ batch_start: i, error: JSON.stringify(json).substring(0, 200) });
         continue;
       }
-      const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
       for (const stock of (json?.data || [])) {
         const blingId = stock.produto?.id;
         const qty = stock.saldoVirtualTotal ?? 0;
