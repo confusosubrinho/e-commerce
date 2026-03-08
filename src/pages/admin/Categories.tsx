@@ -32,6 +32,7 @@ export default function Categories() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['admin-categories'],
