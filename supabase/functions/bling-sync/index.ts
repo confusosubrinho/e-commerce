@@ -769,7 +769,6 @@ async function syncStock(supabase: any, token: string) {
     const res = await fetchWithRateLimit(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
     const json = await res.json();
     if (!res.ok) { console.error("Stock sync error:", JSON.stringify(json)); continue; }
-    const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
     for (const stock of (json?.data || [])) {
       const blingId = stock.produto?.id; const qty = stock.saldoVirtualTotal ?? 0;
       if (!blingId) continue;
