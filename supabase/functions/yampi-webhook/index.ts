@@ -496,61 +496,60 @@ Deno.serve(async (req) => {
         existingOrder = data;
       }
 
-        if (existingOrder && existingOrder.status !== "cancelled") {
-          // Não cancelar pedido já pago/enviado/entregue (evita evento de recusa anterior sobrescrever pagamento aprovado)
-          if (["paid", "shipped", "delivered"].includes(existingOrder.status)) {
-            console.log("[yampi-webhook] Ignorando cancelamento: pedido já está", existingOrder.status, existingOrder.id);
-            return jsonOk({ ok: true, event: effectiveEvent, action: "ignored_already_fulfilled" });
-          }
-          await supabase.from("orders").update({ status: "cancelled" }).eq("id", existingOrder.id);
+      if (existingOrder && existingOrder.status !== "cancelled") {
+        // Não cancelar pedido já pago/enviado/entregue (evita evento de recusa anterior sobrescrever pagamento aprovado)
+        if (["paid", "shipped", "delivered"].includes(existingOrder.status)) {
+          console.log("[yampi-webhook] Ignorando cancelamento: pedido já está", existingOrder.status, existingOrder.id);
+          return jsonOk({ ok: true, event: effectiveEvent, action: "ignored_already_fulfilled" });
+        }
+        await supabase.from("orders").update({ status: "cancelled" }).eq("id", existingOrder.id);
 
-          const { data: movements } = await supabase
+        const { data: movements } = await supabase
+          .from("inventory_movements")
+          .select("variant_id, quantity, type")
+          .eq("order_id", existingOrder.id)
+          .in("type", ["debit", "reserve"]);
+
+        for (const mov of movements || []) {
+          const { data: alreadyReleased } = await supabase
             .from("inventory_movements")
-            .select("variant_id, quantity, type")
+            .select("id")
             .eq("order_id", existingOrder.id)
-            .in("type", ["debit", "reserve"]);
+            .eq("variant_id", mov.variant_id)
+            .in("type", ["release", "refund"])
+            .maybeSingle();
 
-          for (const mov of movements || []) {
-            const { data: alreadyReleased } = await supabase
-              .from("inventory_movements")
-              .select("id")
-              .eq("order_id", existingOrder.id)
-              .eq("variant_id", mov.variant_id)
-              .in("type", ["release", "refund"])
-              .maybeSingle();
-
-            if (!alreadyReleased) {
-              const releaseType = mov.type === "debit" ? "refund" : "release";
-              await supabase.rpc("increment_stock", { p_variant_id: mov.variant_id, p_quantity: mov.quantity });
-              await supabase.from("inventory_movements").insert({
-                variant_id: mov.variant_id,
-                order_id: existingOrder.id,
-                type: releaseType,
-                quantity: mov.quantity,
-              });
-            }
+          if (!alreadyReleased) {
+            const releaseType = mov.type === "debit" ? "refund" : "release";
+            await supabase.rpc("increment_stock", { p_variant_id: mov.variant_id, p_quantity: mov.quantity });
+            await supabase.from("inventory_movements").insert({
+              variant_id: mov.variant_id,
+              order_id: existingOrder.id,
+              type: releaseType,
+              quantity: mov.quantity,
+            });
           }
-
-          // Normalize cancelled payment status instead of raw event string
-          const cancelledPaymentStatus = event.includes("refused") ? "refused"
-            : event.includes("chargeback") ? "chargeback"
-            : "cancelled";
-
-          await supabase.from("payments").insert({
-            order_id: existingOrder.id,
-            provider: "yampi",
-            status: cancelledPaymentStatus,
-            payment_method: paymentMethod,
-            gateway,
-            transaction_id: transactionId,
-            installments,
-            amount: totalAmount,
-            raw: payload,
-          });
         }
-        if (existingOrder) {
-          await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: cancelHash, payload });
-        }
+
+        // Normalize cancelled payment status instead of raw event string
+        const cancelledPaymentStatus = event.includes("refused") ? "refused"
+          : event.includes("chargeback") ? "chargeback"
+          : "cancelled";
+
+        await supabase.from("payments").insert({
+          order_id: existingOrder.id,
+          provider: "yampi",
+          status: cancelledPaymentStatus,
+          payment_method: paymentMethod,
+          gateway,
+          transaction_id: transactionId,
+          installments,
+          amount: totalAmount,
+          raw: payload,
+        });
+      }
+      if (existingOrder) {
+        await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: cancelHash, payload });
       }
       return jsonOk({ ok: true, event: effectiveEvent });
     }
