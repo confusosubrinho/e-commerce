@@ -91,16 +91,7 @@ export default function Customers() {
   const customers = customersResult?.customers;
   const totalCustomers = customersResult?.total || 0;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
-  };
+  // formatPrice and formatDate imported from @/lib/formatters
 
   // Apply filters (null-safe: full_name/email can be null)
   const searchLower = searchQuery.toLowerCase();
