@@ -100,6 +100,7 @@ export default function Products() {
   const [selectAllGlobal, setSelectAllGlobal] = useState(false);
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
   const [syncingProductId, setSyncingProductId] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const { data: products, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-products'],
