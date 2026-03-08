@@ -401,7 +401,6 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
     const qty = stockJson?.data?.[0]?.saldoVirtualTotal ?? 0;
     // Check recent local movements for all variants of this product
     const { data: prodVariants } = await supabase.from("product_variants").select("id").eq("product_id", productId);
-    const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
     let skipAll = false;
     for (const pv of (prodVariants || [])) {
       if (await hasRecentLocalMovements(supabase, pv.id, 10)) { skipAll = true; break; }
