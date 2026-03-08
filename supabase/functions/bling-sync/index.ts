@@ -772,11 +772,19 @@ async function syncStock(supabase: any, token: string) {
     const res = await fetchWithRateLimit(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
     const json = await res.json();
     if (!res.ok) { console.error("Stock sync error:", JSON.stringify(json)); continue; }
+    const { hasRecentLocalMovements } = await import("../_shared/blingStockPush.ts");
     for (const stock of (json?.data || [])) {
       const blingId = stock.produto?.id; const qty = stock.saldoVirtualTotal ?? 0;
       if (!blingId) continue;
       const variantIds = blingIdToVariants.get(blingId);
-      if (variantIds) { for (const vid of variantIds) await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid); updated += variantIds.length; }
+      if (variantIds) {
+        for (const vid of variantIds) {
+          const hasRecent = await hasRecentLocalMovements(supabase, vid, 10);
+          if (hasRecent) { console.log(`[syncStock] Skipping variant ${vid} — recent local movements`); continue; }
+          await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid);
+          updated++;
+        }
+      }
     }
   }
 
