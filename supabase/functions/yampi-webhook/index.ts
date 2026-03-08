@@ -603,17 +603,25 @@ Deno.serve(async (req) => {
           : event.includes("chargeback") ? "chargeback"
           : "cancelled";
 
-        await supabase.from("payments").insert({
-          order_id: existingOrder.id,
-          provider: "yampi",
-          status: cancelledPaymentStatus,
-          payment_method: paymentMethod,
-          gateway,
-          transaction_id: transactionId,
-          installments,
-          amount: totalAmount,
-          raw: payload,
-        });
+        const { data: existingPayment } = await supabase
+          .from("payments").select("id").eq("order_id", existingOrder.id).maybeSingle();
+        if (existingPayment) {
+          await supabase.from("payments")
+            .update({ status: cancelledPaymentStatus, raw: payload })
+            .eq("id", existingPayment.id);
+        } else {
+          await supabase.from("payments").insert({
+            order_id: existingOrder.id,
+            provider: "yampi",
+            status: cancelledPaymentStatus,
+            payment_method: paymentMethod,
+            gateway,
+            transaction_id: transactionId,
+            installments,
+            amount: totalAmount,
+            raw: payload,
+          });
+        }
       }
       if (existingOrder) {
         await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: cancelHash, payload });
