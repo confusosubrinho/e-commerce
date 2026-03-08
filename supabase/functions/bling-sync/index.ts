@@ -1077,13 +1077,47 @@ serve(async (req) => {
             for (let i = 0; i < productIdsToDelete.length; i += CHUNK_SIZE) {
               const chunkIds = productIdsToDelete.slice(i, i + CHUNK_SIZE);
 
-              await Promise.all([
-                supabase.from("product_images").delete().in("product_id", chunkIds),
-                supabase.from("product_variants").delete().in("product_id", chunkIds),
-                supabase.from("product_characteristics").delete().in("product_id", chunkIds),
-                supabase.from("buy_together_products").delete().or(`product_id.in.(${chunkIds.join(',')}),related_product_id.in.(${chunkIds.join(',')})`),
-              ]);
-              await supabase.from("products").delete().in("id", chunkIds);
+              // Check for order_items references before deleting variants
+              const { data: referencedVariants } = await supabase
+                .from("product_variants")
+                .select("id")
+                .in("product_id", chunkIds);
+              const safeToDeleteProductIds: string[] = [];
+              const deactivateProductIds: string[] = [];
+              for (const pid of chunkIds) {
+                const prodVariants = (referencedVariants || []).filter((v: any) => {
+                  // We need to check per product, but we only have variant ids here
+                  // Re-query per product
+                  return true;
+                });
+                // Check if any variant of this product is in order_items
+                const { data: orderRefs } = await supabase
+                  .from("order_items")
+                  .select("id")
+                  .in("product_variant_id", (referencedVariants || []).map((v: any) => v.id))
+                  .limit(1);
+                if (orderRefs?.length) {
+                  deactivateProductIds.push(pid);
+                } else {
+                  safeToDeleteProductIds.push(pid);
+                }
+              }
+              // Deactivate products with order references
+              if (deactivateProductIds.length > 0) {
+                await supabase.from("product_variants").update({ is_active: false }).in("product_id", deactivateProductIds);
+                await supabase.from("products").update({ is_active: false }).in("id", deactivateProductIds);
+                console.log(`[cleanup_variations] Deactivated ${deactivateProductIds.length} products (referenced in orders)`);
+              }
+              // Delete products without order references
+              if (safeToDeleteProductIds.length > 0) {
+                await Promise.all([
+                  supabase.from("product_images").delete().in("product_id", safeToDeleteProductIds),
+                  supabase.from("product_variants").delete().in("product_id", safeToDeleteProductIds),
+                  supabase.from("product_characteristics").delete().in("product_id", safeToDeleteProductIds),
+                  supabase.from("buy_together_products").delete().or(`product_id.in.(${safeToDeleteProductIds.join(',')}),related_product_id.in.(${safeToDeleteProductIds.join(',')})`),
+                ]);
+                await supabase.from("products").delete().in("id", safeToDeleteProductIds);
+              }
 
               cleanedCount += chunkIds.length;
             }
