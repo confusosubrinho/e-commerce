@@ -17,19 +17,7 @@ const BLING_RATE_LIMIT_MS = 340;
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchWithRateLimit(url: string, options: RequestInit): Promise<Response> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetchWithTimeout(url, options);
-    if (res.status === 429) {
-      const waitMs = (attempt + 1) * 1500;
-      console.log(`Rate limited, waiting ${waitMs}ms before retry...`);
-      await sleep(waitMs);
-      continue;
-    }
-    return res;
-  }
-  return fetchWithTimeout(url, options);
-}
+// fetchWithRateLimit is now imported from _shared/blingFetchWithRateLimit.ts
 
 const STANDARD_SIZES = ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
 
