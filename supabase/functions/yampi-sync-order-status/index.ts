@@ -494,37 +494,6 @@ Deno.serve(async (req) => {
     }
   }
 
-    // --- Upsert payment record ---
-    if (txTransactionId || txPaymentMethod) {
-      const paymentData = {
-        order_id: order.id,
-        provider: "yampi",
-        status: paymentStatus === "approved" ? "succeeded" : paymentStatus,
-        payment_method: txPaymentMethod || null,
-        gateway: txGateway || null,
-        installments: txInstallments || 1,
-        transaction_id: txTransactionId || null,
-        amount: totalAmount || (subtotal || 0) + (txShippingCost || 0),
-      };
-
-      // Check if payment already exists for this order
-      const { data: existingPayment } = await supabase
-        .from("payments")
-        .select("id")
-        .eq("order_id", order.id)
-        .eq("provider", "yampi")
-        .maybeSingle();
-
-      if (existingPayment) {
-        await supabase.from("payments").update(paymentData).eq("id", existingPayment.id);
-        console.log(`[yampi-sync] Updated payment ${existingPayment.id}`);
-      } else {
-        await supabase.from("payments").insert(paymentData);
-        console.log(`[yampi-sync] Inserted new payment for order ${order.id}`);
-      }
-    }
-  }
-
   console.log(`[yampi-sync] Order ${order.order_number} synced: status=${localStatus}, payment_status=${paymentStatus}`);
   return jsonRes({
     ok: true,
