@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Check, ChevronRight, Truck, CreditCard, MapPin, ArrowLeft, Plus, Minus, Loader2, Copy } from 'lucide-react';
+import { Check, ChevronRight, Truck, CreditCard, MapPin, ArrowLeft, Plus, Minus, Loader2, Copy, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,8 +18,16 @@ import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { getInstallmentOptions, formatCurrency as formatPricingCurrency, type PricingConfig } from '@/lib/pricingEngine';
 import { HelpHint } from '@/components/HelpHint';
 import { CouponInput } from '@/components/store/CouponInput';
-import logo from '@/assets/logo.png';
+import defaultLogo from '@/assets/logo.png';
 import { getCartItemUnitPrice, hasSaleDiscount } from '@/lib/cartPricing';
+import { Helmet } from 'react-helmet-async';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
+const BRAZILIAN_STATES = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+  'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+];
 import { isCouponValidForLocation } from '@/lib/couponDiscount';
 import { generateRequestId, invokeCheckoutFunction } from '@/lib/checkoutClient';
 import { StripePaymentForm, useStripeConfig } from '@/components/store/StripePaymentForm';
@@ -87,7 +95,22 @@ export default function Checkout() {
   const { items, subtotal, total, clearCart, updateQuantity, selectedShipping, setSelectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId } = useCart();
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
-  const [currentStep, setCurrentStep] = useState<Step>('identification');
+  // UX 1: Dynamic logo
+  const { data: storeSettings } = useStoreSettingsPublic();
+  const logoFromSettings = storeSettings?.header_logo_url || storeSettings?.logo_url;
+  const logo = logoFromSettings && logoFromSettings.trim() !== ''
+    ? `${logoFromSettings}${storeSettings?.updated_at ? `?v=${encodeURIComponent(storeSettings.updated_at)}` : ''}`
+    : defaultLogo;
+
+  // UX 7: Session persistence
+  const [currentStep, setCurrentStep] = useState<Step>(() => {
+    try {
+      const saved = sessionStorage.getItem('checkout_step');
+      if (saved && ['identification', 'shipping', 'payment'].includes(saved)) return saved as Step;
+    } catch {}
+    return 'identification';
+  });
+  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
@@ -159,24 +182,48 @@ export default function Checkout() {
     ? (pc as any).interest_free_installments_sale
     : pc.interest_free_installments;
 
-  const [formData, setFormData] = useState({
-    email: '',
-    name: '',
-    phone: '',
-    cpf: '',
-    cep: '',
-    address: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    paymentMethod: 'pix',
-    cardNumber: '',
-    cardHolder: '',
-    cardExpiry: '',
-    cardCvv: '',
+  const [formData, setFormData] = useState(() => {
+    const defaults = {
+      email: '',
+      name: '',
+      phone: '',
+      cpf: '',
+      cep: '',
+      address: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      paymentMethod: 'pix',
+      cardNumber: '',
+      cardHolder: '',
+      cardExpiry: '',
+      cardCvv: '',
+    };
+    try {
+      const saved = sessionStorage.getItem('checkout_form');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...defaults, ...parsed, cardNumber: '', cardCvv: '', cardExpiry: '', cardHolder: '' };
+      }
+    } catch {}
+    return defaults;
   });
+
+  // UX 7: Persist form & step to sessionStorage
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      try {
+        const { cardNumber, cardCvv, cardExpiry, cardHolder, ...safe } = formData;
+        sessionStorage.setItem('checkout_form', JSON.stringify(safe));
+        sessionStorage.setItem('checkout_step', currentStep);
+      } catch {}
+    }, 500);
+    return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
+  }, [formData, currentStep]);
 
   // Collect customer IP
   useEffect(() => {
@@ -911,8 +958,15 @@ export default function Checkout() {
     );
   }
 
+  const currentStepLabel = steps.find(s => s.id === currentStep)?.label || 'Checkout';
+
   return (
     <div className="min-h-screen bg-muted/30">
+      {/* UX 2: Dynamic Helmet */}
+      <Helmet>
+        <title>Checkout — {currentStepLabel} | Vanessa Lima</title>
+      </Helmet>
+
       {/* Header */}
       <header className="bg-background border-b sticky top-0 z-50">
         <div className="container-custom py-4 flex items-center justify-between">
@@ -955,7 +1009,7 @@ export default function Checkout() {
                   ) : (
                     <step.icon className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline font-medium">{step.label}</span>
+                  <span className={`${currentStep === step.id ? 'inline' : 'hidden sm:inline'} font-medium`}>{step.label}</span>
                 </button>
                 {index < steps.length - 1 && (
                   <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 mx-1 sm:mx-2 text-muted-foreground" />
@@ -963,6 +1017,35 @@ export default function Checkout() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* UX 3: Mobile collapsible order summary */}
+      <div className="lg:hidden bg-background border-b">
+        <div className="container-custom">
+          <Collapsible open={mobileSummaryOpen} onOpenChange={setMobileSummaryOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-3">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">{items.length} {items.length === 1 ? 'item' : 'itens'}</span>
+              </div>
+              <span className="font-bold text-primary">{formatPrice(displayTotal)}</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="pb-3 space-y-2 border-t pt-3">
+                {items.map((item) => (
+                  <div key={item.variant.id} className="flex gap-2 items-center text-sm">
+                    <img src={item.product.images?.[0]?.url || '/placeholder.svg'} alt={item.product.name} className="w-10 h-10 object-cover rounded" />
+                    <div className="flex-1 min-w-0">
+                      <p className="line-clamp-1 text-xs font-medium">{item.product.name}</p>
+                      <p className="text-[11px] text-muted-foreground">Tam: {item.variant.size} · Qtd: {item.quantity}</p>
+                    </div>
+                    <span className="text-xs font-medium">{formatPrice(getCartItemUnitPrice(item) * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </div>
 
@@ -1113,14 +1196,19 @@ export default function Checkout() {
                       </div>
                       <div>
                         <Label htmlFor="state">Estado *</Label>
-                        <Input
-                          id="state"
-                          name="state"
+                        <Select
                           value={formData.state}
-                          onChange={handleMaskedChange}
-                          placeholder="UF"
-                          maxLength={2}
-                        />
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, state: value }))}
+                        >
+                          <SelectTrigger id="state">
+                            <SelectValue placeholder="Selecione o estado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BRAZILIAN_STATES.map(uf => (
+                              <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
