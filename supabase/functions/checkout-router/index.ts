@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     const variantIds = [...new Set(itemsInput.map((i) => i.variant_id))];
     const { data: variantsRows, error: variantsErr } = await supabase
       .from("product_variants")
-      .select("id, product_id, base_price, sale_price, yampi_sku_id, products(base_price, sale_price, name)")
+      .select("id, product_id, base_price, sale_price, yampi_sku_id, size, color, sku, products(base_price, sale_price, name)")
       .in("id", variantIds);
 
     if (variantsErr || !variantsRows?.length) {
@@ -153,16 +153,33 @@ Deno.serve(async (req) => {
       base_price: number | null;
       sale_price: number | null;
       yampi_sku_id: number | null;
+      size: string | null;
+      color: string | null;
+      sku: string | null;
       products: { base_price?: number; sale_price?: number; name?: string } | null;
     };
-    const variantMap = new Map<string, { product_id: string | null; name: string; unit_price: number; yampi_sku_id: number | null }>();
+    const variantMap = new Map<string, { product_id: string | null; name: string; unit_price: number; yampi_sku_id: number | null; size: string | null; color: string | null; sku: string | null }>();
     for (const v of variantsRows as VariantRow[]) {
       const product = v.products;
       const base = v.base_price ?? product?.base_price ?? 0;
       const sale = v.sale_price ?? product?.sale_price ?? null;
       const unitPrice = typeof sale === "number" && sale >= 0 ? sale : (typeof base === "number" ? base : 0);
       const name = (product?.name as string) ?? "";
-      variantMap.set(v.id, { product_id: v.product_id ?? null, name, unit_price: Number(unitPrice), yampi_sku_id: v.yampi_sku_id ?? null });
+      variantMap.set(v.id, { product_id: v.product_id ?? null, name, unit_price: Number(unitPrice), yampi_sku_id: v.yampi_sku_id ?? null, size: v.size ?? null, color: v.color ?? null, sku: v.sku ?? null });
+    }
+
+    // Fetch primary images for each product
+    const productIds = [...new Set([...variantMap.values()].map(v => v.product_id).filter(Boolean))] as string[];
+    const productImageMap = new Map<string, string>();
+    if (productIds.length) {
+      const { data: images } = await supabase
+        .from("product_images")
+        .select("product_id, url")
+        .in("product_id", productIds)
+        .eq("is_primary", true);
+      for (const img of images || []) {
+        if (img.product_id && img.url) productImageMap.set(img.product_id, img.url);
+      }
     }
 
     const items: Array<{ variant_id: string; quantity: number; unit_price: number; product_name: string }> = [];
