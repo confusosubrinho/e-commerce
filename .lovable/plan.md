@@ -1,63 +1,32 @@
 
 
-## Auditoria Yampi — Rodada 4: IMPLEMENTADO ✅
+# Fix: Site reloading twice on open
 
-### Fixes Aplicados
+## Root Cause
 
-**Y31** ✅ `yampi-sync-images` — Todas as chamadas `fetch` substituídas por `fetchWithTimeout` (25s) para evitar travamentos.
+`APP_VERSION` is defined as `import.meta.env.VITE_APP_VERSION || Date.now().toString()`. Since `VITE_APP_VERSION` is not set, every page load generates a **unique timestamp** as the version.
 
-**Y32** ✅ `yampi-sync-images` — Validação de URL acessível após upload no storage antes de enviar à Yampi (função `validateUrlAccessible`).
+The `VersionChecker` component (runs after 5 seconds) fetches `app_version` from the database. Since the server version will **never** match a random `Date.now()` string, it triggers `window.location.reload()` on every first visit. The `sessionStorage` guard prevents a third reload, but the user still experiences the page loading, rendering partially, then reloading — hence "updating twice."
 
-**Y36** ✅ `yampi-import-order` batch — Campo `tracking_code` já estava sendo extraído na linha 541. Verificado e confirmado.
+## Fix
 
-**Y37** ✅ `checkout-create-session` — Retorna `fallback_reason` ("yampi_skus_not_linked" ou "yampi_api_error") quando faz fallback para checkout nativo.
+In `VersionChecker.tsx`, skip the reload when `APP_VERSION` is the `Date.now()` fallback (i.e., `VITE_APP_VERSION` is not configured). The version check should only trigger reloads when a real, intentional version string is set.
 
-**Y38** ✅ `yampi-catalog-sync` — Dimensões (weight, height, width, length) agora herdam do produto pai com fallback para defaults, melhorando cálculo de frete na Yampi.
+### `src/components/store/VersionChecker.tsx`
 
-### Documentação: Limitação de Cupons (Y33)
+Add an early return at the top of the `check` function:
 
-**Limitação conhecida**: A API Yampi Payment Link não suporta campos de desconto/cupom no payload. Cupons aplicados no site não são transmitidos ao checkout Yampi.
+```typescript
+const check = async () => {
+  // If no explicit VITE_APP_VERSION is configured, APP_VERSION is a random
+  // Date.now() string — comparing it against the server is meaningless and
+  // causes a spurious reload on every first visit.
+  if (!import.meta.env.VITE_APP_VERSION) return;
+  // ... rest of check logic
+```
 
-**Workaround recomendado**: Para descontos significativos, considerar:
-1. Usar checkout nativo (Stripe/Appmax) para pedidos com cupom
-2. Ou embutir desconto nos preços dos SKUs antes de criar o payment link
+This single line prevents the false-positive version mismatch reload while preserving the mechanism for when a real version is deployed.
 
-### Não Implementado (Decisão Técnica)
+## Files Modified
+- `src/components/store/VersionChecker.tsx` — skip check when no explicit version is configured
 
-- **Y35**: Sync bidirecional de produtos (Yampi → Site) — Requer redesign significativo. O site permanece como fonte única de verdade.
-- **Y39**: Limpeza de imagens antigas na Yampi — Pode causar inconsistências. Não recomendado sem flag explícita.
-- **Y40**: Separação de campos `yampi_order_id` / `appmax_order_id` — Requer migration e pode afetar queries existentes.
-
----
-
-## Resumo das 4 Rodadas de Auditoria
-
-| Rodada | Fixes | Status |
-|--------|-------|--------|
-| Rodada 1 | Y1-Y10 (preços, CORS, timeouts básicos) | ✅ Implementado |
-| Rodada 2 | Y11-Y21 (webhooks, automações, idempotência) | ✅ Implementado |
-| Rodada 3 | Y22-Y30 (race conditions, inventory, traceability) | ✅ Implementado |
-| Rodada 4 | Y31-Y38 (timeouts, validação URLs, fallback_reason) | ✅ Implementado |
-| Rodada 5 | Y41-Y48 (custom attrs, snapshots, unwrap, payment_status) | ✅ Implementado |
-
-**Total**: 48 melhorias identificadas, 42 implementadas, 4 documentadas como decisões técnicas.
-
----
-
-## Rodada 5: Yampi Integration Fixes ✅
-
-### Bugs Corrigidos
-
-**Fix #1** ✅ `yampi-catalog-sync` — Query de variantes agora inclui `custom_attribute_name` e `custom_attribute_value`. Variações customizadas são mapeadas para `variation_value_map` da Yampi.
-
-**Fix #2** ✅ `yampi-webhook` — Bloco de cancelamento agora faz unwrap de `customer.data` igual ao bloco de aprovação, garantindo que emails de cancelamento sejam enviados corretamente.
-
-**Fix #3** ✅ `yampi-webhook` — Campo `payment_status: "approved"` adicionado ao update de pedido existente (by session), alinhando com o fluxo do `yampi-import-order`.
-
-**Fix #4** ✅ `yampi-import-order` — Batch import agora inclui `variant_info`, `title_snapshot`, `image_snapshot` e `sku_snapshot` nos `order_items`, com lookup de variante local e imagem primária.
-
-**Fix #5** ✅ `yampi-webhook` — Removido uso incorreto de `appmax_order_id` para gravar `yampiOrderId` no `order_events`.
-
-**Fix #6** ✅ `yampi-catalog-sync` — SKU gerado para Yampi agora inclui `custom_attribute_value` para evitar duplicatas quando há variantes com mesmo tamanho/cor mas atributos diferentes.
-
-**Melhoria #7** ✅ `yampi-webhook` — `order.status.updated` agora trata status `processing`, `in_production`, `in_separation`, `ready_for_shipping` como eventos de pagamento aprovado.
