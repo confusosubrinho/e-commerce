@@ -47,8 +47,6 @@ Deno.serve(async (req) => {
     const cancelledEvents = ["payment.cancelled", "payment.refused", "order.cancelled"];
     const refundedEvents = ["payment.refunded", "order.refunded"];
     const statusUpdateEvents = ["order.status_update"];
-    const shippedEvents = ["order.shipped", "order.sent", "shipment.created"];
-    const deliveredEvents = ["order.delivered", "shipment.delivered"];
 
     // order.status.updated: Yampi pode enviar status assim — normalizar para evento correto
     const statusValue = (resourceData?.status || resourceData?.order_status || "").toString().toLowerCase();
