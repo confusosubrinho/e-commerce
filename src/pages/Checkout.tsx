@@ -423,7 +423,7 @@ export default function Checkout() {
         if (['pending', 'processing'].includes(existingOrder.status)) {
           if (isStripeActive) {
             const reusedOrderId = existingOrder.id;
-            const reusedGuestToken = userId ? null : crypto.randomUUID();
+            const reusedGuestToken = userId ? null : (existingOrder.access_token || crypto.randomUUID());
 
             const productsForStripe = items.map(item => ({
               sku: item.product.sku || item.product.id,

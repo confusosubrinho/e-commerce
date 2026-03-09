@@ -54,21 +54,22 @@ export function useProducts(categorySlug?: string, options?: { enabled?: boolean
  }
 
  export function useSearchProducts(searchTerm: string) {
-   const escaped = searchTerm.replace(/[%_\\]/g, '\\$&');
-   return useQuery({
-     queryKey: ['products', 'search', searchTerm],
-     enabled: searchTerm.length > 0,
-     queryFn: async () => {
-       const { data, error } = await supabase
-         .from('products')
-         .select(`
-           *,
-           category:categories(*),
-           images:product_images(*),
-           variants:product_variants(*)
-         `)
-         .eq('is_active', true)
-         .or(`name.ilike.%${escaped}%,description.ilike.%${escaped}%`)
+    // Sanitizar contra PostgREST filter injection: escapar %, _, \, ), (, ., ,
+    const escaped = searchTerm.replace(/[%_\\().,]/g, '\\$&');
+    return useQuery({
+      queryKey: ['products', 'search', searchTerm],
+      enabled: searchTerm.length > 0,
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            category:categories(*),
+            images:product_images(*),
+            variants:product_variants(*)
+          `)
+          .eq('is_active', true)
+          .or(`name.ilike.%${escaped}%,description.ilike.%${escaped}%`)
          .order('created_at', { ascending: false })
          .limit(100);
        if (error) throw error;

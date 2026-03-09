@@ -50,6 +50,7 @@ export async function logError(params: LogErrorParams) {
   const lastLogged = recentErrors.get(errorKey);
   if (lastLogged && Date.now() - lastLogged < RATE_LIMIT_MS) return;
   recentErrors.set(errorKey, Date.now());
+  pruneRecentErrors();
 
   // Always log via central logger
   if (severity === 'critical' || severity === 'error') {
