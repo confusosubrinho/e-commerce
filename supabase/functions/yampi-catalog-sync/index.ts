@@ -351,16 +351,22 @@ Deno.serve(async (req) => {
 
               if (!variant.yampi_sku_id) {
                 // ── CREATE SKU ──
+                // Y38: Inherit dimensions from parent product or use defaults
+                const skuWeight = Number(product.weight) || 0.3;
+                const skuHeight = Number(product.height) || 5;
+                const skuWidth = Number(product.width) || 15;
+                const skuLength = Number(product.depth) || 20;
+
                 const skuPayload: Record<string, unknown> = {
                   product_id: yampiProductId,
                   sku: variantSku,
                   price_cost: unitCost,
                   price_sale: unitPrice,
                   price_discount: 0,
-                  weight: Number(product.weight) || 0.3,
-                  height: Number(product.height) || 5,
-                  width: Number(product.width) || 15,
-                  length: Number(product.depth) || 20,
+                  weight: skuWeight,
+                  height: skuHeight,
+                  width: skuWidth,
+                  length: skuLength,
                   quantity_managed: true,
                   quantity: variant.stock_quantity ?? 0,
                   availability: 0,
