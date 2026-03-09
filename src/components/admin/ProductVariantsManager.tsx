@@ -113,11 +113,13 @@ const COMMON_COLORS: { name: string; hex: string }[] = [
   { name: 'Menta', hex: '#99F6E4' },
 ];
 
-function generateSku(parentSku: string, size: string, color: string): string {
+function generateSku(parentSku: string, size: string, color: string, customValue?: string): string {
   const base = parentSku || 'SKU';
   const sizePart = size.replace(/\s+/g, '').toUpperCase();
-  const colorPart = color ? color.substring(0, 3).toUpperCase() : '';
-  return colorPart ? `${base}-${sizePart}-${colorPart}` : `${base}-${sizePart}`;
+  const parts = [base, sizePart];
+  if (color) parts.push(color.substring(0, 3).toUpperCase());
+  if (customValue) parts.push(customValue.substring(0, 3).toUpperCase());
+  return parts.join('-');
 }
 
 export function ProductVariantsManager({
