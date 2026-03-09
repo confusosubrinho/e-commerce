@@ -1035,7 +1035,7 @@ export default function Checkout() {
               <div className="pb-3 space-y-2 border-t pt-3">
                 {items.map((item) => (
                   <div key={item.variant.id} className="flex gap-2 items-center text-sm">
-                    <img src={item.product.images?.[0]?.url || '/placeholder.svg'} alt={item.product.name} className="w-10 h-10 object-cover rounded" />
+                    <img src={resolveImageUrl(item.product.images?.[0]?.url) || '/placeholder.svg'} alt={item.product.name} className="w-10 h-10 object-cover rounded" />
                     <div className="flex-1 min-w-0">
                       <p className="line-clamp-1 text-xs font-medium">{item.product.name}</p>
                       <p className="text-[11px] text-muted-foreground">Tam: {item.variant.size} · Qtd: {item.quantity}</p>
