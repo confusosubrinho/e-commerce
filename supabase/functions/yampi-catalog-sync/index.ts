@@ -217,7 +217,8 @@ Deno.serve(async (req) => {
         // ─── Determine variation groups needed ───
         const hasSize = activeVariants.some((v) => v.size?.trim());
         const hasColor = activeVariants.some((v) => v.color?.trim());
-        const hasVariations = activeVariants.length > 1 || hasSize || hasColor;
+        const hasCustomAttr = activeVariants.some((v) => v.custom_attribute_name?.trim() && v.custom_attribute_value?.trim());
+        const hasVariations = activeVariants.length > 1 || hasSize || hasColor || hasCustomAttr;
 
         const productVariationGroupIds = new Set<number>();
         for (const v of activeVariants) {
@@ -227,6 +228,10 @@ Deno.serve(async (req) => {
           }
           if (v.color?.trim()) {
             const mapping = valueMap[`color:${v.color.trim()}`];
+            if (mapping?.yampi_variation_id) productVariationGroupIds.add(mapping.yampi_variation_id);
+          }
+          if (v.custom_attribute_name?.trim() && v.custom_attribute_value?.trim()) {
+            const mapping = valueMap[`${v.custom_attribute_name.trim()}:${v.custom_attribute_value.trim()}`];
             if (mapping?.yampi_variation_id) productVariationGroupIds.add(mapping.yampi_variation_id);
           }
         }
