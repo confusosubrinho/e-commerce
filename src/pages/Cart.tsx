@@ -253,7 +253,14 @@ export default function Cart() {
                   </Button>
                 </Pressable>
               ) : (
-                <Button className="w-full" size="lg" disabled>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => {
+                    document.getElementById('shipping-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                >
                   Calcule o frete primeiro
                 </Button>
               )}
