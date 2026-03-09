@@ -182,7 +182,8 @@ Deno.serve(async (req) => {
       }
 
       // Unificar com pedido criado no checkout start (evita duplicar e depois cancelar o errado)
-      if (sessionId) {
+      // Use reconciledSessionId which may have been found via fallback reconciliation
+      if (reconciledSessionId) {
         const { data: existingBySession } = await supabase
           .from("orders")
           .select("id, order_number, status")
