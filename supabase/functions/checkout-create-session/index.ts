@@ -231,7 +231,8 @@ Deno.serve(async (req) => {
         if (missingYampiSkus.length > 0) {
           const msg = "Um ou mais itens não estão vinculados ao catálogo Yampi. Use o checkout da loja.";
           if (checkoutConfig.fallback_to_native) {
-            return jsonRes({ redirect_url: "/checkout", fallback: true, error: msg });
+            // Y37: Return fallback_reason for frontend
+            return jsonRes({ redirect_url: "/checkout", fallback: true, fallback_reason: "yampi_skus_not_linked", error: msg });
           }
           return jsonRes({ error: msg }, 400);
         }
