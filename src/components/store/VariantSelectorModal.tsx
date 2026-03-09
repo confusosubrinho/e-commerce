@@ -6,6 +6,8 @@ import { useCart } from '@/contexts/CartContext';
 import { ShoppingBag, Bell } from 'lucide-react';
 import { StockNotifyModal } from './StockNotifyModal';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getInstallmentDisplay, formatCurrency as fmtCurrency } from '@/lib/pricingEngine';
 
 interface VariantSelectorModalProps {
   product: Product;
@@ -15,6 +17,7 @@ interface VariantSelectorModalProps {
 
 export function VariantSelectorModal({ product, open, onOpenChange }: VariantSelectorModalProps) {
   const { addItem } = useCart();
+  const { data: pricingConfig } = usePricingConfig();
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
@@ -100,6 +103,25 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
               ) : (
                 <span className="font-bold">{formatPrice(currentPrice)}</span>
               )}
+              {pricingConfig && (() => {
+                const hasSale = !!(product.sale_price && product.sale_price < product.base_price);
+                const pixDiscount = pricingConfig.pix_discount || 0;
+                const showPix = pixDiscount > 0 && (!hasSale || pricingConfig.pix_discount_applies_to_sale_products !== false);
+                const pixPrice = showPix ? currentPrice * (1 - pixDiscount / 100) : null;
+                const display = getInstallmentDisplay(currentPrice, pricingConfig, hasSale);
+                return (
+                  <div className="space-y-0.5">
+                    {pixPrice && (
+                      <p className="text-xs text-primary font-medium">
+                        {formatPrice(pixPrice)} no PIX
+                      </p>
+                    )}
+                    {display?.primaryText && (
+                      <p className="text-xs text-muted-foreground">{display.primaryText}</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

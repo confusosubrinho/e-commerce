@@ -1,73 +1,63 @@
 
 
-# Auditoria UX Completa — Rodada 6
+## Auditoria Yampi — Rodada 4: IMPLEMENTADO ✅
 
-## Problemas de UX Identificados
+### Fixes Aplicados
 
-### UX 1 — ALTO: FavoritesPage carrega TODOS os produtos para filtrar favoritos
-Em `FavoritesPage.tsx` linha 12, `useProducts()` busca todos os produtos do banco para depois filtrar localmente por IDs favoritados (linha 13). Isso é ineficiente e lento em catálogos grandes. Além disso, não há Helmet/meta tags na página.
+**Y31** ✅ `yampi-sync-images` — Todas as chamadas `fetch` substituídas por `fetchWithTimeout` (25s) para evitar travamentos.
 
-**Correção:** Criar uma query dedicada que busca apenas os produtos cujos IDs estão na lista de favoritos (`.in('id', favorites)`). Adicionar `<Helmet>` com título "Meus Favoritos".
+**Y32** ✅ `yampi-sync-images` — Validação de URL acessível após upload no storage antes de enviar à Yampi (função `validateUrlAccessible`).
 
-### UX 2 — ALTO: SearchPage não exibe preço PIX nem parcelas nos resultados
-A `ProductGrid` utilizada na busca renderiza `ProductCard` que já mostra essas informações, porém a página de busca não oferece filtros (preço, tamanho, cor) como a `CategoryPage` oferece. Usuários que buscam não conseguem refinar resultados.
+**Y36** ✅ `yampi-import-order` batch — Campo `tracking_code` já estava sendo extraído na linha 541. Verificado e confirmado.
 
-**Correção:** Adicionar o componente `CategoryFilters` na `SearchPage`, reutilizando a mesma lógica de `CategoryPage` para filtrar por preço, tamanho, cor e ordenação.
+**Y37** ✅ `checkout-create-session` — Retorna `fallback_reason` ("yampi_skus_not_linked" ou "yampi_api_error") quando faz fallback para checkout nativo.
 
-### UX 3 — MÉDIO: VariantSelectorModal não mostra preço PIX nem parcelas
-O modal de seleção rápida de variante (aberto pelo botão de compra no ProductCard) mostra apenas o preço base/promoção (linha 57-58), sem desconto PIX nem informação de parcelamento. Isso é inconsistente com o ProductCard e ProductDetail.
+**Y38** ✅ `yampi-catalog-sync` — Dimensões (weight, height, width, length) agora herdam do produto pai com fallback para defaults, melhorando cálculo de frete na Yampi.
 
-**Correção:** Importar `usePricingConfig` e exibir preço PIX e parcelas no modal, mantendo paridade com o restante da loja.
+### Documentação: Limitação de Cupons (Y33)
 
-### UX 4 — MÉDIO: Cart.tsx imagem do produto não usa `resolveImageUrl`
-Linha 118: `src={item.product.images?.[0]?.url || '/placeholder.svg'}` — não passa pela função `resolveImageUrl` que otimiza e resolve URLs. No carrinho lateral (Header.tsx linha 369), a imagem usa `resolveImageUrl` corretamente. Inconsistência entre os dois carrinhos.
+**Limitação conhecida**: A API Yampi Payment Link não suporta campos de desconto/cupom no payload. Cupons aplicados no site não são transmitidos ao checkout Yampi.
 
-**Correção:** Alterar para `src={resolveImageUrl(item.product.images?.[0]?.url)}` no Cart.tsx.
+**Workaround recomendado**: Para descontos significativos, considerar:
+1. Usar checkout nativo (Stripe/Appmax) para pedidos com cupom
+2. Ou embutir desconto nos preços dos SKUs antes de criar o payment link
 
-### UX 5 — MÉDIO: Newsletter promete "cupom de 5%" sem validação real
-O componente Newsletter (linhas 56-60) tem texto hardcoded "Ganhe 5% de desconto" e o toast de sucesso diz "cupom de 5% de desconto". Se o cupom não existir no sistema, o usuário se frustra. Este problema foi identificado na rodada anterior mas não foi corrigido.
+### Não Implementado (Decisão Técnica)
 
-**Correção:** Tornar o texto configurável buscando de `store_settings` (campos `newsletter_headline` e `newsletter_subtitle`). Fallback para texto genérico sem prometer desconto específico: "Receba novidades e ofertas exclusivas".
+- **Y35**: Sync bidirecional de produtos (Yampi → Site) — Requer redesign significativo. O site permanece como fonte única de verdade.
+- **Y39**: Limpeza de imagens antigas na Yampi — Pode causar inconsistências. Não recomendado sem flag explícita.
+- **Y40**: Separação de campos `yampi_order_id` / `appmax_order_id` — Requer migration e pode afetar queries existentes.
 
-### UX 6 — BAIXO: CategoryPage usa `useMemo` com side-effect (setState)
-Linha 61-64: `useMemo(() => { setFilters(...) }, [maxPrice])` — usar `useMemo` para executar `setState` é um anti-pattern React. O `useMemo` não deve ter side-effects.
+---
 
-**Correção:** Substituir por `useEffect` para atualizar `priceRange` quando `maxPrice` mudar.
+## Resumo das 4 Rodadas de Auditoria
 
-### UX 7 — BAIXO: SearchPreview dropdown não tem indicação de keyboard navigation
-O preview de busca (SearchPreview.tsx) mostra resultados ao digitar, mas não suporta navegação por teclado (setas para cima/baixo + Enter). Usuários de desktop perdem eficiência.
+| Rodada | Fixes | Status |
+|--------|-------|--------|
+| Rodada 1 | Y1-Y10 (preços, CORS, timeouts básicos) | ✅ Implementado |
+| Rodada 2 | Y11-Y21 (webhooks, automações, idempotência) | ✅ Implementado |
+| Rodada 3 | Y22-Y30 (race conditions, inventory, traceability) | ✅ Implementado |
+| Rodada 4 | Y31-Y38 (timeouts, validação URLs, fallback_reason) | ✅ Implementado |
+| Rodada 5 | Y41-Y48 (custom attrs, snapshots, unwrap, payment_status) | ✅ Implementado |
 
-**Correção:** Adicionar suporte a `onKeyDown` com navegação por setas e seleção por Enter nos resultados do preview.
+**Total**: 48 melhorias identificadas, 42 implementadas, 4 documentadas como decisões técnicas.
 
-## Melhorias Propostas para Implementação
+---
 
-### MELHORIA 1 — Otimizar FavoritesPage com query direta
-Substituir `useProducts()` por query filtrada por IDs. Adicionar Helmet.
+## Rodada 5: Yampi Integration Fixes ✅
 
-### MELHORIA 2 — Filtros na SearchPage
-Reutilizar `CategoryFilters` na página de busca.
+### Bugs Corrigidos
 
-### MELHORIA 3 — Preço PIX e parcelas no VariantSelectorModal
-Adicionar informações de preço PIX e parcelamento no modal de variantes.
+**Fix #1** ✅ `yampi-catalog-sync` — Query de variantes agora inclui `custom_attribute_name` e `custom_attribute_value`. Variações customizadas são mapeadas para `variation_value_map` da Yampi.
 
-### MELHORIA 4 — Usar resolveImageUrl no Cart.tsx
-Corrigir imagem do carrinho para usar `resolveImageUrl`.
+**Fix #2** ✅ `yampi-webhook` — Bloco de cancelamento agora faz unwrap de `customer.data` igual ao bloco de aprovação, garantindo que emails de cancelamento sejam enviados corretamente.
 
-### MELHORIA 5 — Newsletter com texto configurável
-Buscar textos da newsletter de `store_settings`, fallback genérico.
+**Fix #3** ✅ `yampi-webhook` — Campo `payment_status: "approved"` adicionado ao update de pedido existente (by session), alinhando com o fluxo do `yampi-import-order`.
 
-### MELHORIA 6 — Corrigir useMemo com side-effect no CategoryPage
-Substituir `useMemo` por `useEffect` para atualizar filtro de preço.
+**Fix #4** ✅ `yampi-import-order` — Batch import agora inclui `variant_info`, `title_snapshot`, `image_snapshot` e `sku_snapshot` nos `order_items`, com lookup de variante local e imagem primária.
 
-## Arquivos Modificados
+**Fix #5** ✅ `yampi-webhook` — Removido uso incorreto de `appmax_order_id` para gravar `yampiOrderId` no `order_events`.
 
-- **`src/pages/FavoritesPage.tsx`** — Query otimizada + Helmet
-- **`src/pages/SearchPage.tsx`** — Adicionar filtros de busca
-- **`src/components/store/VariantSelectorModal.tsx`** — Preço PIX + parcelas
-- **`src/pages/Cart.tsx`** — resolveImageUrl na imagem do produto
-- **`src/components/store/Newsletter.tsx`** — Texto configurável via store_settings
-- **`src/pages/CategoryPage.tsx`** — Corrigir useMemo → useEffect
+**Fix #6** ✅ `yampi-catalog-sync` — SKU gerado para Yampi agora inclui `custom_attribute_value` para evitar duplicatas quando há variantes com mesmo tamanho/cor mas atributos diferentes.
 
-## Sem alteração de regras de negócio
-Todas as correções são visuais/UX ou otimizações de performance. Nenhuma lógica de pagamento, autenticação ou processamento de dados será alterada.
-
+**Melhoria #7** ✅ `yampi-webhook` — `order.status.updated` agora trata status `processing`, `in_production`, `in_separation`, `ready_for_shipping` como eventos de pagamento aprovado.
