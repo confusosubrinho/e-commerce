@@ -152,9 +152,9 @@ export function ProductVariantsManager({
     return variants.some((v, i) => i !== excludeIndex && v.sku === sku && sku !== '');
   };
 
-  const checkDuplicateVariant = (size: string, color: string | null, excludeIndex?: number): boolean => {
+  const checkDuplicateVariant = (size: string, color: string | null, customValue?: string | null, excludeIndex?: number): boolean => {
     return variants.some((v, i) => 
-      i !== excludeIndex && v.size === size && (v.color || '') === (color || '')
+      i !== excludeIndex && v.size === size && (v.color || '') === (color || '') && (v.custom_attribute_value || '') === (customValue || '')
     );
   };
 
