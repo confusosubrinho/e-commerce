@@ -52,21 +52,24 @@ export default function Auth() {
     resolver: zodResolver(signupSchema),
   });
 
+  const location = useLocation();
+  const redirectTo = (location.state as any)?.from || new URLSearchParams(location.search).get('redirect') || '/';
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
