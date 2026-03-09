@@ -275,7 +275,61 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Idempotency: skip if payment with same transaction_id already exists
+          // Enrich order_items with variant_info, sku_snapshot, image_snapshot from local DB
+          if (existingItems?.length) {
+            const variantIds = existingItems.map(r => r.product_variant_id).filter(Boolean) as string[];
+            if (variantIds.length) {
+              const { data: variants } = await supabase
+                .from("product_variants")
+                .select("id, size, color, sku, product_id, products(name, image_url)")
+                .in("id", variantIds);
+
+              const variantLookup = new Map<string, { size: string | null; color: string | null; sku: string | null; product_id: string | null; productName: string | null; productImage: string | null }>();
+              for (const v of variants || []) {
+                const prod = v.products as { name?: string; image_url?: string } | null;
+                variantLookup.set(v.id, {
+                  size: v.size ?? null,
+                  color: v.color ?? null,
+                  sku: v.sku ?? null,
+                  product_id: v.product_id ?? null,
+                  productName: prod?.name ?? null,
+                  productImage: prod?.image_url ?? null,
+                });
+              }
+
+              // Fetch primary images
+              const prodIds = [...new Set([...variantLookup.values()].map(v => v.product_id).filter(Boolean))] as string[];
+              const primaryImageMap = new Map<string, string>();
+              if (prodIds.length) {
+                const { data: imgs } = await supabase.from("product_images").select("product_id, url").in("product_id", prodIds).eq("is_primary", true);
+                for (const img of imgs || []) {
+                  if (img.product_id && img.url) primaryImageMap.set(img.product_id, img.url);
+                }
+              }
+
+              for (const row of existingItems) {
+                if (!row.product_variant_id) continue;
+                const vData = variantLookup.get(row.product_variant_id);
+                if (!vData) continue;
+                const variantParts = [vData.size, vData.color].filter(Boolean);
+                const variantInfo = variantParts.join(" / ");
+                const imageSnapshot = vData.product_id ? (primaryImageMap.get(vData.product_id) || vData.productImage || null) : null;
+                const updateFields: Record<string, unknown> = {};
+                if (variantInfo) updateFields.variant_info = variantInfo;
+                if (vData.sku) updateFields.sku_snapshot = vData.sku;
+                if (imageSnapshot) updateFields.image_snapshot = imageSnapshot;
+                if (vData.productName) {
+                  updateFields.title_snapshot = vData.productName;
+                  updateFields.product_name = vData.productName;
+                }
+                if (Object.keys(updateFields).length > 0) {
+                  await supabase.from("order_items").update(updateFields).eq("id", row.id);
+                }
+              }
+              console.log(`[yampi-webhook] Enriched ${existingItems.length} order_items with variant/sku/image data`);
+            }
+          }
+
           const existingPaymentCheck = transactionId
             ? await supabase.from("payments").select("id").eq("order_id", existingBySession.id).eq("transaction_id", transactionId).maybeSingle()
             : { data: null };
