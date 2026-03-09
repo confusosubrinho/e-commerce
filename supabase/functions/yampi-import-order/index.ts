@@ -3,6 +3,7 @@
  * Requer autenticação de admin (JWT).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -128,13 +129,14 @@ Deno.serve(async (req) => {
   let yampiOrder: Record<string, unknown> | null = null;
 
   try {
-    const res = await fetch(searchUrl, {
+    // Y44: Use fetchWithTimeout to prevent indefinite hangs
+    const res = await fetchWithTimeout(searchUrl, {
       headers: {
         "User-Token": userToken2,
         "User-Secret-Key": userSecretKey2,
         Accept: "application/json",
       },
-    });
+    }, 25_000);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -253,6 +255,11 @@ Deno.serve(async (req) => {
   const yampiOrderDate = (yampiOrder.created_at as string) || (yampiOrder.date as string) || (yampiOrder.order_date as string) || (yampiOrder.updated_at as string) || null;
   const yampiCreatedAt = yampiOrderDate ? new Date(yampiOrderDate).toISOString() : null;
 
+  // Y48: Extract coupon code from Yampi order
+  const couponData = (yampiOrder.coupon as Record<string, unknown>) || {};
+  const couponDataInner = (couponData.data as Record<string, unknown>) || couponData;
+  const couponCode = (couponDataInner.code as string) || (yampiOrder.coupon_code as string) || null;
+
   // ── Create order ──
   const { data: order, error: orderErr } = await supabase
     .from("orders")
@@ -282,6 +289,7 @@ Deno.serve(async (req) => {
       external_reference: yId,
       yampi_created_at: yampiCreatedAt,
       yampi_order_number: yampiOrderNumber,
+      coupon_code: couponCode,
       notes: yampiOrderNumber
         ? `Importado da Yampi (Nº ${yampiOrderNumber}, ID ${yId})`
         : `Importado manualmente da Yampi (ID ${yId})`,
@@ -292,6 +300,18 @@ Deno.serve(async (req) => {
   if (orderErr || !order) {
     console.error("[yampi-import] Insert error:", orderErr?.message);
     return jsonRes({ ok: false, error: orderErr?.message || "Erro ao criar pedido" }, 500);
+  }
+
+  // Y48: Increment coupon uses_count if order had a coupon
+  if (couponCode && localStatus !== "cancelled") {
+    const { data: coupon } = await supabase
+      .from("coupons")
+      .select("id")
+      .eq("code", couponCode.toUpperCase())
+      .maybeSingle();
+    if (coupon?.id) {
+      await supabase.rpc("increment_coupon_uses", { p_coupon_id: coupon.id });
+    }
   }
 
   // ── Insert items + debit stock ──
@@ -478,9 +498,10 @@ async function importSingleOrder(
   if (existingBySession) return { ok: false, yampi_order_id: yampiOrderId, error: `Já existe (checkout): ${existingBySession.order_number}`, order_id: existingBySession.id };
 
   const baseUrl = `https://api.dooki.com.br/v2/${alias}`;
-  const res = await fetch(`${baseUrl}/orders?include=items,customer,shipping_address,transactions&q=${encodeURIComponent(yampiOrderId)}&limit=5`, {
+  // Y44: Use fetchWithTimeout for batch import to prevent indefinite hangs
+  const res = await fetchWithTimeout(`${baseUrl}/orders?include=items,customer,shipping_address,transactions&q=${encodeURIComponent(yampiOrderId)}&limit=5`, {
     headers: { "User-Token": userToken, "User-Secret-Key": userSecretKey, Accept: "application/json" },
-  });
+  }, 25_000);
   if (!res.ok) return { ok: false, yampi_order_id: yampiOrderId, error: `Yampi API ${res.status}` };
 
   const json = await res.json();
@@ -529,6 +550,11 @@ async function importSingleOrder(
   const installments = Number(firstTx.installments || yampiOrder.installments || 1);
   const transactionId = (firstTx.transaction_id as string) || (yampiOrder.transaction_id as string) || null;
 
+  // Y48: Extract coupon code from Yampi order (batch)
+  const couponData = (yampiOrder.coupon as Record<string, unknown>) || {};
+  const couponDataInner = (couponData.data as Record<string, unknown>) || couponData;
+  const couponCode = (couponDataInner.code as string) || (yampiOrder.coupon_code as string) || null;
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     order_number: "TEMP", subtotal, total_amount: totalAmount, shipping_cost: shippingCost, discount_amount: discountAmount,
     shipping_name: customerName,
@@ -541,10 +567,23 @@ async function importSingleOrder(
     tracking_code: (yampiOrder.tracking_code as string) || null,
     shipping_method: (yampiOrder.shipping_option_name as string) || ((yampiOrder.shipping_option as Record<string, unknown>)?.name as string) || null,
     yampi_created_at: (yampiOrder.created_at as string) ? new Date(yampiOrder.created_at as string).toISOString() : null,
+    coupon_code: couponCode,
     notes: `Importado batch da Yampi (ID ${yId})`,
   } as Record<string, unknown>).select("id, order_number").single();
 
   if (orderErr || !order) return { ok: false, yampi_order_id: yampiOrderId, error: orderErr?.message || "Erro insert" };
+
+  // Y48: Increment coupon uses_count if order had a coupon (batch)
+  if (couponCode && localStatus !== "cancelled") {
+    const { data: coupon } = await supabase
+      .from("coupons")
+      .select("id")
+      .eq("code", couponCode.toUpperCase())
+      .maybeSingle();
+    if (coupon?.id) {
+      await supabase.rpc("increment_coupon_uses", { p_coupon_id: coupon.id });
+    }
+  }
 
   // Insert items
   const yampiItems = ((yampiOrder.items as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.items as unknown[]) || [];
