@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 
 export default function CheckoutStart() {
   const navigate = useNavigate();
-  const { items, subtotal, discount, selectedShipping, clearCart, appliedCoupon, cartId, shippingZip } = useCart();
+  const { items, subtotal, discount, total, selectedShipping, clearCart, appliedCoupon, cartId, shippingZip } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
   const hasStartedCheckout = useRef(false);
@@ -21,7 +21,8 @@ export default function CheckoutStart() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price);
 
   const shippingCost = selectedShipping?.price ?? 0;
-  const totalValue = subtotal - discount + shippingCost;
+  // Use total from CartContext (single source of truth) instead of recalculating locally
+  const totalValue = total;
 
   useEffect(() => {
     captureAttribution();
