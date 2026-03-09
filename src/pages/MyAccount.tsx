@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { User, Package, MapPin, LogOut, ChevronDown, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import { lookupCEP, formatPhone } from '@/lib/validators';
+import { lookupCEP, formatPhone, formatCEP } from '@/lib/validators';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User as SupaUser } from '@supabase/supabase-js';
 
