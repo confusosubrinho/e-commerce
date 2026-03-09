@@ -289,6 +289,7 @@ Deno.serve(async (req) => {
       external_reference: yId,
       yampi_created_at: yampiCreatedAt,
       yampi_order_number: yampiOrderNumber,
+      coupon_code: couponCode,
       notes: yampiOrderNumber
         ? `Importado da Yampi (Nº ${yampiOrderNumber}, ID ${yId})`
         : `Importado manualmente da Yampi (ID ${yId})`,
@@ -299,6 +300,18 @@ Deno.serve(async (req) => {
   if (orderErr || !order) {
     console.error("[yampi-import] Insert error:", orderErr?.message);
     return jsonRes({ ok: false, error: orderErr?.message || "Erro ao criar pedido" }, 500);
+  }
+
+  // Y48: Increment coupon uses_count if order had a coupon
+  if (couponCode && localStatus !== "cancelled") {
+    const { data: coupon } = await supabase
+      .from("coupons")
+      .select("id")
+      .eq("code", couponCode.toUpperCase())
+      .maybeSingle();
+    if (coupon?.id) {
+      await supabase.rpc("increment_coupon_uses", { p_coupon_id: coupon.id });
+    }
   }
 
   // ── Insert items + debit stock ──
