@@ -53,6 +53,7 @@ export default function ProductDetail() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedCustomAttr, setSelectedCustomAttr] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   const [showNotifyModal, setShowNotifyModal] = useState(false);
