@@ -707,21 +707,38 @@ export default function ProductDetail() {
               </button>
             </div>
             {images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    type="button"
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
-                      index === selectedImage ? 'border-primary' : 'border-transparent'
-                    } focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer`}
-                    aria-label={`Ver imagem ${index + 1}`}
-                  >
-                    <img src={resolveImageUrl(image.url)} alt={`${product.name} - ${index + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Pagination dots for mobile */}
+                <div className="flex justify-center gap-1.5 md:hidden py-2">
+                  {images.map((_, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => setSelectedImage(index)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        index === selectedImage ? 'bg-primary w-4' : 'bg-muted-foreground/30'
+                      }`}
+                      aria-label={`Imagem ${index + 1}`}
+                    />
+                  ))}
+                </div>
+                {/* Thumbnail strip for desktop */}
+                <div className="hidden md:flex gap-2 overflow-x-auto pb-2">
+                  {images.map((image, index) => (
+                    <button
+                      key={image.id}
+                      type="button"
+                      onClick={() => setSelectedImage(index)}
+                      className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors ${
+                        index === selectedImage ? 'border-primary' : 'border-transparent'
+                      } focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer`}
+                      aria-label={`Ver imagem ${index + 1}`}
+                    >
+                      <img src={resolveImageUrl(image.url)} alt={`${product.name} - ${index + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
             {images.length > 0 && (
               <ProductImageLightbox

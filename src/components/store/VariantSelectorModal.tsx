@@ -68,6 +68,10 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
   const handleAdd = () => {
     if (!selectedVariant) return;
     addItem(product, selectedVariant, 1);
+    toast({
+      title: '✓ Adicionado ao carrinho',
+      description: `${product.name} — Tam. ${selectedVariant.size}${selectedVariant.color ? ' - ' + selectedVariant.color : ''}`,
+    });
     onOpenChange(false);
     setSelectedVariant(null);
     setSelectedColor(null);

@@ -164,7 +164,7 @@ export default function Auth() {
       <Helmet><title>Entrar | Vanessa Lima Shoes</title></Helmet>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src={logo} alt="Vanessa Lima Shoes" className="h-12 mx-auto mb-4" />
+          <img src={logoUrl} alt="Vanessa Lima Shoes" className="h-12 mx-auto mb-4" />
           <CardTitle>Bem-vinda!</CardTitle>
           <CardDescription>Entre ou crie sua conta</CardDescription>
         </CardHeader>

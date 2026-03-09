@@ -298,6 +298,35 @@ export default function Cart() {
           </div>
         </div>
       </div>
+
+      {/* Mobile fixed bottom bar */}
+      {isMobile && items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 z-50 flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">{items.length} {items.length === 1 ? 'item' : 'itens'}</span>
+            <span className="text-lg font-bold">{formatPrice(total)}</span>
+          </div>
+          {selectedShipping ? (
+            <Pressable asChild feedbackPattern="selection">
+              <Button size="lg" className="flex-1 max-w-[200px]" asChild>
+                <Link to={checkoutHref}>Finalizar Compra</Link>
+              </Button>
+            </Pressable>
+          ) : (
+            <Button
+              size="lg"
+              variant="secondary"
+              className="flex-1 max-w-[200px]"
+              onClick={() => {
+                document.getElementById('shipping-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+            >
+              Calcule o frete
+            </Button>
+          )}
+        </div>
+      )}
+      </div>
     </StoreLayout>
   );
 }
