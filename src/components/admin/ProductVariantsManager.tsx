@@ -223,7 +223,7 @@ export function ProductVariantsManager({
         ...updated[index],
         color: color.name,
         color_hex: color.hex,
-        sku: generateSku(parentSku, updated[index].size, color.name),
+        sku: generateSku(parentSku, updated[index].size, color.name, updated[index].custom_attribute_value),
       };
       onChange(updated);
     }
