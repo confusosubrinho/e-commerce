@@ -6,6 +6,8 @@ import { useCart } from '@/contexts/CartContext';
 import { ShoppingBag, Bell } from 'lucide-react';
 import { StockNotifyModal } from './StockNotifyModal';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
+import { getInstallmentDisplay, formatCurrency as fmtCurrency } from '@/lib/pricingEngine';
 
 interface VariantSelectorModalProps {
   product: Product;
