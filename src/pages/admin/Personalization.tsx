@@ -532,8 +532,8 @@ function InstagramVideosSection() {
                           <AlertDialogDescription>O vídeo {video.username ? `de @${video.username}` : ''} será excluído permanentemente.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteMutation.mutate(video.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+                          <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(video.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
