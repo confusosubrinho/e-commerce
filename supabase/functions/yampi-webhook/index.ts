@@ -702,7 +702,7 @@ Deno.serve(async (req) => {
       }
 
       if (existingOrder) {
-        await supabase.from("orders").update({ status: "delivered" }).eq("id", existingOrder.id);
+        await supabase.from("orders").update({ status: "delivered", payment_status: "approved" } as Record<string, unknown>).eq("id", existingOrder.id);
         await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: deliveredHash, payload });
         console.log("[yampi-webhook] Order delivered:", existingOrder.id);
       }
