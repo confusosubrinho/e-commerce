@@ -143,7 +143,9 @@ export function ProductVariantsManager({
   const [bulkStock, setBulkStock] = useState('10');
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [customColors, setCustomColors] = useState<{ name: string; hex: string }[]>([]);
-
+  // Custom attribute for bulk add
+  const [bulkCustomAttrName, setBulkCustomAttrName] = useState('');
+  const [bulkCustomAttrValues, setBulkCustomAttrValues] = useState('');
   const allColors = useMemo(() => [...COMMON_COLORS, ...customColors], [customColors]);
 
   const checkDuplicateSku = (sku: string, excludeIndex?: number): boolean => {
