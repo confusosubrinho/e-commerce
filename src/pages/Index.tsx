@@ -14,6 +14,7 @@ const InstagramFeed = lazy(() => import('@/components/store/InstagramFeed').then
 const ShopBySize = lazy(() => import('@/components/store/ShopBySize').then(m => ({ default: m.ShopBySize })));
 const Newsletter = lazy(() => import('@/components/store/Newsletter').then(m => ({ default: m.Newsletter })));
 const CustomerTestimonials = lazy(() => import('@/components/store/CustomerTestimonials').then(m => ({ default: m.CustomerTestimonials })));
+const BlogSection = lazy(() => import('@/components/store/BlogSection').then(m => ({ default: m.BlogSection })));
 
 const SectionFallback = () => <div className="py-12" />;
 
