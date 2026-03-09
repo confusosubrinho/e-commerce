@@ -99,14 +99,26 @@ async function convertAndUploadAsPng(
   // Decode for storage path
   const decodedPath = decodeURIComponent(relativePath);
   const pngPath = `yampi-converted/${productId}/${imageIndex}.png`;
+  const jpgPath = `yampi-converted/${productId}/${imageIndex}.jpg`;
 
-  // Check if PNG already exists
+  // Limpar cache antigo com extensão .jpg que pode conter bytes WebP corrompidos
+  try {
+    await supabase.storage.from("product-media").remove([jpgPath]);
+  } catch { /* ignore */ }
+
+  // Check if PNG already exists (cache válido)
   const pngPublicUrl = `${supabaseUrl}/storage/v1/object/public/product-media/${pngPath}`;
   try {
     const check = await fetchWithTimeout(pngPublicUrl, { method: "HEAD", redirect: "follow" }, 10_000);
     if (check.status === 200) {
-      console.log(`[YAMPI-IMG] PNG cache hit: ${pngPath}`);
-      return pngPublicUrl;
+      // Verificar que o content-type é realmente PNG/JPEG
+      const ct = check.headers.get("content-type") || "";
+      if (ct.includes("png") || ct.includes("jpeg") || ct.includes("jpg")) {
+        console.log(`[YAMPI-IMG] PNG cache hit (verified ${ct}): ${pngPath}`);
+        return pngPublicUrl;
+      }
+      console.warn(`[YAMPI-IMG] Cache hit but wrong content-type "${ct}", re-converting`);
+      await supabase.storage.from("product-media").remove([pngPath]);
     }
   } catch { /* continue */ }
 
@@ -143,36 +155,43 @@ async function convertAndUploadAsPng(
     return null;
   }
 
-  // For WebP: conversão real via Supabase Image Transformation (Pro+).
-  // Pedir JPEG via Accept para a Yampi aceitar (sem format=origin para permitir conversão).
-  const renderUrl = `${supabaseUrl}/storage/v1/render/image/public/product-media/${relativePath}?width=1200&quality=85`;
+  // Para WebP: conversão real via Supabase Image Transformation (Pro+).
+  // Usar format=jpeg explicitamente para garantir conversão real.
+  const renderUrl = `${supabaseUrl}/storage/v1/render/image/public/product-media/${relativePath}?width=1200&quality=85&format=jpeg`;
   try {
     const renderRes = await fetchWithTimeout(renderUrl, {
-      headers: { Accept: "image/jpeg, image/png;q=0.9" },
+      headers: { Accept: "image/jpeg" },
       redirect: "follow",
     }, 25_000);
     if (renderRes.ok) {
       const renderType = renderRes.headers.get("content-type") || "";
       const renderBytes = new Uint8Array(await renderRes.arrayBuffer());
-      const ext = renderType.includes("png") ? "png" : "jpg";
-      const renderPath = `yampi-converted/${productId}/${imageIndex}.${ext}`;
-      const { error } = await supabase.storage.from("product-media").upload(renderPath, renderBytes, {
-        contentType: renderType || "image/jpeg",
-        upsert: true,
-      });
-      if (!error) {
-        const { data: urlData } = supabase.storage.from("product-media").getPublicUrl(renderPath);
-        const uploadedUrl = urlData?.publicUrl || null;
-        
-        // Y32: Validate uploaded URL is accessible
-        if (uploadedUrl && await validateUrlAccessible(uploadedUrl)) {
-          console.log(`[YAMPI-IMG] Converted via render: ${uploadedUrl}`);
-          return uploadedUrl;
+
+      // Verificar se a conversão foi REAL — o content-type deve ser JPEG/PNG, não WebP
+      const isRealConversion = renderType.includes("jpeg") || renderType.includes("jpg") || renderType.includes("png");
+      if (!isRealConversion) {
+        console.warn(`[YAMPI-IMG] Render returned content-type "${renderType}" instead of JPEG — conversion not real, skipping to fallback`);
+      } else {
+        const ext = renderType.includes("png") ? "png" : "jpg";
+        const renderPath = `yampi-converted/${productId}/${imageIndex}.${ext}`;
+        const { error } = await supabase.storage.from("product-media").upload(renderPath, renderBytes, {
+          contentType: renderType,
+          upsert: true,
+        });
+        if (!error) {
+          const { data: urlData } = supabase.storage.from("product-media").getPublicUrl(renderPath);
+          const uploadedUrl = urlData?.publicUrl || null;
+          
+          // Y32: Validate uploaded URL is accessible
+          if (uploadedUrl && await validateUrlAccessible(uploadedUrl)) {
+            console.log(`[YAMPI-IMG] Converted via render (real JPEG): ${uploadedUrl}`);
+            return uploadedUrl;
+          }
+          console.warn(`[YAMPI-IMG] Rendered URL not accessible: ${uploadedUrl}`);
+          return null;
         }
-        console.warn(`[YAMPI-IMG] Rendered URL not accessible: ${uploadedUrl}`);
-        return null;
+        console.error(`[YAMPI-IMG] Upload rendered failed: ${error.message}`);
       }
-      console.error(`[YAMPI-IMG] Upload rendered failed: ${error.message}`);
     } else {
       console.warn(`[YAMPI-IMG] Render returned ${renderRes.status} (Image Transformation pode exigir plano Pro)`);
     }
@@ -180,11 +199,11 @@ async function convertAndUploadAsPng(
     console.warn(`[YAMPI-IMG] Render endpoint unavailable: ${(e as Error).message}`);
   }
 
-  // Fallback sem conversão real: enviar WebP com extensão .jpg não altera os bytes.
-  // A Yampi pode rejeitar. Recomenda-se plano Pro para Image Transformation.
-  const fallbackPath = `yampi-converted/${productId}/${imageIndex}.jpg`;
+  // Fallback HONESTO: enviar WebP com content-type e extensão REAIS.
+  // Não mentir sobre o formato — a Yampi pode processar WebP ou rejeitar explicitamente.
+  const fallbackPath = `yampi-converted/${productId}/${imageIndex}.webp`;
   const { error: fbErr } = await supabase.storage.from("product-media").upload(fallbackPath, originalBytes, {
-    contentType: "image/jpeg",
+    contentType: "image/webp",
     upsert: true,
   });
   if (fbErr) {
@@ -196,7 +215,7 @@ async function convertAndUploadAsPng(
   
   // Y32: Validate fallback URL is accessible
   if (fallbackUrl && await validateUrlAccessible(fallbackUrl)) {
-    console.log(`[YAMPI-IMG] Fallback (webp-as-jpg): ${fallbackUrl}`);
+    console.warn(`[YAMPI-IMG] Fallback (webp honest, no conversion): ${fallbackUrl} — Image Transformation (plano Pro) recomendado para conversão real WebP→JPEG`);
     return fallbackUrl;
   }
   console.warn(`[YAMPI-IMG] Fallback URL not accessible: ${fallbackUrl}`);
