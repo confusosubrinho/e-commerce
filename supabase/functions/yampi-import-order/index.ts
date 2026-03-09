@@ -166,9 +166,10 @@ Deno.serve(async (req) => {
   const customer = (yampiOrder.customer as Record<string, unknown>) || {};
   const customerData = (customer.data as Record<string, unknown>) || customer;
   const customerEmail = (customerData.email as string) || null;
-  const firstName = (customerData.first_name as string) || "";
-  const lastName = (customerData.last_name as string) || "";
-  const customerName = `${firstName} ${lastName}`.trim() || "Cliente Yampi";
+  // Fix #3: Prioritize 'name' field over first_name/last_name (consistent with webhook and batch)
+  const customerName = (customerData.name as string)?.trim()
+    || ((customerData.first_name as string) ? `${(customerData.first_name as string).trim()} ${((customerData.last_name as string) || "").trim()}`.trim() : null)
+    || "Cliente Yampi";
   const customerPhone = ((customerData.phone as Record<string, unknown>)?.full_number as string) || (customerData.phone as string) || null;
   const customerCpf = (customerData.cpf as string) || (customerData.cnpj as string) || null;
 
