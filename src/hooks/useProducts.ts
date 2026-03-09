@@ -210,7 +210,7 @@ export function useProduct(slug: string) {
       refetchOnMount: false,
       queryFn: async () => {
         const { data, error } = await supabase
-          .from('store_settings')
+          .from('store_settings_public')
           .select('*')
           .limit(1)
           .maybeSingle();
