@@ -260,18 +260,23 @@ export function ProductVariantsManager({
   const handleBulkAdd = () => {
     if (!bulkSizes.trim()) return;
     const sizes = bulkSizes.split(',').map(s => s.trim()).filter(Boolean);
+    const customValues = bulkCustomAttrValues.trim()
+      ? bulkCustomAttrValues.split(',').map(v => v.trim()).filter(Boolean)
+      : [''];
 
-    // Validate duplicate variants by size+color BEFORE creating
-    const duplicateSizes: string[] = [];
+    // Validate duplicate variants by size+color+custom BEFORE creating
+    const duplicateCombos: string[] = [];
     for (const size of sizes) {
-      if (variants.some(v => v.size === size && (v.color || '') === (bulkColor || ''))) {
-        duplicateSizes.push(size);
+      for (const customVal of customValues) {
+        if (variants.some(v => v.size === size && (v.color || '') === (bulkColor || '') && (v.custom_attribute_value || '') === (customVal || ''))) {
+          duplicateCombos.push(`${size}${bulkColor ? '-' + bulkColor : ''}${customVal ? '-' + customVal : ''}`);
+        }
       }
     }
-    if (duplicateSizes.length > 0) {
+    if (duplicateCombos.length > 0) {
       toast({
         title: 'Variantes duplicadas',
-        description: `Já existem variantes para: ${duplicateSizes.join(', ')}${bulkColor ? ' na cor ' + bulkColor : ''}`,
+        description: `Já existem variantes para: ${duplicateCombos.slice(0, 3).join(', ')}${duplicateCombos.length > 3 ? '...' : ''}`,
         variant: 'destructive',
       });
       return;
@@ -283,24 +288,29 @@ export function ProductVariantsManager({
       return;
     }
 
-    const newVariants: VariantItem[] = sizes.map(size => {
-      const sku = generateSku(parentSku, size, bulkColor);
-      return {
-        size,
-        color: bulkColor,
-        color_hex: bulkColorHex,
-        stock_quantity: stockValue,
-        price_modifier: 0,
-        sku,
-        is_active: true,
-        weight: parentWeight,
-        width: parentWidth,
-        height: parentHeight,
-        depth: parentDepth,
-        base_price: parentBasePrice,
-        sale_price: parentSalePrice,
-      };
-    });
+    const newVariants: VariantItem[] = [];
+    for (const size of sizes) {
+      for (const customVal of customValues) {
+        const sku = generateSku(parentSku, size, bulkColor, customVal || undefined);
+        newVariants.push({
+          size,
+          color: bulkColor,
+          color_hex: bulkColorHex,
+          stock_quantity: stockValue,
+          price_modifier: 0,
+          sku,
+          is_active: true,
+          weight: parentWeight,
+          width: parentWidth,
+          height: parentHeight,
+          depth: parentDepth,
+          base_price: parentBasePrice,
+          sale_price: parentSalePrice,
+          custom_attribute_name: bulkCustomAttrName.trim() || undefined,
+          custom_attribute_value: customVal || undefined,
+        });
+      }
+    }
 
     // Check for SKU duplicates
     const allSkus = [...variants.map(v => v.sku), ...newVariants.map(v => v.sku)];
@@ -312,6 +322,8 @@ export function ProductVariantsManager({
 
     onChange([...variants, ...newVariants]);
     setBulkSizes('');
+    setBulkCustomAttrName('');
+    setBulkCustomAttrValues('');
     toast({ title: `${newVariants.length} variante(s) adicionada(s)` });
   };
 
