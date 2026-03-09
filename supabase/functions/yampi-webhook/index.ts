@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
               raw: payload,
             });
           }
-          await supabase.from("abandoned_carts").update({ recovered: true, recovered_at: new Date().toISOString() }).eq("session_id", sessionId);
+          if (reconciledSessionId) await supabase.from("abandoned_carts").update({ recovered: true, recovered_at: new Date().toISOString() }).eq("session_id", reconciledSessionId);
           if (customerEmail) {
             const { data: existingCustomer } = await supabase.from("customers").select("id, total_orders, total_spent").eq("email", customerEmail).maybeSingle();
             if (existingCustomer) {
