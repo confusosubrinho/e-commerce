@@ -30,6 +30,7 @@ interface SecuritySeal {
 
 export function Footer() {
   const { data: contact } = useStoreContact();
+  const { data: blogSettings } = useBlogSettings();
   const storeName = contact?.store_name || 'Loja';
   const logoFromSettings = contact?.header_logo_url || contact?.logo_url;
   const logoSrc =
