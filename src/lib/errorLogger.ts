@@ -18,6 +18,21 @@ type ErrorLogInsert = Database['public']['Tables']['error_logs']['Insert'];
 
 // In-memory buffer for rate limiting
 const recentErrors = new Map<string, number>();
+const MAX_RECENT_ERRORS = 200;
+
+function pruneRecentErrors() {
+  if (recentErrors.size <= MAX_RECENT_ERRORS) return;
+  const now = Date.now();
+  for (const [key, ts] of recentErrors) {
+    if (now - ts > RATE_LIMIT_MS) recentErrors.delete(key);
+  }
+  // If still over limit after pruning expired, remove oldest entries
+  if (recentErrors.size > MAX_RECENT_ERRORS) {
+    const entries = [...recentErrors.entries()].sort((a, b) => a[1] - b[1]);
+    const toRemove = entries.slice(0, entries.length - MAX_RECENT_ERRORS);
+    for (const [key] of toRemove) recentErrors.delete(key);
+  }
+}
 const RATE_LIMIT_MS = 5000; // Don't log same error more than once per 5s
 
 export async function logError(params: LogErrorParams) {
@@ -35,6 +50,7 @@ export async function logError(params: LogErrorParams) {
   const lastLogged = recentErrors.get(errorKey);
   if (lastLogged && Date.now() - lastLogged < RATE_LIMIT_MS) return;
   recentErrors.set(errorKey, Date.now());
+  pruneRecentErrors();
 
   // Always log via central logger
   if (severity === 'critical' || severity === 'error') {

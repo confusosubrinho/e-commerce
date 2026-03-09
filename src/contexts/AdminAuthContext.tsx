@@ -3,7 +3,7 @@
  * Componentes do admin podem chamar onSessionExpired() ao receber 401/403 para
  * limpar cache, fazer logout e redirecionar para /admin/login.
  */
-import { createContext, useContext, useCallback, useEffect } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,9 +26,13 @@ export function AdminAuthProvider({
   children: React.ReactNode;
   onSessionExpired: (message?: string) => void;
 }) {
+  // Ref estável para evitar recriar o wrapper de fetch a cada render
+  const onSessionExpiredRef = useRef(onSessionExpired);
+  useEffect(() => { onSessionExpiredRef.current = onSessionExpired; }, [onSessionExpired]);
+
   const value: AdminAuthContextValue = { onSessionExpired };
 
-  // Watchdog global para capturar erros 401/403 em requisições
+  // Watchdog global para capturar erros 401/403 em requisições — montado apenas uma vez
   useEffect(() => {
     const originalFetch = window.fetch;
 
@@ -47,7 +51,7 @@ export function AdminAuthProvider({
           const isAuthEndpoint = url.includes('/auth/v1/');
 
           if (isSupabaseRequest && !isAuthEndpoint) {
-            onSessionExpired('Sessão expirada ou acesso negado. Faça login novamente.');
+            onSessionExpiredRef.current('Sessão expirada ou acesso negado. Faça login novamente.');
           }
         }
 
@@ -60,7 +64,8 @@ export function AdminAuthProvider({
     return () => {
       window.fetch = originalFetch;
     };
-  }, [onSessionExpired]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <AdminAuthContext.Provider value={value}>

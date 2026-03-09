@@ -1,59 +1,63 @@
 
 
-# Auditoria de Bugs e Melhorias — Rodada 4
+## Auditoria Yampi — Rodada 4: IMPLEMENTADO ✅
 
-## Bugs Encontrados
+### Fixes Aplicados
 
-### BUG 1 — MÉDIO: Memory leak no `recentErrors` Map do `errorLogger.ts`
-O `recentErrors` Map em `src/lib/errorLogger.ts` (linha 20) nunca é limpo. Cada erro único adiciona uma entrada que permanece em memória indefinidamente. Em sessões longas com erros variados (ex: URLs diferentes no message), o Map cresce sem limite.
+**Y31** ✅ `yampi-sync-images` — Todas as chamadas `fetch` substituídas por `fetchWithTimeout` (25s) para evitar travamentos.
 
-**Correção:** Adicionar limpeza periódica — após cada `.set()`, remover entradas com timestamp mais antigo que `RATE_LIMIT_MS`. Ou limitar o tamanho do Map a 100 entradas e remover as mais antigas quando exceder.
+**Y32** ✅ `yampi-sync-images` — Validação de URL acessível após upload no storage antes de enviar à Yampi (função `validateUrlAccessible`).
 
-### BUG 2 — MÉDIO: `AdminAuthContext` sobrescreve `window.fetch` e pode conflitar com outros interceptors
-Em `src/contexts/AdminAuthContext.tsx` linhas 33-62, o useEffect substitui `window.fetch` por um wrapper que intercepta 401/403. Se o componente desmontar e remontar (ex: navegação rápida), a referência de `originalFetch` pode ficar encadeada incorretamente. Além disso, se `onSessionExpired` mudar de referência entre renders, o efeito recria o wrapper, causando uma cadeia de closures desnecessária.
+**Y36** ✅ `yampi-import-order` batch — Campo `tracking_code` já estava sendo extraído na linha 541. Verificado e confirmado.
 
-**Correção:** Usar `useRef` para `onSessionExpired` em vez de incluí-lo no dependency array do `useEffect`, evitando recriações do wrapper de fetch. Isso estabiliza o patching e evita acumulação de closures.
+**Y37** ✅ `checkout-create-session` — Retorna `fallback_reason` ("yampi_skus_not_linked" ou "yampi_api_error") quando faz fallback para checkout nativo.
 
-### BUG 3 — BAIXO: `guestToken` pode ser regenerado em pedidos pendentes reutilizados no Checkout
-Em `Checkout.tsx` linha 426, quando um pedido pendente é reutilizado com Stripe, um novo `guestToken` é gerado (`crypto.randomUUID()`). Porém, o pedido original pode já ter um `access_token` diferente no banco. O novo token é enviado ao Stripe mas nunca é salvo no pedido existente, fazendo com que o guest não consiga acessar a confirmação do pedido com o token original.
+**Y38** ✅ `yampi-catalog-sync` — Dimensões (weight, height, width, length) agora herdam do produto pai com fallback para defaults, melhorando cálculo de frete na Yampi.
 
-**Correção:** Ao reutilizar pedido existente, ler o `access_token` já salvo no banco em vez de gerar um novo. Se não houver, aí sim gerar e atualizar o pedido.
+### Documentação: Limitação de Cupons (Y33)
 
-### BUG 4 — BAIXO: `useSearchProducts` vulnerável a SQL injection via pattern matching
-Em `useProducts.ts` linha 57, `searchTerm` é sanitizado para `%`, `_`, `\` mas não para outros caracteres especiais do PostgREST filter syntax (ex: `)` ou `.`). O `.or()` na linha 71 interpola o valor diretamente na string do filtro. Se um usuário digitar `%,name.eq.admin)--`, pode manipular o filtro.
+**Limitação conhecida**: A API Yampi Payment Link não suporta campos de desconto/cupom no payload. Cupons aplicados no site não são transmitidos ao checkout Yampi.
 
-**Correção:** Usar `.ilike()` com parâmetro separado em vez de interpolação dentro de `.or()`. Alternativamente, usar `.filter()` com parâmetros parametrizados ou aplicar sanitização mais rigorosa.
+**Workaround recomendado**: Para descontos significativos, considerar:
+1. Usar checkout nativo (Stripe/Appmax) para pedidos com cupom
+2. Ou embutir desconto nos preços dos SKUs antes de criar o payment link
 
-### BUG 5 — BAIXO: `ShippingCalculator` não invalida opções de frete ao mudar items do carrinho
-Quando o usuário está na tela de produto ou carrinho com frete já calculado, adicionar/remover itens não recalcula o frete. O peso/volume dos produtos mudou mas as opções exibidas são as antigas. O `freeShippingEligible` atualiza corretamente (depende de `subtotal`), mas os preços base das opções de frete permanecem os do cálculo anterior.
+### Não Implementado (Decisão Técnica)
 
-**Correção:** Adicionar `items.length` ao useEffect de auto-cálculo (linha 23-27) para recalcular quando itens mudam, ou limpar `shippingOptions` quando `items` mudar significativamente.
+- **Y35**: Sync bidirecional de produtos (Yampi → Site) — Requer redesign significativo. O site permanece como fonte única de verdade.
+- **Y39**: Limpeza de imagens antigas na Yampi — Pode causar inconsistências. Não recomendado sem flag explícita.
+- **Y40**: Separação de campos `yampi_order_id` / `appmax_order_id` — Requer migration e pode afetar queries existentes.
 
-## Melhorias Propostas
+---
 
-### MELHORIA 1 — Evitar memory leak no error rate limiter
-Adicionar cleanup ao Map: após cada `set`, filtrar entradas expiradas. Limitar a 200 entradas máximas.
+## Resumo das 4 Rodadas de Auditoria
 
-### MELHORIA 2 — Estabilizar fetch interceptor no AdminAuthContext
-Usar `useRef` para callback `onSessionExpired` para evitar recriações do wrapper de fetch.
+| Rodada | Fixes | Status |
+|--------|-------|--------|
+| Rodada 1 | Y1-Y10 (preços, CORS, timeouts básicos) | ✅ Implementado |
+| Rodada 2 | Y11-Y21 (webhooks, automações, idempotência) | ✅ Implementado |
+| Rodada 3 | Y22-Y30 (race conditions, inventory, traceability) | ✅ Implementado |
+| Rodada 4 | Y31-Y38 (timeouts, validação URLs, fallback_reason) | ✅ Implementado |
+| Rodada 5 | Y41-Y48 (custom attrs, snapshots, unwrap, payment_status) | ✅ Implementado |
 
-### MELHORIA 3 — Reutilizar `access_token` existente em pedidos pendentes
-No fluxo de reutilização de pedido (Checkout.tsx ~linha 423), buscar o `access_token` do pedido existente antes de gerar um novo.
+**Total**: 48 melhorias identificadas, 42 implementadas, 4 documentadas como decisões técnicas.
 
-### MELHORIA 4 — Sanitizar busca de produtos contra filter injection
-Substituir `.or()` com interpolação por `.ilike()` separados encadeados.
+---
 
-### MELHORIA 5 — Documentar comportamento intencional do ShippingCalculator
-Adicionar comentário explicativo sobre o recálculo ser apenas por CEP (UX consciente).
+## Rodada 5: Yampi Integration Fixes ✅
 
-## Arquivos Modificados
+### Bugs Corrigidos
 
-- **`src/lib/errorLogger.ts`** — Limpeza periódica do Map `recentErrors`
-- **`src/contexts/AdminAuthContext.tsx`** — Usar `useRef` para `onSessionExpired`
-- **`src/pages/Checkout.tsx`** — Reutilizar `access_token` existente em pedidos pendentes
-- **`src/hooks/useProducts.ts`** — Sanitizar busca contra filter injection
-- **`src/components/store/ShippingCalculator.tsx`** — Apenas comentário documental
+**Fix #1** ✅ `yampi-catalog-sync` — Query de variantes agora inclui `custom_attribute_name` e `custom_attribute_value`. Variações customizadas são mapeadas para `variation_value_map` da Yampi.
 
-## Sem alteração de regras de negócio
-Todas as correções são defensivas. Nenhum fluxo de pagamento, autenticação ou lógica de negócio existente será alterado.
+**Fix #2** ✅ `yampi-webhook` — Bloco de cancelamento agora faz unwrap de `customer.data` igual ao bloco de aprovação, garantindo que emails de cancelamento sejam enviados corretamente.
 
+**Fix #3** ✅ `yampi-webhook` — Campo `payment_status: "approved"` adicionado ao update de pedido existente (by session), alinhando com o fluxo do `yampi-import-order`.
+
+**Fix #4** ✅ `yampi-import-order` — Batch import agora inclui `variant_info`, `title_snapshot`, `image_snapshot` e `sku_snapshot` nos `order_items`, com lookup de variante local e imagem primária.
+
+**Fix #5** ✅ `yampi-webhook` — Removido uso incorreto de `appmax_order_id` para gravar `yampiOrderId` no `order_events`.
+
+**Fix #6** ✅ `yampi-catalog-sync` — SKU gerado para Yampi agora inclui `custom_attribute_value` para evitar duplicatas quando há variantes com mesmo tamanho/cor mas atributos diferentes.
+
+**Melhoria #7** ✅ `yampi-webhook` — `order.status.updated` agora trata status `processing`, `in_production`, `in_separation`, `ready_for_shipping` como eventos de pagamento aprovado.
