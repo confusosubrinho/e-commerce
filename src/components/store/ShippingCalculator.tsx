@@ -152,7 +152,7 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
               return (
                 <button
                   key={option.name}
-                  onClick={() => setSelectedShipping({ ...option, price: finalPrice })}
+                  onClick={() => setSelectedShipping({ id: option.id || option.name, ...option, price: finalPrice })}
                   className={`w-full p-3 rounded-lg border text-left transition-colors ${
                     isSelected 
                       ? 'border-primary bg-primary/5' 
