@@ -3,7 +3,7 @@
  * Componentes do admin podem chamar onSessionExpired() ao receber 401/403 para
  * limpar cache, fazer logout e redirecionar para /admin/login.
  */
-import { createContext, useContext, useCallback, useEffect } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
