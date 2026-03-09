@@ -92,11 +92,16 @@ Deno.serve(async (req) => {
       if (yampiOrderId) {
         const { data: existingOrder } = await supabase
           .from("orders")
-          .select("id, order_number")
+          .select("id, order_number, status")
           .eq("external_reference", yampiOrderId)
           .maybeSingle();
 
         if (existingOrder) {
+          // Bug fix #4: If order already processing/shipped/delivered, skip re-processing
+          if (["processing", "shipped", "delivered"].includes(existingOrder.status)) {
+            console.log("[yampi-webhook] Order already exists with status", existingOrder.status, "— skipping re-processing:", existingOrder.id);
+            return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true, status: existingOrder.status });
+          }
           console.log("[yampi-webhook] Order already exists, skipping:", existingOrder.id);
           return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true });
         }
