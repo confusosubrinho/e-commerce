@@ -99,14 +99,26 @@ async function convertAndUploadAsPng(
   // Decode for storage path
   const decodedPath = decodeURIComponent(relativePath);
   const pngPath = `yampi-converted/${productId}/${imageIndex}.png`;
+  const jpgPath = `yampi-converted/${productId}/${imageIndex}.jpg`;
 
-  // Check if PNG already exists
+  // Limpar cache antigo com extensão .jpg que pode conter bytes WebP corrompidos
+  try {
+    await supabase.storage.from("product-media").remove([jpgPath]);
+  } catch { /* ignore */ }
+
+  // Check if PNG already exists (cache válido)
   const pngPublicUrl = `${supabaseUrl}/storage/v1/object/public/product-media/${pngPath}`;
   try {
     const check = await fetchWithTimeout(pngPublicUrl, { method: "HEAD", redirect: "follow" }, 10_000);
     if (check.status === 200) {
-      console.log(`[YAMPI-IMG] PNG cache hit: ${pngPath}`);
-      return pngPublicUrl;
+      // Verificar que o content-type é realmente PNG/JPEG
+      const ct = check.headers.get("content-type") || "";
+      if (ct.includes("png") || ct.includes("jpeg") || ct.includes("jpg")) {
+        console.log(`[YAMPI-IMG] PNG cache hit (verified ${ct}): ${pngPath}`);
+        return pngPublicUrl;
+      }
+      console.warn(`[YAMPI-IMG] Cache hit but wrong content-type "${ct}", re-converting`);
+      await supabase.storage.from("product-media").remove([pngPath]);
     }
   } catch { /* continue */ }
 
