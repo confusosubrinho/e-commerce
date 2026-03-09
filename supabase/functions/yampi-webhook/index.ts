@@ -44,21 +44,24 @@ Deno.serve(async (req) => {
     const totalAmount = resourceData?.amount || resourceData?.total || resourceData?.value_total || 0;
 
     const approvedEvents = ["payment.approved", "payment.paid", "order.paid"];
-    const cancelledEvents = ["payment.cancelled", "payment.refused", "order.cancelled", "payment.refunded", "order.refunded"];
+    const cancelledEvents = ["payment.cancelled", "payment.refused", "order.cancelled"];
+    const refundedEvents = ["payment.refunded", "order.refunded"];
+    const statusUpdateEvents = ["order.status_update"];
     const shippedEvents = ["order.shipped", "order.sent", "shipment.created"];
     const deliveredEvents = ["order.delivered", "shipment.delivered"];
 
-    // order.status.updated: Yampi pode enviar status assim — normalizar para order.paid ou order.cancelled
+    // order.status.updated: Yampi pode enviar status assim — normalizar para evento correto
     const statusValue = (resourceData?.status || resourceData?.order_status || "").toString().toLowerCase();
     let effectiveEvent = event;
     if (event === "order.status.updated") {
       if (["paid", "approved", "payment_approved"].includes(statusValue)) effectiveEvent = "order.paid";
-      else if (["cancelled", "canceled", "refused", "refunded"].includes(statusValue)) effectiveEvent = "order.cancelled";
+      else if (["cancelled", "canceled", "refused"].includes(statusValue)) effectiveEvent = "order.cancelled";
+      else if (["refunded"].includes(statusValue)) effectiveEvent = "order.refunded";
       else if (["shipped", "sent", "sending"].includes(statusValue)) effectiveEvent = "order.shipped";
       else if (["delivered"].includes(statusValue)) effectiveEvent = "order.delivered";
-      else if (["processing", "in_production", "in_separation", "ready_for_shipping"].includes(statusValue)) {
-        console.log("[yampi-webhook] order.status.updated with processing-like status:", statusValue, "— treating as paid");
-        effectiveEvent = "order.paid";
+      else if (["processing", "in_production", "in_separation", "ready_for_shipping", "invoiced"].includes(statusValue)) {
+        console.log("[yampi-webhook] order.status.updated with intermediate status:", statusValue, "— routing to status_update handler");
+        effectiveEvent = "order.status_update";
       }
     }
 
@@ -91,11 +94,16 @@ Deno.serve(async (req) => {
       if (yampiOrderId) {
         const { data: existingOrder } = await supabase
           .from("orders")
-          .select("id, order_number")
+          .select("id, order_number, status")
           .eq("external_reference", yampiOrderId)
           .maybeSingle();
 
         if (existingOrder) {
+          // Bug fix #4: If order already processing/shipped/delivered, skip re-processing
+          if (["processing", "shipped", "delivered"].includes(existingOrder.status)) {
+            console.log("[yampi-webhook] Order already exists with status", existingOrder.status, "— skipping re-processing:", existingOrder.id);
+            return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true, status: existingOrder.status });
+          }
           console.log("[yampi-webhook] Order already exists, skipping:", existingOrder.id);
           return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true });
         }
@@ -105,11 +113,16 @@ Deno.serve(async (req) => {
       if (sessionId) {
         const { data: existingBySession } = await supabase
           .from("orders")
-          .select("id, order_number")
+          .select("id, order_number, status")
           .eq("checkout_session_id", sessionId)
           .maybeSingle();
 
         if (existingBySession) {
+          // Bug fix #4: If order already fully processed, skip re-processing payment/stock
+          if (["processing", "shipped", "delivered"].includes(existingBySession.status)) {
+            console.log("[yampi-webhook] Order already processed with status", existingBySession.status, "— skipping re-processing:", existingBySession.id);
+            return jsonOk({ ok: true, order_id: existingBySession.id, duplicate: true, status: existingBySession.status });
+          }
           // Bug fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
           const rawCustomer = resourceData?.customer || resourceData?.buyer || {};
           const customer = rawCustomer?.data || rawCustomer;
@@ -485,6 +498,112 @@ Deno.serve(async (req) => {
       }
 
       return jsonOk({ ok: true, order_id: order.id, order_number: order.order_number });
+    }
+
+    // ===== STATUS UPDATE (intermediate statuses: processing, in_production, in_separation, ready_for_shipping) =====
+    if (statusUpdateEvents.includes(effectiveEvent)) {
+      const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
+      const sessionId = resourceData?.metadata?.session_id || null;
+
+      const statusHash = `status-update-${externalRef || sessionId}-${statusValue}`;
+      const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", statusHash).maybeSingle();
+      if (existingEvent) {
+        console.log("[yampi-webhook] Duplicate status update event, skipping:", statusHash);
+        return jsonOk({ ok: true, event, duplicate: true });
+      }
+
+      // Map Yampi intermediate status to local status
+      const intermediateStatusMap: Record<string, string> = {
+        processing: "processing",
+        in_production: "processing",
+        in_separation: "processing",
+        ready_for_shipping: "processing",
+        invoiced: "processing",
+      };
+      const newLocalStatus = intermediateStatusMap[statusValue] || "processing";
+
+      let existingOrder: { id: string; status: string } | null = null;
+      if (externalRef) {
+        const { data } = await supabase.from("orders").select("id, status").eq("external_reference", externalRef).maybeSingle();
+        existingOrder = data;
+      }
+      if (!existingOrder && sessionId) {
+        const { data } = await supabase.from("orders").select("id, status").eq("checkout_session_id", sessionId).maybeSingle();
+        existingOrder = data;
+      }
+
+      if (existingOrder) {
+        // Prevent status regression: don't overwrite shipped/delivered with processing
+        if (["shipped", "delivered"].includes(existingOrder.status)) {
+          console.log("[yampi-webhook] Ignoring status update: order already", existingOrder.status, existingOrder.id);
+          await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: `status_update_${statusValue}`, event_hash: statusHash, payload });
+          return jsonOk({ ok: true, event, action: "ignored_already_advanced" });
+        }
+
+        // Only update status, do NOT re-process payment or stock
+        await supabase.from("orders").update({ status: newLocalStatus }).eq("id", existingOrder.id);
+        await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: `status_update_${statusValue}`, event_hash: statusHash, payload });
+        console.log("[yampi-webhook] Order status updated:", existingOrder.id, statusValue, "→", newLocalStatus);
+      }
+      return jsonOk({ ok: true, event, yampi_status: statusValue, local_status: newLocalStatus });
+    }
+
+    // ===== REFUNDED EVENTS (separate from cancelled — may be partial) =====
+    if (refundedEvents.includes(effectiveEvent)) {
+      const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
+      const sessionId = resourceData?.metadata?.session_id || null;
+
+      const refundHash = `refund-${externalRef || sessionId}-${transactionId || Date.now()}`;
+      const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", refundHash).maybeSingle();
+      if (existingEvent) {
+        console.log("[yampi-webhook] Duplicate refund event, skipping:", refundHash);
+        return jsonOk({ ok: true, event, duplicate: true });
+      }
+
+      let existingOrder: { id: string; status: string } | null = null;
+      if (externalRef) {
+        const { data } = await supabase.from("orders").select("id, status").eq("external_reference", externalRef).maybeSingle();
+        existingOrder = data;
+      }
+      if (!existingOrder && sessionId) {
+        const { data } = await supabase.from("orders").select("id, status").eq("checkout_session_id", sessionId).maybeSingle();
+        existingOrder = data;
+      }
+
+      if (existingOrder) {
+        // Update payment status to refunded but keep order status as-is (partial refund scenario)
+        // Only cancel if order is still pending
+        if (existingOrder.status === "pending") {
+          await supabase.from("orders").update({ status: "cancelled", payment_status: "refunded" } as Record<string, unknown>).eq("id", existingOrder.id);
+        } else {
+          await supabase.from("orders").update({ payment_status: "refunded" } as Record<string, unknown>).eq("id", existingOrder.id);
+        }
+
+        // Update existing payment record
+        const { data: existingPayment } = await supabase
+          .from("payments").select("id").eq("order_id", existingOrder.id).maybeSingle();
+        if (existingPayment) {
+          await supabase.from("payments")
+            .update({ status: "refunded", raw: payload })
+            .eq("id", existingPayment.id);
+        } else {
+          await supabase.from("payments").insert({
+            order_id: existingOrder.id,
+            provider: "yampi",
+            status: "refunded",
+            payment_method: paymentMethod,
+            gateway,
+            transaction_id: transactionId,
+            installments,
+            amount: totalAmount,
+            raw: payload,
+          });
+        }
+
+        await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: "refund", event_hash: refundHash, payload });
+        console.log("[yampi-webhook] Order refunded:", existingOrder.id, "order_status:", existingOrder.status);
+      }
+      return jsonOk({ ok: true, event: effectiveEvent });
     }
 
     // ===== #10 SHIPPED EVENTS =====
