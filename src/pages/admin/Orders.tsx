@@ -361,7 +361,7 @@ export default function Orders() {
       break;
     case 'newest':
     default:
-      filteredOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      filteredOrders.sort((a, b) => new Date(getOrderDate(b)).getTime() - new Date(getOrderDate(a)).getTime());
       break;
   }
 
