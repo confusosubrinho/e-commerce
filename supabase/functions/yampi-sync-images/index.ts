@@ -180,11 +180,11 @@ async function convertAndUploadAsPng(
     console.warn(`[YAMPI-IMG] Render endpoint unavailable: ${(e as Error).message}`);
   }
 
-  // Fallback sem conversão real: enviar WebP com extensão .jpg não altera os bytes.
-  // A Yampi pode rejeitar. Recomenda-se plano Pro para Image Transformation.
-  const fallbackPath = `yampi-converted/${productId}/${imageIndex}.jpg`;
+  // Fallback HONESTO: enviar WebP com content-type e extensão REAIS.
+  // Não mentir sobre o formato — a Yampi pode processar WebP ou rejeitar explicitamente.
+  const fallbackPath = `yampi-converted/${productId}/${imageIndex}.webp`;
   const { error: fbErr } = await supabase.storage.from("product-media").upload(fallbackPath, originalBytes, {
-    contentType: "image/jpeg",
+    contentType: "image/webp",
     upsert: true,
   });
   if (fbErr) {
@@ -196,7 +196,7 @@ async function convertAndUploadAsPng(
   
   // Y32: Validate fallback URL is accessible
   if (fallbackUrl && await validateUrlAccessible(fallbackUrl)) {
-    console.log(`[YAMPI-IMG] Fallback (webp-as-jpg): ${fallbackUrl}`);
+    console.warn(`[YAMPI-IMG] Fallback (webp honest, no conversion): ${fallbackUrl} — Image Transformation (plano Pro) recomendado para conversão real WebP→JPEG`);
     return fallbackUrl;
   }
   console.warn(`[YAMPI-IMG] Fallback URL not accessible: ${fallbackUrl}`);
