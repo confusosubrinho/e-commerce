@@ -18,7 +18,7 @@ import {
   GripVertical, Settings, Trash2, Plus, Lock,
   Image as ImageIcon, LayoutGrid, ShoppingBag, Star,
   Mail, CheckSquare, Ruler, Camera, PanelTop,
-  Rows3
+  Rows3, BookOpen
 } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -34,6 +34,7 @@ const SECTION_META: Record<string, { icon: React.ReactNode; description: string;
   instagram_feed:   { icon: <Camera className="h-4 w-4" />,        description: 'Últimas fotos do Instagram',                  category: 'Social & Engajamento' },
   testimonials:     { icon: <Star className="h-4 w-4" />,          description: 'Carrossel com depoimentos',                   category: 'Social & Engajamento' },
   newsletter:       { icon: <Mail className="h-4 w-4" />,          description: 'Caixa de captura de e-mail',                  category: 'Social & Engajamento' },
+  blog:             { icon: <BookOpen className="h-4 w-4" />,      description: 'Últimos posts do blog',                       category: 'Social & Engajamento' },
   product_carousel: { icon: <Rows3 className="h-4 w-4" />,         description: 'Produtos em rolagem horizontal',              category: 'Produtos' },
   product_grid:     { icon: <LayoutGrid className="h-4 w-4" />,    description: 'Produtos em grade',                           category: 'Produtos' },
 };
@@ -74,6 +75,7 @@ function SectionConfigSheet({
     instagram_feed:   redirectMessage('Inspire-se'),
     testimonials:     redirectMessage('Avaliações'),
     newsletter:       <p className="text-sm text-muted-foreground">Esta seção é configurada automaticamente.</p>,
+    blog:             redirectMessage('Blog'),
   };
 
   return (
@@ -115,6 +117,7 @@ const ALL_TEMPLATES: TemplateItem[] = [
   { section_type: 'instagram_feed',    label: 'Feed do Instagram',       ...SECTION_META.instagram_feed },
   { section_type: 'testimonials',      label: 'Avaliações de Clientes',  ...SECTION_META.testimonials },
   { section_type: 'newsletter',        label: 'Newsletter',              ...SECTION_META.newsletter },
+  { section_type: 'blog',              label: 'Blog',                    ...SECTION_META.blog },
   { section_type: 'features_bar',      label: 'Barra de Diferenciais',   ...SECTION_META.features_bar },
   { section_type: 'product_sections',  label: 'Seções de Produtos',      ...SECTION_META.product_sections },
 ];
