@@ -321,7 +321,10 @@ const BRAZILIAN_STATES = [
                           <CollapsibleContent>
                             <div className="mt-3 pt-3 border-t space-y-2">
                               {order.order_items?.map((item: any) => (
-                                <div key={item.id} className="flex items-center justify-between text-sm py-1">
+                              <div key={item.id} className="flex items-center gap-3 text-sm py-1.5">
+                                  {item.image_snapshot && (
+                                    <img src={item.image_snapshot} alt={item.product_name} className="w-10 h-10 rounded object-cover shrink-0 bg-muted" />
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium truncate">{item.product_name}</p>
                                     {item.variant_info && (

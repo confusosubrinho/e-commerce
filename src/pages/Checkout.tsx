@@ -1025,7 +1025,14 @@ export default function Checkout() {
 
       {/* Progress steps */}
       <div className="bg-background border-b">
-        <div className="container-custom py-4">
+        <div className="container-custom py-4 space-y-3">
+          {/* Progress bar */}
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${((currentStepIndex + 1) / steps.length) * 100}%` }}
+            />
+          </div>
           <div className="flex items-center justify-center gap-2 sm:gap-4">
             {steps.map((step, index) => (
               <div key={step.id} className="flex items-center">
