@@ -42,6 +42,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { OrderDetailContent } from '@/components/admin/OrderDetailContent';
+import {
   Select,
   SelectContent,
   SelectItem,
