@@ -372,28 +372,62 @@ Deno.serve(async (req) => {
       const { data: existingItems } = await supabase
         .from("order_items")
         .select("id, yampi_sku_id, product_name")
-        .eq("order_id", order.id);
+        .eq("order_id", order.id)
+        .order("created_at", { ascending: true });
 
-      for (const rawItem of yampiItems) {
-        const item = rawItem as Record<string, unknown>;
-        const skuData = (item.sku as Record<string, unknown>)?.data as Record<string, unknown> || item.sku as Record<string, unknown> || {};
-        const productData = (item.product as Record<string, unknown>)?.data as Record<string, unknown> || item.product as Record<string, unknown> || {};
+      let usedExistingIds = new Set<string>();
+
+      for (let idx = 0; idx < yampiItems.length; idx++) {
+        const item = yampiItems[idx] as Record<string, unknown>;
+        console.log(`[yampi-sync] Item[${idx}] raw keys:`, Object.keys(item));
+
+        // Unwrap nested sku/product objects
+        const skuRaw = item.sku;
+        const skuData = (typeof skuRaw === "object" && skuRaw !== null)
+          ? ((skuRaw as Record<string, unknown>).data as Record<string, unknown>) || (skuRaw as Record<string, unknown>)
+          : {};
+        const productRaw = item.product;
+        const productData = (typeof productRaw === "object" && productRaw !== null)
+          ? ((productRaw as Record<string, unknown>).data as Record<string, unknown>) || (productRaw as Record<string, unknown>)
+          : {};
 
         const yampiSkuId = item.sku_id ? Number(item.sku_id) : (skuData.id ? Number(skuData.id) : null);
         const productName = (productData.name as string) || (item.name as string) || (item.product_name as string) || null;
-        const variantInfo = [skuData.size, skuData.color].filter(Boolean).join(" / ") ||
-          (item.variant_name as string) || (skuData.title as string) || null;
-        const skuSnapshot = (skuData.sku as string) || (item.sku as string) || null;
+
+        // Variant info from variations array or sku fields
+        const variationsArr = (skuData.variations as Record<string, unknown>)?.data as unknown[] || skuData.variations as unknown[] || [];
+        const variationLabels = variationsArr.map((v: any) => v?.value_name || v?.name || v?.value).filter(Boolean);
+        const variantInfo = variationLabels.length > 0
+          ? variationLabels.join(" / ")
+          : ([skuData.size, skuData.color].filter(Boolean).join(" / ") ||
+            (item.variant_name as string) || (skuData.title as string) || null);
+
+        // SKU snapshot - deeper extraction
+        const skuSnapshot = (skuData.sku as string) || (item.item_sku as string) ||
+          (typeof skuRaw === "string" ? skuRaw : null) || null;
+
+        // Image URL
+        const skuImagesArr = ((skuData.images as Record<string, unknown>)?.data as unknown[]) || (skuData.images as unknown[]) || [];
+        const productImagesArr = ((productData.images as Record<string, unknown>)?.data as unknown[]) || (productData.images as unknown[]) || [];
         const imageUrl = (skuData.image_url as string) ||
-          ((productData.images as Record<string, unknown>)?.data as unknown[])?.[0] &&
-          (((productData.images as Record<string, unknown>)?.data as Record<string, unknown>[])?.[0]?.url as string) ||
-          (productData.image_url as string) || null;
+          ((skuImagesArr[0] as Record<string, unknown>)?.url as string) ||
+          (productData.image_url as string) ||
+          ((productImagesArr[0] as Record<string, unknown>)?.url as string) ||
+          (item.image_url as string) || null;
+
         const unitPrice = item.price != null ? Number(item.price) : (item.unit_price != null ? Number(item.unit_price) : null);
         const qty = item.quantity ? Number(item.quantity) : 1;
-        const totalPrice = item.total != null ? Number(item.total) : (unitPrice != null ? unitPrice * qty : null);
+        const totalPrice = item.total != null ? Number(item.total) : (item.subtotal != null ? Number(item.subtotal) : (unitPrice != null ? unitPrice * qty : null));
 
-        // Match by yampi_sku_id first, then by position
-        let matchedItem = existingItems?.find((ei) => ei.yampi_sku_id && yampiSkuId && ei.yampi_sku_id === yampiSkuId);
+        // Match by yampi_sku_id first, then by index position
+        let matchedItem = existingItems?.find((ei) => ei.yampi_sku_id && yampiSkuId && ei.yampi_sku_id === yampiSkuId && !usedExistingIds.has(ei.id));
+        if (!matchedItem && existingItems && existingItems.length > 0) {
+          // Fallback: match by index position
+          const available = existingItems.filter(ei => !usedExistingIds.has(ei.id));
+          if (available.length > 0) {
+            matchedItem = available[Math.min(idx, available.length - 1)];
+          }
+        }
 
         const itemUpdate: Record<string, unknown> = {};
         if (productName) itemUpdate.product_name = productName;
@@ -405,10 +439,13 @@ Deno.serve(async (req) => {
         if (qty) itemUpdate.quantity = qty;
         if (yampiSkuId) itemUpdate.yampi_sku_id = yampiSkuId;
 
+        console.log(`[yampi-sync] Item[${idx}] resolved: name=${productName}, sku=${skuSnapshot}, variant=${variantInfo}, matched=${matchedItem?.id || "none"}`);
+
         if (Object.keys(itemUpdate).length > 0 && matchedItem) {
+          usedExistingIds.add(matchedItem.id);
           await supabase.from("order_items").update(itemUpdate).eq("id", matchedItem.id);
           console.log(`[yampi-sync] Updated order_item ${matchedItem.id} with Yampi data`);
-        } else if (Object.keys(itemUpdate).length > 0 && !matchedItem && existingItems && existingItems.length === 0) {
+        } else if (Object.keys(itemUpdate).length > 0 && (!existingItems || existingItems.length === 0)) {
           // No existing items - insert new ones
           await supabase.from("order_items").insert({
             order_id: order.id,
@@ -425,6 +462,37 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // --- Upsert payment record ---
+    if (txTransactionId || txPaymentMethod) {
+      const paymentData = {
+        order_id: order.id,
+        provider: "yampi",
+        status: paymentStatus === "approved" ? "succeeded" : paymentStatus,
+        payment_method: txPaymentMethod || null,
+        gateway: txGateway || null,
+        installments: txInstallments || 1,
+        transaction_id: txTransactionId || null,
+        amount: totalAmount || (subtotal || 0) + (txShippingCost || 0),
+      };
+
+      // Check if payment already exists for this order
+      const { data: existingPayment } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("order_id", order.id)
+        .eq("provider", "yampi")
+        .maybeSingle();
+
+      if (existingPayment) {
+        await supabase.from("payments").update(paymentData).eq("id", existingPayment.id);
+        console.log(`[yampi-sync] Updated payment ${existingPayment.id}`);
+      } else {
+        await supabase.from("payments").insert(paymentData);
+        console.log(`[yampi-sync] Inserted new payment for order ${order.id}`);
+      }
+    }
+  }
 
     // --- Upsert payment record ---
     if (txTransactionId || txPaymentMethod) {
