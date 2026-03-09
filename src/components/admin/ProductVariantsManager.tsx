@@ -36,6 +36,9 @@ export interface VariantItem {
   depth?: string;
   base_price?: string;
   sale_price?: string;
+  // Custom attribute support
+  custom_attribute_name?: string;
+  custom_attribute_value?: string;
 }
 
 interface ProductVariantsManagerProps {
