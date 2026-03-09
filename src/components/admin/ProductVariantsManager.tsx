@@ -437,7 +437,7 @@ export function ProductVariantsManager({
                       <span className="w-3.5 h-3.5 rounded-full border shrink-0" style={{ backgroundColor: variant.color_hex }} />
                     )}
                     <span className="text-sm font-medium truncate">
-                      {variant.size || '—'}{variant.color ? ` · ${variant.color}` : ''}
+                      {variant.size || '—'}{variant.color ? ` · ${variant.color}` : ''}{variant.custom_attribute_value ? ` · ${variant.custom_attribute_value}` : ''}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
