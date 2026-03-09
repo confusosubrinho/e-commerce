@@ -6,8 +6,10 @@ import { Pressable } from '@/components/ui/Pressable';
 import { useToast } from '@/hooks/use-toast';
 import { useFeedback } from '@/hooks/useFeedback';
 import { supabase } from '@/integrations/supabase/client';
-import logo from '@/assets/logo.png';
+import defaultLogo from '@/assets/logo.png';
 import { createClient } from '@supabase/supabase-js';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
+import { Helmet } from 'react-helmet-async';
 import type { Database } from '@/integrations/supabase/types';
 
 const statusLabels: Record<string, { label: string; description: string; color: string }> = {
