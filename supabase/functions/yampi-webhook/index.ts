@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       const sessionId = resourceData?.metadata?.session_id || null;
 
       // Idempotency: check order_events hash for approved event
-      const approvedHash = `approved-${yampiOrderId || "unknown"}-${transactionId || Date.now()}`;
+      const approvedHash = `approved-${yampiOrderId || "unknown"}-${transactionId || yampiOrderId || Date.now()}`;
       const { data: existingEvent } = await supabase
         .from("order_events")
         .select("id")
@@ -579,6 +579,37 @@ Deno.serve(async (req) => {
           await supabase.from("orders").update({ payment_status: "refunded" } as Record<string, unknown>).eq("id", existingOrder.id);
         }
 
+        // Fix #3: Restore stock if order had already debited inventory (processing or later)
+        if (["processing", "shipped", "delivered"].includes(existingOrder.status)) {
+          const { data: movements } = await supabase
+            .from("inventory_movements")
+            .select("variant_id, quantity, type")
+            .eq("order_id", existingOrder.id)
+            .in("type", ["debit", "reserve"]);
+
+          for (const mov of movements || []) {
+            const { data: alreadyReleased } = await supabase
+              .from("inventory_movements")
+              .select("id")
+              .eq("order_id", existingOrder.id)
+              .eq("variant_id", mov.variant_id)
+              .in("type", ["release", "refund"])
+              .maybeSingle();
+
+            if (!alreadyReleased) {
+              const releaseType = mov.type === "debit" ? "refund" : "release";
+              await supabase.rpc("increment_stock", { p_variant_id: mov.variant_id, p_quantity: mov.quantity });
+              await supabase.from("inventory_movements").insert({
+                variant_id: mov.variant_id,
+                order_id: existingOrder.id,
+                type: releaseType,
+                quantity: mov.quantity,
+              });
+            }
+          }
+          console.log("[yampi-webhook] Stock restored for refunded order:", existingOrder.id);
+        }
+
         // Update existing payment record
         const { data: existingPayment } = await supabase
           .from("payments").select("id").eq("order_id", existingOrder.id).maybeSingle();
@@ -638,7 +669,7 @@ Deno.serve(async (req) => {
           await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: shippedHash, payload });
           return jsonOk({ ok: true, event, action: "ignored_already_delivered" });
         }
-        const updateData: Record<string, unknown> = { status: "shipped" };
+        const updateData: Record<string, unknown> = { status: "shipped", payment_status: "approved" };
         if (trackingCode) updateData.tracking_code = trackingCode;
         if (eventShippingCost != null && Number(eventShippingCost) > 0) updateData.shipping_cost = Number(eventShippingCost);
         await supabase.from("orders").update(updateData).eq("id", existingOrder.id);
@@ -710,7 +741,11 @@ Deno.serve(async (req) => {
           console.log("[yampi-webhook] Ignorando cancelamento: pedido já está", existingOrder.status, existingOrder.id);
           return jsonOk({ ok: true, event: effectiveEvent, action: "ignored_already_fulfilled" });
         }
-        await supabase.from("orders").update({ status: "cancelled" }).eq("id", existingOrder.id);
+        // Fix #2: Also update payment_status on cancellation
+        const cancelledPaymentStatusForOrder = event.includes("refused") ? "refused"
+          : event.includes("chargeback") ? "chargeback"
+          : "cancelled";
+        await supabase.from("orders").update({ status: "cancelled", payment_status: cancelledPaymentStatusForOrder } as Record<string, unknown>).eq("id", existingOrder.id);
 
         const { data: movements } = await supabase
           .from("inventory_movements")
