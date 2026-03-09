@@ -151,7 +151,7 @@ export default function OrderConfirmation() {
 
   // Fetch store whatsapp
   useEffect(() => {
-    supabase.from('store_settings').select('contact_whatsapp').limit(1).maybeSingle()
+    supabase.from('store_settings_public').select('contact_whatsapp').limit(1).maybeSingle()
       .then(({ data }) => { if (data?.contact_whatsapp) setWhatsappNumber(data.contact_whatsapp.replace(/\D/g, '')); });
   }, []);
 
