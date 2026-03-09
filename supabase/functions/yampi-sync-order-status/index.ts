@@ -90,39 +90,87 @@ Deno.serve(async (req) => {
     Accept: "application/json",
   };
 
-  // Y26: Use fetchWithTimeout instead of bare fetch
-  async function fetchYampiOrder(q: string): Promise<Record<string, unknown> | null> {
-    const searchUrl = `${baseUrl}/orders?${includeQuery}&q=${encodeURIComponent(q)}&limit=5`;
-    const res = await fetchWithTimeout(searchUrl, { headers });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const orders = json?.data || [];
-    return orders.find((o: Record<string, unknown>) =>
-      String(o.id) === q || String(o.number) === q || String(o.order_number) === q
-    ) || orders[0] || null;
+  // --- Lookup helpers ---
+  async function fetchById(id: string): Promise<Record<string, unknown> | null> {
+    const url = `${baseUrl}/orders/${id}?${includeQuery}`;
+    console.log(`[yampi-sync] GET ${url}`);
+    try {
+      const res = await fetchWithTimeout(url, { headers });
+      console.log(`[yampi-sync] GET /orders/${id} → ${res.status}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return (json?.data as Record<string, unknown>) || null;
+    } catch (e) {
+      console.error(`[yampi-sync] fetchById(${id}) error:`, e);
+      return null;
+    }
+  }
+
+  async function fetchByNumber(num: string): Promise<Record<string, unknown> | null> {
+    const url = `${baseUrl}/orders?${includeQuery}&number=${encodeURIComponent(num)}&limit=1`;
+    console.log(`[yampi-sync] GET ${url}`);
+    try {
+      const res = await fetchWithTimeout(url, { headers });
+      console.log(`[yampi-sync] GET /orders?number=${num} → ${res.status}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return (json?.data?.[0] as Record<string, unknown>) || null;
+    } catch (e) {
+      console.error(`[yampi-sync] fetchByNumber(${num}) error:`, e);
+      return null;
+    }
+  }
+
+  async function fetchBySearch(q: string): Promise<Record<string, unknown> | null> {
+    const url = `${baseUrl}/orders?${includeQuery}&q=${encodeURIComponent(q)}&limit=5`;
+    console.log(`[yampi-sync] GET ${url}`);
+    try {
+      const res = await fetchWithTimeout(url, { headers });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const orders = json?.data || [];
+      return orders.find((o: Record<string, unknown>) =>
+        String(o.id) === q || String(o.number) === q
+      ) || orders[0] || null;
+    } catch (e) {
+      console.error(`[yampi-sync] fetchBySearch(${q}) error:`, e);
+      return null;
+    }
   }
 
   let yampiOrder: Record<string, unknown> | null = null;
+  const extRef = order.external_reference;
+  const yampiNum = order.yampi_order_number;
+
   try {
-    // 1) Busca pelo ID externo (id interno na Yampi)
-    yampiOrder = await fetchYampiOrder(order.external_reference);
-    // 2) Se não achou e temos número do pedido, tenta pelo número (ex.: 1491772375818422)
-    if (!yampiOrder && order.yampi_order_number) {
-      yampiOrder = await fetchYampiOrder(order.yampi_order_number);
+    // 1) GET direto por external_reference (pode ser ID Yampi)
+    yampiOrder = await fetchById(extRef);
+
+    // 2) GET direto por yampi_order_number (se diferente)
+    if (!yampiOrder && yampiNum && yampiNum !== extRef) {
+      yampiOrder = await fetchById(yampiNum);
     }
-    // 3) Se ainda não achou, tenta GET direto por ID (algumas APIs suportam)
+
+    // 3) Busca por number=external_reference (filtro exato)
     if (!yampiOrder) {
-      const directUrl = `${baseUrl}/orders/${order.external_reference}?${includeQuery}`;
-      const res = await fetchWithTimeout(directUrl, { headers });
-      if (res.ok) {
-        const json = await res.json();
-        yampiOrder = (json?.data as Record<string, unknown>) || (json as Record<string, unknown>) || null;
-      }
+      yampiOrder = await fetchByNumber(extRef);
+    }
+
+    // 4) Busca por number=yampi_order_number
+    if (!yampiOrder && yampiNum && yampiNum !== extRef) {
+      yampiOrder = await fetchByNumber(yampiNum);
+    }
+
+    // 5) Fallback: search genérico (último recurso)
+    if (!yampiOrder) {
+      yampiOrder = await fetchBySearch(extRef);
     }
   } catch (err) {
     console.error("[yampi-sync] Fetch error:", err);
     return jsonRes({ ok: false, error: "Erro ao conectar com a API Yampi" }, 502);
   }
+
+  console.log(`[yampi-sync] Lookup result for order ${order.order_number}: found=${!!yampiOrder}, yampi_id=${yampiOrder?.id ?? "null"}`);
 
   if (!yampiOrder) {
     return jsonRes({
