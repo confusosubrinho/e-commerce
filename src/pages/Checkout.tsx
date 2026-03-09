@@ -95,7 +95,22 @@ export default function Checkout() {
   const { items, subtotal, total, clearCart, updateQuantity, selectedShipping, setSelectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId } = useCart();
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
-  const [currentStep, setCurrentStep] = useState<Step>('identification');
+  // UX 1: Dynamic logo
+  const { data: storeSettings } = useStoreSettingsPublic();
+  const logoFromSettings = storeSettings?.header_logo_url || storeSettings?.logo_url;
+  const logo = logoFromSettings && logoFromSettings.trim() !== ''
+    ? `${logoFromSettings}${storeSettings?.updated_at ? `?v=${encodeURIComponent(storeSettings.updated_at)}` : ''}`
+    : defaultLogo;
+
+  // UX 7: Session persistence
+  const [currentStep, setCurrentStep] = useState<Step>(() => {
+    try {
+      const saved = sessionStorage.getItem('checkout_step');
+      if (saved && ['identification', 'shipping', 'payment'].includes(saved)) return saved as Step;
+    } catch {}
+    return 'identification';
+  });
+  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
