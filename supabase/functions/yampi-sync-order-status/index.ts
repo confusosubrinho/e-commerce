@@ -196,25 +196,49 @@ Deno.serve(async (req) => {
     pending: "pending", waiting_payment: "pending",
     cancelled: "failed", refused: "failed", refunded: "refunded",
   };
+  // --- Debug: log payload structure ---
+  console.log("[yampi-sync] Yampi payload keys:", Object.keys(yampiOrder));
+  console.log("[yampi-sync] transactions raw:", JSON.stringify(yampiOrder.transactions).slice(0, 800));
+  console.log("[yampi-sync] items raw:", JSON.stringify(yampiOrder.items).slice(0, 800));
+  console.log("[yampi-sync] shipping_option:", JSON.stringify(yampiOrder.shipping_option));
+  console.log("[yampi-sync] shipments:", JSON.stringify(yampiOrder.shipments).slice(0, 500));
+
   const transactions = ((yampiOrder.transactions as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.transactions as unknown[]) || [];
   const firstTx = (transactions[0] as Record<string, unknown>) || {};
+  console.log("[yampi-sync] firstTx keys:", Object.keys(firstTx));
   const txStatus = (firstTx.status as string)?.toLowerCase() || yampiStatus;
   const paymentStatus = paymentStatusMap[txStatus] || paymentStatusMap[yampiStatus] || (localStatus === "pending" ? "pending" : localStatus === "cancelled" ? "failed" : "approved");
 
   const trackingCode = (yampiOrder.tracking_code as string) || null;
+
+  // --- Expanded shipping method extraction ---
+  const shipmentsData = ((yampiOrder.shipments as Record<string, unknown>)?.data as unknown[]) || [];
+  const firstShipment = (shipmentsData[0] as Record<string, unknown>) || {};
   const shippingOption = (yampiOrder.shipping_option as Record<string, unknown>) || {};
-  const shippingMethodName = (yampiOrder.shipping_option_name as string) ||
+  const shippingMethodName = (firstShipment.service_name as string) ||
+    (firstShipment.name as string) ||
+    (yampiOrder.shipping_option_name as string) ||
     (shippingOption.name as string) ||
     ((yampiOrder.delivery_option as Record<string, unknown>)?.name as string) ||
     (yampiOrder.shipping_method as string) ||
     null;
+  console.log("[yampi-sync] Resolved shippingMethodName:", shippingMethodName);
 
-  const yampiOrderDate = (yampiOrder.created_at as string) || (yampiOrder.date as string) || (yampiOrder.order_date as string) || (yampiOrder.updated_at as string) || null;
+  // --- Date parsing (handles Yampi object format {date, timezone_type, timezone}) ---
+  const yampiOrderDateRaw = yampiOrder.created_at || yampiOrder.date || yampiOrder.order_date || yampiOrder.updated_at || null;
   let yampiCreatedAt: string | null = null;
-  if (yampiOrderDate) {
-    const d = new Date(yampiOrderDate);
-    if (!isNaN(d.getTime())) yampiCreatedAt = d.toISOString();
-    else console.warn("[yampi-sync] Invalid date ignored:", yampiOrderDate);
+  if (yampiOrderDateRaw) {
+    let dateStr: string | null = null;
+    if (typeof yampiOrderDateRaw === "object" && (yampiOrderDateRaw as Record<string, unknown>)?.date) {
+      dateStr = (yampiOrderDateRaw as Record<string, unknown>).date as string;
+    } else if (typeof yampiOrderDateRaw === "string") {
+      dateStr = yampiOrderDateRaw;
+    }
+    if (dateStr) {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) yampiCreatedAt = d.toISOString();
+      else console.warn("[yampi-sync] Invalid date ignored:", dateStr);
+    }
   }
   const yampiOrderNumber = (yampiOrder.number != null ? String(yampiOrder.number) : null) || (yampiOrder.order_number != null ? String(yampiOrder.order_number) : null) || null;
 
