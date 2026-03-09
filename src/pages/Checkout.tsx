@@ -182,24 +182,48 @@ export default function Checkout() {
     ? (pc as any).interest_free_installments_sale
     : pc.interest_free_installments;
 
-  const [formData, setFormData] = useState({
-    email: '',
-    name: '',
-    phone: '',
-    cpf: '',
-    cep: '',
-    address: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    paymentMethod: 'pix',
-    cardNumber: '',
-    cardHolder: '',
-    cardExpiry: '',
-    cardCvv: '',
+  const [formData, setFormData] = useState(() => {
+    const defaults = {
+      email: '',
+      name: '',
+      phone: '',
+      cpf: '',
+      cep: '',
+      address: '',
+      number: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      paymentMethod: 'pix',
+      cardNumber: '',
+      cardHolder: '',
+      cardExpiry: '',
+      cardCvv: '',
+    };
+    try {
+      const saved = sessionStorage.getItem('checkout_form');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...defaults, ...parsed, cardNumber: '', cardCvv: '', cardExpiry: '', cardHolder: '' };
+      }
+    } catch {}
+    return defaults;
   });
+
+  // UX 7: Persist form & step to sessionStorage
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      try {
+        const { cardNumber, cardCvv, cardExpiry, cardHolder, ...safe } = formData;
+        sessionStorage.setItem('checkout_form', JSON.stringify(safe));
+        sessionStorage.setItem('checkout_step', currentStep);
+      } catch {}
+    }, 500);
+    return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
+  }, [formData, currentStep]);
 
   // Collect customer IP
   useEffect(() => {
