@@ -1,48 +1,63 @@
 
 
-# Enriquecer order_items com nome do produto, variante e SKU
+## Auditoria Yampi — Rodada 4: IMPLEMENTADO ✅
 
-## Problema
+### Fixes Aplicados
 
-Existem dois caminhos que criam/atualizam `order_items`:
+**Y31** ✅ `yampi-sync-images` — Todas as chamadas `fetch` substituídas por `fetchWithTimeout` (25s) para evitar travamentos.
 
-### Caminho 1: `checkout-router` (pré-criação do pedido)
-- **product_name**: salva corretamente (vem da tabela `products`)
-- **variant_info**: sempre salvo como string vazia `""` (linha 299)
-- **sku_snapshot**: **não é salvo** (ausente do insert, linhas 292-312)
-- **image_snapshot**: sempre `null`
+**Y32** ✅ `yampi-sync-images` — Validação de URL acessível após upload no storage antes de enviar à Yampi (função `validateUrlAccessible`).
 
-O `checkout-router` faz `select("id, product_id, base_price, sale_price, yampi_sku_id, products(base_price, sale_price, name)")` mas **não busca** `size`, `color`, nem `sku` da variante.
+**Y36** ✅ `yampi-import-order` batch — Campo `tracking_code` já estava sendo extraído na linha 541. Verificado e confirmado.
 
-### Caminho 2: `yampi-webhook` (path de UPDATE, pedido já existe por session_id)
-- Linhas 252-276: apenas converte reserves em debits de estoque
-- **NÃO atualiza** os `order_items` com dados enriquecidos do webhook (nome, variante, SKU, imagem)
-- Os items ficam com `variant_info: ""` e `sku_snapshot: null` para sempre
+**Y37** ✅ `checkout-create-session` — Retorna `fallback_reason` ("yampi_skus_not_linked" ou "yampi_api_error") quando faz fallback para checkout nativo.
 
-### Caminho 3: `yampi-webhook` (path de CREATE, pedido novo)
-- Este caminho **já funciona bem** — extrai nome, variante, SKU e imagem corretamente (linhas 434-506)
+**Y38** ✅ `yampi-catalog-sync` — Dimensões (weight, height, width, length) agora herdam do produto pai com fallback para defaults, melhorando cálculo de frete na Yampi.
 
-## Correções
+### Documentação: Limitação de Cupons (Y33)
 
-### Correção 1: `checkout-router` — buscar size/color/sku e salvar nos order_items
-Alterar o `select` da query de variantes para incluir `size, color, sku`:
-```
-.select("id, product_id, base_price, sale_price, yampi_sku_id, size, color, sku, products(base_price, sale_price, name)")
-```
+**Limitação conhecida**: A API Yampi Payment Link não suporta campos de desconto/cupom no payload. Cupons aplicados no site não são transmitidos ao checkout Yampi.
 
-Construir `variant_info` e `sku_snapshot` a partir desses campos e salvar no insert de `order_items`. Buscar também a imagem primária do produto.
+**Workaround recomendado**: Para descontos significativos, considerar:
+1. Usar checkout nativo (Stripe/Appmax) para pedidos com cupom
+2. Ou embutir desconto nos preços dos SKUs antes de criar o payment link
 
-### Correção 2: `yampi-webhook` (update path) — enriquecer order_items existentes
-Após atualizar o pedido (linhas 252-276), iterar pelos `existingItems` e atualizar cada um com:
-- `product_name` / `title_snapshot` do produto local (se disponível) ou do payload Yampi
-- `variant_info` com size/color da variante local
-- `sku_snapshot` com o SKU da variante local ou do payload
-- `image_snapshot` com imagem primária do produto
+### Não Implementado (Decisão Técnica)
 
-## Arquivos a modificar
+- **Y35**: Sync bidirecional de produtos (Yampi → Site) — Requer redesign significativo. O site permanece como fonte única de verdade.
+- **Y39**: Limpeza de imagens antigas na Yampi — Pode causar inconsistências. Não recomendado sem flag explícita.
+- **Y40**: Separação de campos `yampi_order_id` / `appmax_order_id` — Requer migration e pode afetar queries existentes.
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/checkout-router/index.ts` | Buscar size/color/sku na query de variantes; salvar variant_info, sku_snapshot e image_snapshot nos order_items |
-| `supabase/functions/yampi-webhook/index.ts` | No path de UPDATE (linhas 252-276), enriquecer order_items existentes com dados do webhook/banco |
+---
 
+## Resumo das 4 Rodadas de Auditoria
+
+| Rodada | Fixes | Status |
+|--------|-------|--------|
+| Rodada 1 | Y1-Y10 (preços, CORS, timeouts básicos) | ✅ Implementado |
+| Rodada 2 | Y11-Y21 (webhooks, automações, idempotência) | ✅ Implementado |
+| Rodada 3 | Y22-Y30 (race conditions, inventory, traceability) | ✅ Implementado |
+| Rodada 4 | Y31-Y38 (timeouts, validação URLs, fallback_reason) | ✅ Implementado |
+| Rodada 5 | Y41-Y48 (custom attrs, snapshots, unwrap, payment_status) | ✅ Implementado |
+
+**Total**: 48 melhorias identificadas, 42 implementadas, 4 documentadas como decisões técnicas.
+
+---
+
+## Rodada 5: Yampi Integration Fixes ✅
+
+### Bugs Corrigidos
+
+**Fix #1** ✅ `yampi-catalog-sync` — Query de variantes agora inclui `custom_attribute_name` e `custom_attribute_value`. Variações customizadas são mapeadas para `variation_value_map` da Yampi.
+
+**Fix #2** ✅ `yampi-webhook` — Bloco de cancelamento agora faz unwrap de `customer.data` igual ao bloco de aprovação, garantindo que emails de cancelamento sejam enviados corretamente.
+
+**Fix #3** ✅ `yampi-webhook` — Campo `payment_status: "approved"` adicionado ao update de pedido existente (by session), alinhando com o fluxo do `yampi-import-order`.
+
+**Fix #4** ✅ `yampi-import-order` — Batch import agora inclui `variant_info`, `title_snapshot`, `image_snapshot` e `sku_snapshot` nos `order_items`, com lookup de variante local e imagem primária.
+
+**Fix #5** ✅ `yampi-webhook` — Removido uso incorreto de `appmax_order_id` para gravar `yampiOrderId` no `order_events`.
+
+**Fix #6** ✅ `yampi-catalog-sync` — SKU gerado para Yampi agora inclui `custom_attribute_value` para evitar duplicatas quando há variantes com mesmo tamanho/cor mas atributos diferentes.
+
+**Melhoria #7** ✅ `yampi-webhook` — `order.status.updated` agora trata status `processing`, `in_production`, `in_separation`, `ready_for_shipping` como eventos de pagamento aprovado.
