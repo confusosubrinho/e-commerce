@@ -19,6 +19,7 @@ interface VariantSelectorModalProps {
 export function VariantSelectorModal({ product, open, onOpenChange }: VariantSelectorModalProps) {
   const { addItem } = useCart();
   const { data: pricingConfig } = usePricingConfig();
+  const { toast } = useToast();
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
