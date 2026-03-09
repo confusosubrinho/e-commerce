@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,21 +52,24 @@ export default function Auth() {
     resolver: zodResolver(signupSchema),
   });
 
+  const location = useLocation();
+  const redirectTo = (location.state as any)?.from || new URLSearchParams(location.search).get('redirect') || '/';
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
@@ -323,6 +326,12 @@ export default function Auth() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Back to store link */}
+      <div className="mt-4 text-center">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          ← Voltar para a loja
+        </Link>
+      </div>
     </div>
   );
 }
