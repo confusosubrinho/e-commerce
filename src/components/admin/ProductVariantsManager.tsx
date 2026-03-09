@@ -186,22 +186,23 @@ export function ProductVariantsManager({
     const updated = [...variants];
     updated[index] = { ...updated[index], [field]: value };
 
-    // Validate duplicate variant by size+color
-    if (field === 'size' || field === 'color') {
+    // Validate duplicate variant by size+color+custom
+    if (field === 'size' || field === 'color' || field === 'custom_attribute_value') {
       const size = field === 'size' ? value : updated[index].size;
       const color = field === 'color' ? value : updated[index].color;
+      const customVal = field === 'custom_attribute_value' ? value : updated[index].custom_attribute_value;
       
-      if (size && checkDuplicateVariant(size, color || '', index)) {
+      if (size && checkDuplicateVariant(size, color || '', customVal || '', index)) {
         toast({
           title: 'Variante duplicada!',
-          description: `Já existe uma variante ${size}${color ? ' - ' + color : ''}`,
+          description: `Já existe uma variante ${size}${color ? ' - ' + color : ''}${customVal ? ' - ' + customVal : ''}`,
           variant: 'destructive',
         });
         return;
       }
 
       if (size) {
-        updated[index].sku = generateSku(parentSku, size, color);
+        updated[index].sku = generateSku(parentSku, size, color, customVal);
       }
     }
 
