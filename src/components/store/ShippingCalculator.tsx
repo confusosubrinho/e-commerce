@@ -64,10 +64,11 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
         console.error('Shipping API error:', data.error);
         // Fallback to basic options if API fails
         setShippingOptions([
-          { name: 'Envio padrão', price: 18, deadline: '8 a 12 dias úteis', company: 'Correios' },
+          { id: 'fallback-standard', name: 'Envio padrão', price: 18, deadline: '8 a 12 dias úteis', company: 'Correios' },
         ]);
       } else {
-        const options: ShippingOption[] = (data?.options || []).map((opt: any) => ({
+        const options: ShippingOption[] = (data?.options || []).map((opt: any, idx: number) => ({
+          id: opt.id || opt.name || `shipping-${idx}`,
           name: opt.name,
           price: opt.price,
           deadline: opt.deadline,
