@@ -109,6 +109,78 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Fix #3: Fallback reconciliation — find pre-linked order by external_reference (yampi link ID)
+      // or by cart_id + total_amount matching when session_id is missing
+      let reconciled = false;
+      let reconciledSessionId = sessionId;
+      if (!sessionId && yampiOrderId) {
+        // Try to find a pending order that was pre-linked with this yampi ID as external_reference
+        const { data: preLinked } = await supabase
+          .from("orders")
+          .select("id, order_number, status, checkout_session_id")
+          .eq("external_reference", String(yampiOrderId))
+          .eq("status", "pending")
+          .maybeSingle();
+
+        if (preLinked) {
+          reconciledSessionId = preLinked.checkout_session_id;
+          reconciled = true;
+          console.log("[yampi-webhook] Reconciled order by external_reference (pre-linked yampi ID):", preLinked.id);
+        }
+      }
+
+      // Fix #3b: Last-resort reconciliation by total_amount + yampi_sku_ids for pending orders in the last 30 min
+      if (!sessionId && !reconciled && totalAmount > 0) {
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60_000).toISOString();
+        const yampiItems = resourceData?.items || resourceData?.products || resourceData?.skus || [];
+        const webhookSkuIds = (yampiItems as Array<Record<string, unknown>>)
+          .map((item) => {
+            const rawId = item.sku_id ?? (item.sku as Record<string, unknown>)?.id ?? item.id;
+            return rawId != null ? Number(rawId) : null;
+          })
+          .filter((id): id is number => id != null && !Number.isNaN(id))
+          .sort();
+
+        if (webhookSkuIds.length > 0) {
+          const { data: candidates } = await supabase
+            .from("orders")
+            .select("id, order_number, checkout_session_id, total_amount, cart_id")
+            .eq("status", "pending")
+            .eq("provider", "yampi")
+            .gte("created_at", thirtyMinAgo)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          if (candidates?.length) {
+            for (const candidate of candidates) {
+              // Verify total matches (within 1 cent tolerance)
+              if (Math.abs(Number(candidate.total_amount) - Number(totalAmount)) > 0.01) continue;
+
+              // Verify SKU IDs match
+              const { data: candidateItems } = await supabase
+                .from("order_items")
+                .select("yampi_sku_id")
+                .eq("order_id", candidate.id);
+
+              const candidateSkuIds = (candidateItems || [])
+                .map((ci) => ci.yampi_sku_id)
+                .filter((id): id is number => id != null)
+                .sort();
+
+              if (
+                candidateSkuIds.length === webhookSkuIds.length &&
+                candidateSkuIds.every((id, idx) => id === webhookSkuIds[idx])
+              ) {
+                reconciledSessionId = candidate.checkout_session_id;
+                reconciled = true;
+                console.log("[yampi-webhook] Reconciled order by total+SKUs match:", candidate.id);
+                break;
+              }
+            }
+          }
+        }
+      }
+
       // Unificar com pedido criado no checkout start (evita duplicar e depois cancelar o errado)
       if (sessionId) {
         const { data: existingBySession } = await supabase
