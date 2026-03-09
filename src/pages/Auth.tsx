@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Helmet } from 'react-helmet-async';
-import logo from '@/assets/logo.png';
+import defaultLogo from '@/assets/logo.png';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
