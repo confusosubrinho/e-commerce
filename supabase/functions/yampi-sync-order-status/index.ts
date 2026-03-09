@@ -210,7 +210,12 @@ Deno.serve(async (req) => {
     null;
 
   const yampiOrderDate = (yampiOrder.created_at as string) || (yampiOrder.date as string) || (yampiOrder.order_date as string) || (yampiOrder.updated_at as string) || null;
-  const yampiCreatedAt = yampiOrderDate ? new Date(yampiOrderDate).toISOString() : null;
+  let yampiCreatedAt: string | null = null;
+  if (yampiOrderDate) {
+    const d = new Date(yampiOrderDate);
+    if (!isNaN(d.getTime())) yampiCreatedAt = d.toISOString();
+    else console.warn("[yampi-sync] Invalid date ignored:", yampiOrderDate);
+  }
   const yampiOrderNumber = (yampiOrder.number != null ? String(yampiOrder.number) : null) || (yampiOrder.order_number != null ? String(yampiOrder.order_number) : null) || null;
 
   // Fetch current order status to detect transitions
