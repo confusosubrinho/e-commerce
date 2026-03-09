@@ -572,7 +572,7 @@ export function ProductVariantsManager({
                       className="shrink-0 h-9 w-9"
                       title="Gerar SKU"
                       onClick={() => {
-                        const newSku = generateSku(parentSku, editingVariant.size, editingVariant.color);
+                        const newSku = generateSku(parentSku, editingVariant.size, editingVariant.color, editingVariant.custom_attribute_value);
                         updateVariant(editIndex, 'sku', newSku);
                         toast({ title: 'SKU gerado!' });
                       }}
