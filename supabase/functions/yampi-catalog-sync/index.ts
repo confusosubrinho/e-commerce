@@ -267,21 +267,27 @@ Deno.serve(async (req) => {
             const unitCost = Number(v.base_price ?? productCost) || 0;
             const variantSku = v.sku || `${product.sku || product.id.slice(0, 8)}-${v.size || "U"}`.replace(/\s+/g, "-").slice(0, 64);
 
-            createPayload.skus = [{
-              sku: variantSku,
-              price_cost: unitCost,
-              price_sale: unitPrice,
-              price_discount: 0,
-              weight: Number(product.weight) || 0.3,
-              height: Number(product.height) || 5,
-              width: Number(product.width) || 15,
-              length: Number(product.depth) || 20,
-              quantity_managed: true,
-              quantity: v.stock_quantity ?? 0,
-              availability: 0,
-              availability_soldout: 0,
-              blocked_sale: false,
-            }];
+          // Y38: Inherit dimensions from parent product or use defaults
+          const skuWeight = Number(product.weight) || 0.3;
+          const skuHeight = Number(product.height) || 5;
+          const skuWidth = Number(product.width) || 15;
+          const skuLength = Number(product.depth) || 20;
+
+          createPayload.skus = [{
+            sku: variantSku,
+            price_cost: unitCost,
+            price_sale: unitPrice,
+            price_discount: 0,
+            weight: skuWeight,
+            height: skuHeight,
+            width: skuWidth,
+            length: skuLength,
+            quantity_managed: true,
+            quantity: v.stock_quantity ?? 0,
+            availability: 0,
+            availability_soldout: 0,
+            blocked_sale: false,
+          }];
           }
 
           const res = await yampiRequest(yampiBase, yampiHeaders, "/catalog/products", "POST", createPayload);
@@ -345,16 +351,22 @@ Deno.serve(async (req) => {
 
               if (!variant.yampi_sku_id) {
                 // ── CREATE SKU ──
+                // Y38: Inherit dimensions from parent product or use defaults
+                const skuWeight = Number(product.weight) || 0.3;
+                const skuHeight = Number(product.height) || 5;
+                const skuWidth = Number(product.width) || 15;
+                const skuLength = Number(product.depth) || 20;
+
                 const skuPayload: Record<string, unknown> = {
                   product_id: yampiProductId,
                   sku: variantSku,
                   price_cost: unitCost,
                   price_sale: unitPrice,
                   price_discount: 0,
-                  weight: Number(product.weight) || 0.3,
-                  height: Number(product.height) || 5,
-                  width: Number(product.width) || 15,
-                  length: Number(product.depth) || 20,
+                  weight: skuWeight,
+                  height: skuHeight,
+                  width: skuWidth,
+                  length: skuLength,
                   quantity_managed: true,
                   quantity: variant.stock_quantity ?? 0,
                   availability: 0,
@@ -386,6 +398,12 @@ Deno.serve(async (req) => {
                 counters.created_skus++;
               } else {
                 // ── UPDATE existing SKU ── (Yampi exige product_id no PUT)
+                // Y38: Inherit dimensions from parent product or use defaults
+                const skuWeight = Number(product.weight) || 0.3;
+                const skuHeight = Number(product.height) || 5;
+                const skuWidth = Number(product.width) || 15;
+                const skuLength = Number(product.depth) || 20;
+
                 const updatePayload: Record<string, unknown> = {
                   product_id: yampiProductId,
                   sku: variantSku,
@@ -393,10 +411,10 @@ Deno.serve(async (req) => {
                   price_sale: unitPrice,
                   blocked_sale: false,
                   quantity_managed: true,
-                  weight: Number(product.weight) || 0.3,
-                  height: Number(product.height) || 5,
-                  width: Number(product.width) || 15,
-                  length: Number(product.depth) || 20,
+                  weight: skuWeight,
+                  height: skuHeight,
+                  width: skuWidth,
+                  length: skuLength,
                 };
 
                 if (variationsValuesIds.length > 0) {

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +31,7 @@ async function yampiRequest(
   const url = `${yampiBase}${path}`;
   const opts: RequestInit = { method, headers };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
+  const res = await fetchWithTimeout(url, opts);
   let data: any;
   try { data = await res.json(); } catch { data = null; }
   if (!res.ok) console.error(`[YAMPI-IMG] ${res.status} ${path}:`, JSON.stringify(data));
@@ -69,6 +70,18 @@ function ensureHttps(url: string): string {
 }
 
 /**
+ * Y32: Validate URL is accessible before sending to Yampi
+ */
+async function validateUrlAccessible(url: string): Promise<boolean> {
+  try {
+    const check = await fetchWithTimeout(url, { method: "HEAD", redirect: "follow" }, 10_000);
+    return check.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Download a WebP image, convert to PNG using Canvas API (Deno),
  * upload the PNG to storage, return the public URL.
  */
@@ -90,7 +103,7 @@ async function convertAndUploadAsPng(
   // Check if PNG already exists
   const pngPublicUrl = `${supabaseUrl}/storage/v1/object/public/product-media/${pngPath}`;
   try {
-    const check = await fetch(pngPublicUrl, { method: "HEAD", redirect: "follow" });
+    const check = await fetchWithTimeout(pngPublicUrl, { method: "HEAD", redirect: "follow" }, 10_000);
     if (check.status === 200) {
       console.log(`[YAMPI-IMG] PNG cache hit: ${pngPath}`);
       return pngPublicUrl;
@@ -98,7 +111,7 @@ async function convertAndUploadAsPng(
   } catch { /* continue */ }
 
   // Download original WebP
-  const res = await fetch(webpUrl);
+  const res = await fetchWithTimeout(webpUrl, {}, 25_000);
   if (!res.ok) {
     console.error(`[YAMPI-IMG] Download failed (${res.status}): ${webpUrl}`);
     return null;
@@ -120,17 +133,24 @@ async function convertAndUploadAsPng(
       return null;
     }
     const { data: urlData } = supabase.storage.from("product-media").getPublicUrl(directPath);
-    return urlData?.publicUrl || null;
+    const uploadedUrl = urlData?.publicUrl || null;
+    
+    // Y32: Validate uploaded URL is accessible
+    if (uploadedUrl && await validateUrlAccessible(uploadedUrl)) {
+      return uploadedUrl;
+    }
+    console.warn(`[YAMPI-IMG] Uploaded URL not accessible: ${uploadedUrl}`);
+    return null;
   }
 
   // For WebP: conversão real via Supabase Image Transformation (Pro+).
   // Pedir JPEG via Accept para a Yampi aceitar (sem format=origin para permitir conversão).
   const renderUrl = `${supabaseUrl}/storage/v1/render/image/public/product-media/${relativePath}?width=1200&quality=85`;
   try {
-    const renderRes = await fetch(renderUrl, {
+    const renderRes = await fetchWithTimeout(renderUrl, {
       headers: { Accept: "image/jpeg, image/png;q=0.9" },
       redirect: "follow",
-    });
+    }, 25_000);
     if (renderRes.ok) {
       const renderType = renderRes.headers.get("content-type") || "";
       const renderBytes = new Uint8Array(await renderRes.arrayBuffer());
@@ -142,8 +162,15 @@ async function convertAndUploadAsPng(
       });
       if (!error) {
         const { data: urlData } = supabase.storage.from("product-media").getPublicUrl(renderPath);
-        console.log(`[YAMPI-IMG] Converted via render: ${urlData?.publicUrl}`);
-        return urlData?.publicUrl || null;
+        const uploadedUrl = urlData?.publicUrl || null;
+        
+        // Y32: Validate uploaded URL is accessible
+        if (uploadedUrl && await validateUrlAccessible(uploadedUrl)) {
+          console.log(`[YAMPI-IMG] Converted via render: ${uploadedUrl}`);
+          return uploadedUrl;
+        }
+        console.warn(`[YAMPI-IMG] Rendered URL not accessible: ${uploadedUrl}`);
+        return null;
       }
       console.error(`[YAMPI-IMG] Upload rendered failed: ${error.message}`);
     } else {
@@ -165,8 +192,15 @@ async function convertAndUploadAsPng(
     return null;
   }
   const { data: fbUrl } = supabase.storage.from("product-media").getPublicUrl(fallbackPath);
-  console.log(`[YAMPI-IMG] Fallback (webp-as-jpg): ${fbUrl?.publicUrl}`);
-  return fbUrl?.publicUrl || null;
+  const fallbackUrl = fbUrl?.publicUrl || null;
+  
+  // Y32: Validate fallback URL is accessible
+  if (fallbackUrl && await validateUrlAccessible(fallbackUrl)) {
+    console.log(`[YAMPI-IMG] Fallback (webp-as-jpg): ${fallbackUrl}`);
+    return fallbackUrl;
+  }
+  console.warn(`[YAMPI-IMG] Fallback URL not accessible: ${fallbackUrl}`);
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -316,16 +350,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Validate accessibility
+        // Y32: Validate accessibility with fetchWithTimeout
         try {
-          const check = await fetch(urlToSend, { method: "HEAD", redirect: "follow" });
+          const check = await fetchWithTimeout(urlToSend, { method: "HEAD", redirect: "follow" }, 10_000);
           if (check.status === 200) {
             validUrls.push(urlToSend);
           } else {
             console.warn(`[YAMPI-IMG] URL inacessível (${check.status}): ${urlToSend}`);
           }
-        } catch {
-          console.warn(`[YAMPI-IMG] URL inacessível: ${urlToSend}`);
+        } catch (checkErr: unknown) {
+          const msg = checkErr instanceof Error ? checkErr.message : "unknown";
+          console.warn(`[YAMPI-IMG] URL inacessível (${msg}): ${urlToSend}`);
         }
       }
 
