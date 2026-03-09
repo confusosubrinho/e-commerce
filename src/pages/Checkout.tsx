@@ -946,13 +946,23 @@ export default function Checkout() {
 
   if (items.length === 0 && !isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="text-center">
-          <h1 className="text-xl font-bold mb-2">Carrinho vazio</h1>
-          <p className="text-muted-foreground mb-4">Adicione produtos para continuar</p>
-          <Button asChild id="btn-checkout-back-empty">
-            <Link to="/">Voltar para a loja</Link>
-          </Button>
+      <div className="min-h-screen flex flex-col bg-muted/30">
+        <header className="bg-background border-b">
+          <div className="container-custom py-4 flex items-center gap-4">
+            <Link to="/">
+              <img src={logo} alt="Vanessa Lima Shoes" className="h-8" />
+            </Link>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <ShoppingBag className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h1 className="text-xl font-bold mb-2">Carrinho vazio</h1>
+            <p className="text-muted-foreground mb-4">Adicione produtos para continuar</p>
+            <Button asChild id="btn-checkout-back-empty">
+              <Link to="/">Voltar para a loja</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );
