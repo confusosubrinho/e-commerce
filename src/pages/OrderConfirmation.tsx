@@ -458,6 +458,25 @@ export default function OrderConfirmation() {
             </div>
           )}
 
+          {/* Order items summary */}
+          {orderData?.order_items && orderData.order_items.length > 0 && (
+            <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2">
+              <p className="text-sm font-medium mb-2">Itens do pedido</p>
+              {orderData.order_items.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 text-sm">
+                  {item.image_snapshot && (
+                    <img src={item.image_snapshot} alt={item.product_name} className="w-10 h-10 rounded object-cover shrink-0 bg-muted" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{item.product_name}</p>
+                    {item.variant_info && <p className="text-xs text-muted-foreground">{item.variant_info}</p>}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{item.quantity}x</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <p className="text-sm text-muted-foreground">
             Enviamos os detalhes do pedido e informações de pagamento para o seu email.
           </p>
