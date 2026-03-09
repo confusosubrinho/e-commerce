@@ -1147,6 +1147,13 @@ export default function Checkout() {
                         name="cpf"
                         value={formData.cpf}
                         onChange={handleMaskedChange}
+                        onBlur={() => {
+                          if (formData.cpf && !validateCPF(formData.cpf)) {
+                            setCpfError('CPF inválido');
+                          } else {
+                            setCpfError('');
+                          }
+                        }}
                         placeholder="000.000.000-00"
                         className={cpfError ? 'border-destructive' : ''}
                       />
