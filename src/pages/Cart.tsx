@@ -115,7 +115,7 @@ export default function Cart() {
               <div key={item.variant.id} className={`flex gap-3 sm:gap-4 p-3 sm:p-4 border rounded-lg ${!isActive ? 'opacity-60' : ''}`}>
                 <Link to={`/produto/${item.product.slug}`}>
                   <img
-                    src={item.product.images?.[0]?.url || '/placeholder.svg'}
+                    src={resolveImageUrl(item.product.images?.[0]?.url)}
                     alt={item.product.name}
                     className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-lg"
                   />
