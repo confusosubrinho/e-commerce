@@ -389,7 +389,7 @@ export default function Orders() {
       frete: o.shipping_cost,
       desconto: o.discount_amount,
       total: o.total_amount,
-      data: new Date(o.created_at).toLocaleDateString('pt-BR'),
+      data: new Date(getOrderDate(o)).toLocaleDateString('pt-BR'),
       rastreio: o.tracking_code || '',
     }));
     exportToCSV(exportData, 'pedidos');
