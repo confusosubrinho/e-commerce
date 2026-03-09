@@ -308,8 +308,7 @@ export default function Checkout() {
   };
 
   // Use pricing engine for installments
-  const shippingCost = selectedShipping ? selectedShipping.price : 0;
-  const total = subtotal - discount + shippingCost;
+  // BUG FIX: Use total from CartContext (single source of truth) instead of recalculating locally
 
   // PIX total: when pix_discount_applies_to_sale_products is false, apply discount only to full-price items
   let finalTotal: number;
