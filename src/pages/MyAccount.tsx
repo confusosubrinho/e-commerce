@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { User, Package, MapPin, LogOut, ChevronDown, Loader2 } from 'lucide-react';
+import { User, Package, MapPin, LogOut, ChevronDown, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import { lookupCEP } from '@/lib/validators';
+import { lookupCEP, formatPhone } from '@/lib/validators';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User as SupaUser } from '@supabase/supabase-js';
 
 export default function MyAccount() {
@@ -25,6 +26,15 @@ export default function MyAccount() {
   const [loading, setLoading] = useState(true);
   const [cepLoading, setCepLoading] = useState(false);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+const BRAZILIAN_STATES = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+  'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -247,7 +257,7 @@ export default function MyAccount() {
                     <Label>Telefone</Label>
                     <Input
                       value={profileForm.phone}
-                      onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                      onChange={(e) => setProfileForm({ ...profileForm, phone: formatPhone(e.target.value) })}
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -380,12 +390,19 @@ export default function MyAccount() {
                     </div>
                     <div className="space-y-2">
                       <Label>Estado</Label>
-                      <Input
+                      <Select
                         value={profileForm.state}
-                        onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
-                        maxLength={2}
-                        placeholder="PR"
-                      />
+                        onValueChange={(value) => setProfileForm({ ...profileForm, state: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BRAZILIAN_STATES.map(uf => (
+                            <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <Button type="submit" disabled={updateProfile.isPending} className="rounded-full">
@@ -396,6 +413,85 @@ export default function MyAccount() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Password change section */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Alterar Senha
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (passwordForm.newPassword.length < 6) {
+                  toast({ title: 'Senha muito curta', description: 'A senha deve ter pelo menos 6 caracteres.', variant: 'destructive' });
+                  return;
+                }
+                if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+                  toast({ title: 'Senhas não conferem', description: 'A nova senha e a confirmação devem ser iguais.', variant: 'destructive' });
+                  return;
+                }
+                setPasswordLoading(true);
+                const { error } = await supabase.auth.updateUser({ password: passwordForm.newPassword });
+                setPasswordLoading(false);
+                if (error) {
+                  toast({ title: 'Erro ao alterar senha', description: error.message, variant: 'destructive' });
+                } else {
+                  toast({ title: 'Senha alterada com sucesso!' });
+                  setPasswordForm({ newPassword: '', confirmPassword: '' });
+                }
+              }}
+              className="space-y-4 max-w-lg"
+            >
+              <div className="space-y-2">
+                <Label>Nova Senha</Label>
+                <div className="relative">
+                  <Input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Confirmar Nova Senha</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    placeholder="Repita a nova senha"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <Button type="submit" disabled={passwordLoading} className="rounded-full">
+                {passwordLoading ? 'Salvando...' : 'Alterar Senha'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </StoreLayout>
   );

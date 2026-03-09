@@ -20,6 +20,7 @@ import { HelpHint } from '@/components/HelpHint';
 import { CouponInput } from '@/components/store/CouponInput';
 import defaultLogo from '@/assets/logo.png';
 import { getCartItemUnitPrice, hasSaleDiscount } from '@/lib/cartPricing';
+import { resolveImageUrl } from '@/lib/imageUrl';
 import { Helmet } from 'react-helmet-async';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -224,6 +225,32 @@ export default function Checkout() {
     }, 500);
     return () => { if (persistTimerRef.current) clearTimeout(persistTimerRef.current); };
   }, [formData, currentStep]);
+
+  // UX 7 (R10): Prefill from user profile
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('full_name, phone, address, city, state, zip_code')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (!prof) return;
+        setFormData((prev: typeof formData) => ({
+          ...prev,
+          name: prev.name || prof.full_name || '',
+          email: prev.email || session.user.email || '',
+          phone: prev.phone || prof.phone || '',
+          cep: prev.cep || prof.zip_code || '',
+          address: prev.address || prof.address || '',
+          city: prev.city || prof.city || '',
+          state: prev.state || prof.state || '',
+        }));
+      } catch {}
+    })();
+  }, []);
 
   // Collect customer IP
   useEffect(() => {
@@ -946,13 +973,23 @@ export default function Checkout() {
 
   if (items.length === 0 && !isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="text-center">
-          <h1 className="text-xl font-bold mb-2">Carrinho vazio</h1>
-          <p className="text-muted-foreground mb-4">Adicione produtos para continuar</p>
-          <Button asChild id="btn-checkout-back-empty">
-            <Link to="/">Voltar para a loja</Link>
-          </Button>
+      <div className="min-h-screen flex flex-col bg-muted/30">
+        <header className="bg-background border-b">
+          <div className="container-custom py-4 flex items-center gap-4">
+            <Link to="/">
+              <img src={logo} alt="Vanessa Lima Shoes" className="h-8" />
+            </Link>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <ShoppingBag className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h1 className="text-xl font-bold mb-2">Carrinho vazio</h1>
+            <p className="text-muted-foreground mb-4">Adicione produtos para continuar</p>
+            <Button asChild id="btn-checkout-back-empty">
+              <Link to="/">Voltar para a loja</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -1035,7 +1072,7 @@ export default function Checkout() {
               <div className="pb-3 space-y-2 border-t pt-3">
                 {items.map((item) => (
                   <div key={item.variant.id} className="flex gap-2 items-center text-sm">
-                    <img src={item.product.images?.[0]?.url || '/placeholder.svg'} alt={item.product.name} className="w-10 h-10 object-cover rounded" />
+                    <img src={resolveImageUrl(item.product.images?.[0]?.url) || '/placeholder.svg'} alt={item.product.name} className="w-10 h-10 object-cover rounded" />
                     <div className="flex-1 min-w-0">
                       <p className="line-clamp-1 text-xs font-medium">{item.product.name}</p>
                       <p className="text-[11px] text-muted-foreground">Tam: {item.variant.size} · Qtd: {item.quantity}</p>
@@ -1498,7 +1535,7 @@ export default function Checkout() {
                   return (
                     <div key={item.variant.id} className="flex gap-3 items-start">
                       <img
-                        src={item.product.images?.[0]?.url || '/placeholder.svg'}
+                        src={resolveImageUrl(item.product.images?.[0]?.url) || '/placeholder.svg'}
                         alt={item.product.name}
                         className="w-16 h-16 object-cover rounded"
                       />
