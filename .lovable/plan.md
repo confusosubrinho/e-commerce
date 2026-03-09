@@ -1,63 +1,60 @@
 
 
-## Auditoria Yampi — Rodada 4: IMPLEMENTADO ✅
+# Fix: Sincronização de Pedido Yampi Não Encontra o Pedido
 
-### Fixes Aplicados
+## Problema Raiz
 
-**Y31** ✅ `yampi-sync-images` — Todas as chamadas `fetch` substituídas por `fetchWithTimeout` (25s) para evitar travamentos.
+A função `yampi-sync-order-status` usa 3 estratégias para localizar o pedido na API Yampi, mas todas podem falhar:
 
-**Y32** ✅ `yampi-sync-images` — Validação de URL acessível após upload no storage antes de enviar à Yampi (função `validateUrlAccessible`).
+1. **Busca por `q=` (search)**: O parâmetro `q` da API Yampi busca por **nome/email do cliente**, NÃO por ID do pedido. Buscar `q=156943794` não retorna nada.
+2. **Busca por `yampi_order_number`**: No banco, este campo está `null` para o pedido em questão, então este passo é pulado.
+3. **GET direto `/orders/{id}`**: Este deveria funcionar, mas a resposta pode ter formato `{ data: { ... } }` que o código não valida corretamente — ele faz fallback para `json` inteiro se `json.data` é null.
 
-**Y36** ✅ `yampi-import-order` batch — Campo `tracking_code` já estava sendo extraído na linha 541. Verificado e confirmado.
+Além disso, o pedido atual (`VAN20260305001036`) tem `external_reference: 156943794` que é provavelmente o **Yampi link ID** (do checkout-router, linha 384), não o ID do pedido Yampi. Isso significa que nenhuma das buscas vai encontrar o pedido correto.
 
-**Y37** ✅ `checkout-create-session` — Retorna `fallback_reason` ("yampi_skus_not_linked" ou "yampi_api_error") quando faz fallback para checkout nativo.
+## Correção no `yampi-sync-order-status/index.ts`
 
-**Y38** ✅ `yampi-catalog-sync` — Dimensões (weight, height, width, length) agora herdam do produto pai com fallback para defaults, melhorando cálculo de frete na Yampi.
+### 1. Priorizar GET direto por ID (mais confiável)
+Inverter a ordem: tentar GET direto `/orders/{external_reference}` **primeiro**, antes da busca por `q=`.
 
-### Documentação: Limitação de Cupons (Y33)
+### 2. Adicionar busca pelo número do pedido via endpoint específico
+Após falhar por ID, tentar buscar por `number` usando o endpoint de busca com filtro `number={value}` em vez do `q=` genérico.
 
-**Limitação conhecida**: A API Yampi Payment Link não suporta campos de desconto/cupom no payload. Cupons aplicados no site não são transmitidos ao checkout Yampi.
+### 3. Adicionar busca por `order_number` do banco local
+O `order_number` local (ex: `VAN20260305001036`) pode não ser o mesmo da Yampi, mas o `yampi_order_number` quando disponível sim.
 
-**Workaround recomendado**: Para descontos significativos, considerar:
-1. Usar checkout nativo (Stripe/Appmax) para pedidos com cupom
-2. Ou embutir desconto nos preços dos SKUs antes de criar o payment link
+### 4. Logar detalhes da busca para debug
+Adicionar logs de console para cada tentativa, incluindo a resposta da API, para facilitar diagnóstico futuro.
 
-### Não Implementado (Decisão Técnica)
+### Lógica atualizada da função `fetchYampiOrder`:
 
-- **Y35**: Sync bidirecional de produtos (Yampi → Site) — Requer redesign significativo. O site permanece como fonte única de verdade.
-- **Y39**: Limpeza de imagens antigas na Yampi — Pode causar inconsistências. Não recomendado sem flag explícita.
-- **Y40**: Separação de campos `yampi_order_id` / `appmax_order_id` — Requer migration e pode afetar queries existentes.
+```typescript
+// 1) GET direto por ID (mais confiável)
+async function fetchYampiOrderById(id: string) {
+  const url = `${baseUrl}/orders/${id}?${includeQuery}`;
+  const res = await fetchWithTimeout(url, { headers });
+  if (!res.ok) { console.log("[yampi-sync] GET /orders/" + id + " → " + res.status); return null; }
+  const json = await res.json();
+  return (json?.data as Record<string, unknown>) || null;
+}
 
----
+// 2) Busca por number (filtro exato, não search genérico)
+async function fetchYampiOrderByNumber(num: string) {
+  const url = `${baseUrl}/orders?${includeQuery}&number=${encodeURIComponent(num)}&limit=1`;
+  const res = await fetchWithTimeout(url, { headers });
+  if (!res.ok) return null;
+  const json = await res.json();
+  return (json?.data?.[0] as Record<string, unknown>) || null;
+}
+```
 
-## Resumo das 4 Rodadas de Auditoria
+Ordem de tentativas:
+1. GET direto por `external_reference`
+2. GET direto por `yampi_order_number` (se diferente)
+3. Busca por `number=external_reference`
+4. Busca por `number=yampi_order_number`
+5. Fallback: search `q=external_reference` (último recurso)
 
-| Rodada | Fixes | Status |
-|--------|-------|--------|
-| Rodada 1 | Y1-Y10 (preços, CORS, timeouts básicos) | ✅ Implementado |
-| Rodada 2 | Y11-Y21 (webhooks, automações, idempotência) | ✅ Implementado |
-| Rodada 3 | Y22-Y30 (race conditions, inventory, traceability) | ✅ Implementado |
-| Rodada 4 | Y31-Y38 (timeouts, validação URLs, fallback_reason) | ✅ Implementado |
-| Rodada 5 | Y41-Y48 (custom attrs, snapshots, unwrap, payment_status) | ✅ Implementado |
+## Arquivo modificado
+- `supabase/functions/yampi-sync-order-status/index.ts`
 
-**Total**: 48 melhorias identificadas, 42 implementadas, 4 documentadas como decisões técnicas.
-
----
-
-## Rodada 5: Yampi Integration Fixes ✅
-
-### Bugs Corrigidos
-
-**Fix #1** ✅ `yampi-catalog-sync` — Query de variantes agora inclui `custom_attribute_name` e `custom_attribute_value`. Variações customizadas são mapeadas para `variation_value_map` da Yampi.
-
-**Fix #2** ✅ `yampi-webhook` — Bloco de cancelamento agora faz unwrap de `customer.data` igual ao bloco de aprovação, garantindo que emails de cancelamento sejam enviados corretamente.
-
-**Fix #3** ✅ `yampi-webhook` — Campo `payment_status: "approved"` adicionado ao update de pedido existente (by session), alinhando com o fluxo do `yampi-import-order`.
-
-**Fix #4** ✅ `yampi-import-order` — Batch import agora inclui `variant_info`, `title_snapshot`, `image_snapshot` e `sku_snapshot` nos `order_items`, com lookup de variante local e imagem primária.
-
-**Fix #5** ✅ `yampi-webhook` — Removido uso incorreto de `appmax_order_id` para gravar `yampiOrderId` no `order_events`.
-
-**Fix #6** ✅ `yampi-catalog-sync` — SKU gerado para Yampi agora inclui `custom_attribute_value` para evitar duplicatas quando há variantes com mesmo tamanho/cor mas atributos diferentes.
-
-**Melhoria #7** ✅ `yampi-webhook` — `order.status.updated` agora trata status `processing`, `in_production`, `in_separation`, `ready_for_shipping` como eventos de pagamento aprovado.
