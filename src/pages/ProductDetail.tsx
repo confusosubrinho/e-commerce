@@ -260,18 +260,18 @@ export default function ProductDetail() {
   const colors = [...new Map(validVariants.filter(v => v.color).map(v => [v.color, { name: v.color!, hex: v.color_hex }])).values()];
   
   // Extract custom attributes from variants
-  const customAttrName = useMemo(() => {
+  const customAttrName = (() => {
     const names = variants.filter(v => v.custom_attribute_name).map(v => v.custom_attribute_name!);
     return names.length > 0 ? names[0] : null;
-  }, [variants]);
+  })();
 
-  const customAttrValues = useMemo(() => {
-    if (!customAttrName) return [];
+  const customAttrValues = (() => {
+    if (!customAttrName) return [] as string[];
     let filtered = validVariants.filter(v => v.custom_attribute_name === customAttrName && v.custom_attribute_value);
     if (selectedColor) filtered = filtered.filter(v => v.color === selectedColor);
     if (selectedSize) filtered = filtered.filter(v => v.size === selectedSize);
     return [...new Set(filtered.map(v => v.custom_attribute_value!))];
-  }, [validVariants, customAttrName, selectedColor, selectedSize]);
+  })();
 
   const hasCustomAttr = customAttrName && customAttrValues.length > 0;
 
