@@ -58,7 +58,7 @@ export default function CategoryPage() {
   }, [products]);
 
   // Update price range when maxPrice changes
-  useMemo(() => {
+  useEffect(() => {
     if (filters.priceRange[1] === 1000 && maxPrice > 1000) {
       setFilters(prev => ({ ...prev, priceRange: [0, maxPrice] }));
     }

@@ -1,19 +1,43 @@
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { StoreLayout } from '@/components/store/StoreLayout';
-import { useProducts } from '@/hooks/useProducts';
 import { useFavorites } from '@/hooks/useFavorites';
 import { ProductCard } from '@/components/store/ProductCard';
 import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Product } from '@/types/database';
 
 export default function FavoritesPage() {
   const { favorites, isAuthenticated } = useFavorites();
-  const { data: allProducts } = useProducts();
 
-  const favoriteProducts = allProducts?.filter(p => favorites.includes(p.id)) || [];
+  const { data: favoriteProducts = [], isLoading } = useQuery({
+    queryKey: ['products', 'favorites', favorites],
+    enabled: isAuthenticated && favorites.length > 0,
+    staleTime: 1000 * 60 * 5,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(*),
+          images:product_images(*),
+          variants:product_variants(*)
+        `)
+        .in('id', favorites)
+        .eq('is_active', true);
+      if (error) throw error;
+      return (data as Product[]) || [];
+    },
+  });
 
   return (
     <StoreLayout>
+      <Helmet>
+        <title>Meus Favoritos | Loja</title>
+        <meta name="description" content="Veja seus produtos favoritos salvos." />
+      </Helmet>
       <div className="container-custom py-8">
         <h1 className="text-2xl font-bold mb-6">Meus Favoritos</h1>
 
@@ -26,7 +50,7 @@ export default function FavoritesPage() {
               <Link to="/auth">Criar Conta / Entrar</Link>
             </Button>
           </div>
-        ) : favoriteProducts.length === 0 ? (
+        ) : favoriteProducts.length === 0 && !isLoading ? (
           <div className="text-center py-16 space-y-4">
             <Heart className="h-16 w-16 mx-auto text-muted-foreground" />
             <h2 className="text-xl font-semibold">Nenhum favorito ainda</h2>

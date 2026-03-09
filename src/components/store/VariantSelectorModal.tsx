@@ -103,6 +103,25 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
               ) : (
                 <span className="font-bold">{formatPrice(currentPrice)}</span>
               )}
+              {pricingConfig && (() => {
+                const hasSale = !!(product.sale_price && product.sale_price < product.base_price);
+                const pixDiscount = pricingConfig.pix_discount || 0;
+                const showPix = pixDiscount > 0 && (!hasSale || pricingConfig.pix_on_sale !== false);
+                const pixPrice = showPix ? currentPrice * (1 - pixDiscount / 100) : null;
+                const display = getInstallmentDisplay(currentPrice, pricingConfig, hasSale);
+                return (
+                  <div className="space-y-0.5">
+                    {pixPrice && (
+                      <p className="text-xs text-primary font-medium">
+                        {formatPrice(pixPrice)} no PIX
+                      </p>
+                    )}
+                    {display?.primaryText && (
+                      <p className="text-xs text-muted-foreground">{display.primaryText}</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

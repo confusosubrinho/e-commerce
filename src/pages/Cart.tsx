@@ -15,6 +15,7 @@ import { getInstallmentDisplay, formatCurrency } from '@/lib/pricingEngine';
 import { HelpHint } from '@/components/HelpHint';
 import { getCartItemUnitPrice, hasSaleDiscount } from '@/lib/cartPricing';
 import { Pressable } from '@/components/ui/Pressable';
+import { resolveImageUrl } from '@/lib/imageUrl';
 
 const checkoutHref = '/checkout/start';
 

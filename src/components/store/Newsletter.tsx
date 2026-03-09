@@ -73,7 +73,7 @@ export function Newsletter() {
               disabled={isLoading}
               className="rounded-full px-8"
             >
-              {isLoading ? 'Enviando...' : 'Quero meu cupom!'}
+              {isLoading ? 'Enviando...' : 'Inscrever-se'}
             </Button>
           </form>
         </div>
