@@ -47,7 +47,7 @@ const BRAZILIAN_STATES = [
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (!session?.user) navigate('/auth');
+      if (!session?.user) navigate('/auth', { state: { from: '/minha-conta' } });
       else setUser(session.user);
     });
     return () => subscription.unsubscribe();
