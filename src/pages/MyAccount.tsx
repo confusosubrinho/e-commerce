@@ -26,6 +26,15 @@ export default function MyAccount() {
   const [loading, setLoading] = useState(true);
   const [cepLoading, setCepLoading] = useState(false);
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+const BRAZILIAN_STATES = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+  'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+];
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
