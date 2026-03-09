@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { User, Package, MapPin, LogOut, ChevronDown, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import { lookupCEP, formatPhone } from '@/lib/validators';
+import { lookupCEP, formatPhone, formatCEP } from '@/lib/validators';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { User as SupaUser } from '@supabase/supabase-js';
 
@@ -39,7 +39,7 @@ const BRAZILIAN_STATES = [
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) {
-        navigate('/auth');
+        navigate('/auth', { state: { from: '/minha-conta' } });
       } else {
         setUser(session.user);
       }
@@ -47,7 +47,7 @@ const BRAZILIAN_STATES = [
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (!session?.user) navigate('/auth');
+      if (!session?.user) navigate('/auth', { state: { from: '/minha-conta' } });
       else setUser(session.user);
     });
     return () => subscription.unsubscribe();
@@ -321,7 +321,10 @@ const BRAZILIAN_STATES = [
                           <CollapsibleContent>
                             <div className="mt-3 pt-3 border-t space-y-2">
                               {order.order_items?.map((item: any) => (
-                                <div key={item.id} className="flex items-center justify-between text-sm py-1">
+                              <div key={item.id} className="flex items-center gap-3 text-sm py-1.5">
+                                  {item.image_snapshot && (
+                                    <img src={item.image_snapshot} alt={item.product_name} className="w-10 h-10 rounded object-cover shrink-0 bg-muted" />
+                                  )}
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium truncate">{item.product_name}</p>
                                     {item.variant_info && (
@@ -361,11 +364,12 @@ const BRAZILIAN_STATES = [
                   <div className="space-y-2">
                     <Label>CEP</Label>
                     <div className="relative">
-                      <Input
+                        <Input
                         value={profileForm.zip_code}
-                        onChange={(e) => setProfileForm({ ...profileForm, zip_code: e.target.value })}
+                        onChange={(e) => setProfileForm({ ...profileForm, zip_code: formatCEP(e.target.value) })}
                         onBlur={handleCepBlur}
                         placeholder="00000-000"
+                        maxLength={9}
                       />
                       {cepLoading && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
