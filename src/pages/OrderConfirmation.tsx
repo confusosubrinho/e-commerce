@@ -6,8 +6,10 @@ import { Pressable } from '@/components/ui/Pressable';
 import { useToast } from '@/hooks/use-toast';
 import { useFeedback } from '@/hooks/useFeedback';
 import { supabase } from '@/integrations/supabase/client';
-import logo from '@/assets/logo.png';
+import defaultLogo from '@/assets/logo.png';
 import { createClient } from '@supabase/supabase-js';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
+import { Helmet } from 'react-helmet-async';
 import type { Database } from '@/integrations/supabase/types';
 
 const statusLabels: Record<string, { label: string; description: string; color: string }> = {
@@ -148,6 +150,8 @@ export default function OrderConfirmation() {
   const [orderStatus, setOrderStatus] = useState(confirmState.status || 'pending');
   const [isLoading, setIsLoading] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
+  const { data: storePublicSettings } = useStoreSettingsPublic();
+  const logoUrl = storePublicSettings?.header_logo_url || storePublicSettings?.logo_url || defaultLogo;
 
   // Fetch store whatsapp
   useEffect(() => {
@@ -332,10 +336,11 @@ export default function OrderConfirmation() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
+      <Helmet><title>Confirmação do Pedido {orderNumber !== 'N/A' ? `#${orderNumber}` : ''} | Vanessa Lima Shoes</title></Helmet>
       <header className="bg-background border-b">
         <div className="container-custom py-4 flex items-center justify-center">
           <Link to="/">
-            <img src={logo} alt="Logo" className="h-8" />
+            <img src={logoUrl} alt="Logo" className="h-8" />
           </Link>
         </div>
       </header>

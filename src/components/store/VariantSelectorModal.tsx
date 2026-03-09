@@ -8,6 +8,7 @@ import { StockNotifyModal } from './StockNotifyModal';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { getInstallmentDisplay, formatCurrency as fmtCurrency } from '@/lib/pricingEngine';
+import { useToast } from '@/hooks/use-toast';
 
 interface VariantSelectorModalProps {
   product: Product;
@@ -18,6 +19,7 @@ interface VariantSelectorModalProps {
 export function VariantSelectorModal({ product, open, onOpenChange }: VariantSelectorModalProps) {
   const { addItem } = useCart();
   const { data: pricingConfig } = usePricingConfig();
+  const { toast } = useToast();
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
@@ -66,6 +68,10 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
   const handleAdd = () => {
     if (!selectedVariant) return;
     addItem(product, selectedVariant, 1);
+    toast({
+      title: '✓ Adicionado ao carrinho',
+      description: `${product.name} — Tam. ${selectedVariant.size}${selectedVariant.color ? ' - ' + selectedVariant.color : ''}`,
+    });
     onOpenChange(false);
     setSelectedVariant(null);
     setSelectedColor(null);

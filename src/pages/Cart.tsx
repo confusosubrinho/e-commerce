@@ -16,6 +16,8 @@ import { HelpHint } from '@/components/HelpHint';
 import { getCartItemUnitPrice, hasSaleDiscount } from '@/lib/cartPricing';
 import { Pressable } from '@/components/ui/Pressable';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { Helmet } from 'react-helmet-async';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const checkoutHref = '/checkout/start';
 
@@ -23,6 +25,7 @@ export default function Cart() {
   const navigate = useNavigate();
   const { items, subtotal, removeItem, updateQuantity, clearCart, discount, selectedShipping, total } = useCart();
   const { data: pricingConfig } = usePricingConfig();
+  const isMobile = useIsMobile();
 
   // Fetch fresh stock data for cart items
   const { data: freshStockData } = useQuery({
@@ -74,7 +77,8 @@ export default function Cart() {
 
   return (
     <StoreLayout>
-      <div className="container-custom py-8">
+      <Helmet><title>Carrinho de Compras | Vanessa Lima Shoes</title></Helmet>
+      <div className="container-custom py-8 pb-28 lg:pb-8">
         <div className="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
           <Button variant="ghost" size="icon" asChild>
             <Link to="/">
@@ -294,6 +298,34 @@ export default function Cart() {
           </div>
         </div>
       </div>
+
+      {/* Mobile fixed bottom bar */}
+      {isMobile && items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t shadow-lg p-4 z-50 flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">{items.length} {items.length === 1 ? 'item' : 'itens'}</span>
+            <span className="text-lg font-bold">{formatPrice(total)}</span>
+          </div>
+          {selectedShipping ? (
+            <Pressable asChild feedbackPattern="selection">
+              <Button size="lg" className="flex-1 max-w-[200px]" asChild>
+                <Link to={checkoutHref}>Finalizar Compra</Link>
+              </Button>
+            </Pressable>
+          ) : (
+            <Button
+              size="lg"
+              variant="secondary"
+              className="flex-1 max-w-[200px]"
+              onClick={() => {
+                document.getElementById('shipping-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+            >
+              Calcule o frete
+            </Button>
+          )}
+        </div>
+      )}
     </StoreLayout>
   );
 }

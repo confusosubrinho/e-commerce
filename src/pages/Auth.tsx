@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Helmet } from 'react-helmet-async';
-import logo from '@/assets/logo.png';
+import defaultLogo from '@/assets/logo.png';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -40,6 +41,8 @@ export default function Auth() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
+  const { data: storePublicSettings } = useStoreSettingsPublic();
+  const logoUrl = storePublicSettings?.header_logo_url || storePublicSettings?.logo_url || defaultLogo;
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -161,7 +164,7 @@ export default function Auth() {
       <Helmet><title>Entrar | Vanessa Lima Shoes</title></Helmet>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src={logo} alt="Vanessa Lima Shoes" className="h-12 mx-auto mb-4" />
+          <img src={logoUrl} alt="Vanessa Lima Shoes" className="h-12 mx-auto mb-4" />
           <CardTitle>Bem-vinda!</CardTitle>
           <CardDescription>Entre ou crie sua conta</CardDescription>
         </CardHeader>
