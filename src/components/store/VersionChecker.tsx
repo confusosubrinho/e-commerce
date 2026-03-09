@@ -11,6 +11,8 @@ export function VersionChecker() {
     localStorage.setItem('app_version', APP_VERSION);
 
     const check = async () => {
+      // Skip when no explicit version is configured — Date.now() fallback always mismatches
+      if (!import.meta.env.VITE_APP_VERSION) return;
       try {
         const { data } = await supabase
           .from('store_settings_public')
