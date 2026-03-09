@@ -111,7 +111,8 @@ export default function Checkout() {
   const { data: checkoutConfig } = useQuery({
     queryKey: ['integrations-checkout'],
     queryFn: async () => {
-      const { data } = await supabase.from('integrations_checkout').select('provider').limit(1).maybeSingle();
+      const { data, error } = await supabase.from('integrations_checkout').select('provider').limit(1).maybeSingle();
+      if (error) console.warn('[Checkout] integrations_checkout query failed:', error.message);
       return data;
     },
   });

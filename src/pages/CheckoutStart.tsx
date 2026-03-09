@@ -21,7 +21,8 @@ export default function CheckoutStart() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price);
 
   const shippingCost = selectedShipping?.price ?? 0;
-  const totalValue = subtotal - discount + shippingCost;
+  // Use total from CartContext (single source of truth) instead of recalculating locally
+  const totalValue = total;
 
   useEffect(() => {
     captureAttribution();
