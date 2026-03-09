@@ -530,7 +530,13 @@ Deno.serve(async (req) => {
         let productId = localVariant?.product_id || null;
         if (productId) {
           const { data: p } = await supabase.from("products").select("name").eq("id", productId).maybeSingle();
-          if (p) productName = p.name;
+          if (p?.name) productName = p.name;
+        }
+        // If still generic after local lookup, try SKU data title
+        if (isGenericName(productName)) {
+          const skuTitle = ((item?.sku as Record<string, unknown>)?.data as Record<string, unknown>)?.title as string
+            || (item?.sku as Record<string, unknown>)?.title as string;
+          if (!isGenericName(skuTitle)) productName = skuTitle!;
         }
 
         let imageSnapshot: string | null = itemImageUrl || null;
