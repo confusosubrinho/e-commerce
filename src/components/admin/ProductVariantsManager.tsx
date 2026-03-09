@@ -247,7 +247,7 @@ export function ProductVariantsManager({
         ...updated[assignToEditIndex],
         color: newColor.name,
         color_hex: newColor.hex,
-        sku: generateSku(parentSku, updated[assignToEditIndex].size, newColor.name),
+        sku: generateSku(parentSku, updated[assignToEditIndex].size, newColor.name, updated[assignToEditIndex].custom_attribute_value),
       };
       onChange(updated);
     } else {
