@@ -8,6 +8,9 @@ import { HelpHint } from '@/components/HelpHint';
 import { AdminEmptyState } from '@/components/admin/AdminEmptyState';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { exportToCSV } from '@/lib/csv';
+
+/** Returns the effective order date: prefers yampi_created_at (original purchase), falls back to created_at */
+const getOrderDate = (o: any): string => (o.yampi_created_at as string) || o.created_at;
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
