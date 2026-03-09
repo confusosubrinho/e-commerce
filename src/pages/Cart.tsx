@@ -205,7 +205,9 @@ export default function Cart() {
               <h2 className="font-bold text-lg">Resumo do Pedido</h2>
 
               {/* Shipping calculator */}
-              <ShippingCalculator compact />
+              <div id="shipping-calculator">
+                <ShippingCalculator compact />
+              </div>
 
               {/* Coupon */}
               <CouponInput compact />
@@ -253,7 +255,14 @@ export default function Cart() {
                   </Button>
                 </Pressable>
               ) : (
-                <Button className="w-full" size="lg" disabled>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="secondary"
+                  onClick={() => {
+                    document.getElementById('shipping-calculator')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                >
                   Calcule o frete primeiro
                 </Button>
               )}

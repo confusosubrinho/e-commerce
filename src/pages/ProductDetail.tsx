@@ -609,28 +609,17 @@ export default function ProductDetail() {
       <Helmet>
         <title>{(product.seo_title || product.name)} | {storeName}</title>
         <meta name="description" content={safeSeoDescription || safeDescription.replace(/<[^>]*>/g, '').slice(0, 160) || ''} />
+        <meta property="og:title" content={product.seo_title || product.name} />
+        <meta property="og:description" content={safeSeoDescription || safeDescription.replace(/<[^>]*>/g, '').slice(0, 160) || ''} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:url" content={productUrl} />
+        <meta property="og:type" content="product" />
+        <meta property="product:price:amount" content={String(currentPrice)} />
+        <meta property="product:price:currency" content="BRL" />
       </Helmet>
       {/* SEO: JSON-LD */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbLd) }} />
-
-      {/* SEO: OG Meta Tags */}
-      {typeof document !== 'undefined' && (() => {
-        const setMeta = (property: string, content: string) => {
-          let el = document.querySelector(`meta[property="${property}"]`);
-          if (!el) { el = document.createElement('meta'); el.setAttribute('property', property); document.head.appendChild(el); }
-          el.setAttribute('content', content);
-        };
-        setMeta('og:title', product.seo_title || product.name);
-        setMeta('og:description', safeSeoDescription || safeDescription.slice(0, 160) || '');
-        setMeta('og:image', ogImage);
-        setMeta('og:url', productUrl);
-        setMeta('og:type', 'product');
-        setMeta('product:price:amount', String(currentPrice));
-        setMeta('product:price:currency', 'BRL');
-        document.title = (product.seo_title || product.name) + ' | ' + storeName;
-        return null;
-      })()}
 
       {/* Floating Video */}
       {(product as any).video_url && (

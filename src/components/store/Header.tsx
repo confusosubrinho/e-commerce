@@ -375,7 +375,7 @@ export function Header() {
                                 <div className="min-w-0">
                                   <p className="font-medium text-sm line-clamp-1">{item.product.name}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    Tam: {item.variant.size}
+                                    Tam: {item.variant.size}{item.variant.color && <span> · {item.variant.color}</span>}
                                   </p>
                                 </div>
                                 <Button

@@ -185,7 +185,7 @@ export function ProductCard({ product }: ProductCardProps) {
               type="button"
               id={`btn-buy-${product.slug}`}
               onClick={handleBuyClick}
-              className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press"
+              className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press"
               title={isOutOfStock ? 'Ver produto' : 'Comprar'}
             >
               {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
