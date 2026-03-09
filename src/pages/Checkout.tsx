@@ -958,8 +958,15 @@ export default function Checkout() {
     );
   }
 
+  const currentStepLabel = steps.find(s => s.id === currentStep)?.label || 'Checkout';
+
   return (
     <div className="min-h-screen bg-muted/30">
+      {/* UX 2: Dynamic Helmet */}
+      <Helmet>
+        <title>Checkout — {currentStepLabel} | Vanessa Lima</title>
+      </Helmet>
+
       {/* Header */}
       <header className="bg-background border-b sticky top-0 z-50">
         <div className="container-custom py-4 flex items-center justify-between">
