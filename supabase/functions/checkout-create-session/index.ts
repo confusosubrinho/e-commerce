@@ -359,7 +359,8 @@ Deno.serve(async (req) => {
         });
 
         if (checkoutConfig.fallback_to_native) {
-          return jsonRes({ redirect_url: "/checkout", fallback: true, error: msg });
+          // Y37: Return fallback_reason for frontend
+          return jsonRes({ redirect_url: "/checkout", fallback: true, fallback_reason: "yampi_api_error", error: msg });
         }
         return jsonRes({ error: msg }, 500);
       }
