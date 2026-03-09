@@ -1009,7 +1009,7 @@ export default function Checkout() {
                   ) : (
                     <step.icon className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline font-medium">{step.label}</span>
+                  <span className={`${currentStep === step.id ? 'inline' : 'hidden sm:inline'} font-medium`}>{step.label}</span>
                 </button>
                 {index < steps.length - 1 && (
                   <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 mx-1 sm:mx-2 text-muted-foreground" />
