@@ -143,6 +143,8 @@ Deno.serve(async (req) => {
 
   const paymentStatusMap: Record<string, string> = {
     paid: "approved", approved: "approved", payment_approved: "approved",
+    processing: "approved", in_production: "approved", in_separation: "approved",
+    ready_for_shipping: "approved", invoiced: "approved",
     pending: "pending", waiting_payment: "pending",
     cancelled: "failed", refused: "failed", refunded: "refunded",
   };
