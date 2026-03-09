@@ -524,6 +524,7 @@ Deno.serve(async (req) => {
       }
     }
   }
+  }
 
   console.log(`[yampi-sync] Order ${order.order_number} synced: status=${localStatus}, payment_status=${paymentStatus}`);
   return jsonRes({
