@@ -550,6 +550,11 @@ async function importSingleOrder(
   const installments = Number(firstTx.installments || yampiOrder.installments || 1);
   const transactionId = (firstTx.transaction_id as string) || (yampiOrder.transaction_id as string) || null;
 
+  // Y48: Extract coupon code from Yampi order (batch)
+  const couponData = (yampiOrder.coupon as Record<string, unknown>) || {};
+  const couponDataInner = (couponData.data as Record<string, unknown>) || couponData;
+  const couponCode = (couponDataInner.code as string) || (yampiOrder.coupon_code as string) || null;
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     order_number: "TEMP", subtotal, total_amount: totalAmount, shipping_cost: shippingCost, discount_amount: discountAmount,
     shipping_name: customerName,
@@ -562,10 +567,23 @@ async function importSingleOrder(
     tracking_code: (yampiOrder.tracking_code as string) || null,
     shipping_method: (yampiOrder.shipping_option_name as string) || ((yampiOrder.shipping_option as Record<string, unknown>)?.name as string) || null,
     yampi_created_at: (yampiOrder.created_at as string) ? new Date(yampiOrder.created_at as string).toISOString() : null,
+    coupon_code: couponCode,
     notes: `Importado batch da Yampi (ID ${yId})`,
   } as Record<string, unknown>).select("id, order_number").single();
 
   if (orderErr || !order) return { ok: false, yampi_order_id: yampiOrderId, error: orderErr?.message || "Erro insert" };
+
+  // Y48: Increment coupon uses_count if order had a coupon (batch)
+  if (couponCode && localStatus !== "cancelled") {
+    const { data: coupon } = await supabase
+      .from("coupons")
+      .select("id")
+      .eq("code", couponCode.toUpperCase())
+      .maybeSingle();
+    if (coupon?.id) {
+      await supabase.rpc("increment_coupon_uses", { p_coupon_id: coupon.id });
+    }
+  }
 
   // Insert items
   const yampiItems = ((yampiOrder.items as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.items as unknown[]) || [];
