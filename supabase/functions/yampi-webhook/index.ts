@@ -649,8 +649,13 @@ Deno.serve(async (req) => {
         await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: cancelHash, payload });
 
         // Y30: Insert email automation log for cancellation
-        const customerEmail = resourceData?.customer?.email || resourceData?.email || null;
-        const customerName = resourceData?.customer?.name || resourceData?.customer_name || "Cliente";
+        // Fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
+        const rawCancelCustomer = resourceData?.customer || resourceData?.buyer || {};
+        const cancelCustomer = (rawCancelCustomer as Record<string, unknown>)?.data || rawCancelCustomer;
+        const customerEmail = (cancelCustomer as Record<string, unknown>)?.email || resourceData?.email || null;
+        const customerName = (cancelCustomer as Record<string, unknown>)?.name
+          || ((cancelCustomer as Record<string, unknown>)?.first_name ? `${(cancelCustomer as Record<string, unknown>).first_name} ${(cancelCustomer as Record<string, unknown>)?.last_name || ""}`.trim() : null)
+          || resourceData?.customer_name || "Cliente";
         const { data: cancelAutomation } = await supabase.from("email_automations")
           .select("id").eq("trigger_event", "order_cancelled").eq("is_active", true).limit(1).maybeSingle();
         if (customerEmail) {
