@@ -34,6 +34,7 @@ const SECTION_META: Record<string, { icon: React.ReactNode; description: string;
   instagram_feed:   { icon: <Camera className="h-4 w-4" />,        description: 'Últimas fotos do Instagram',                  category: 'Social & Engajamento' },
   testimonials:     { icon: <Star className="h-4 w-4" />,          description: 'Carrossel com depoimentos',                   category: 'Social & Engajamento' },
   newsletter:       { icon: <Mail className="h-4 w-4" />,          description: 'Caixa de captura de e-mail',                  category: 'Social & Engajamento' },
+  blog:             { icon: <BookOpen className="h-4 w-4" />,      description: 'Últimos posts do blog',                       category: 'Social & Engajamento' },
   product_carousel: { icon: <Rows3 className="h-4 w-4" />,         description: 'Produtos em rolagem horizontal',              category: 'Produtos' },
   product_grid:     { icon: <LayoutGrid className="h-4 w-4" />,    description: 'Produtos em grade',                           category: 'Produtos' },
 };
