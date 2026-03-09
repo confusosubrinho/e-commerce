@@ -361,11 +361,12 @@ const BRAZILIAN_STATES = [
                   <div className="space-y-2">
                     <Label>CEP</Label>
                     <div className="relative">
-                      <Input
+                        <Input
                         value={profileForm.zip_code}
-                        onChange={(e) => setProfileForm({ ...profileForm, zip_code: e.target.value })}
+                        onChange={(e) => setProfileForm({ ...profileForm, zip_code: formatCEP(e.target.value) })}
                         onBlur={handleCepBlur}
                         placeholder="00000-000"
+                        maxLength={9}
                       />
                       {cepLoading && (
                         <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
