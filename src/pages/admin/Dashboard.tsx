@@ -150,8 +150,8 @@ export default function Dashboard() {
     queryKey: ['dashboard-kpis', period],
     queryFn: async () => {
       const [currentOrders, prevOrders, currentCustomers, prevCustomers] = await Promise.all([
-        supabase.from('orders').select('id, total_amount, status').gte('created_at', periodStart.toISOString()),
-        supabase.from('orders').select('id, total_amount, status').gte('created_at', prevPeriodStart.toISOString()).lt('created_at', periodStart.toISOString()),
+        supabase.from('orders').select('id, total_amount, status').not('payment_status', 'is', null).gte('created_at', periodStart.toISOString()),
+        supabase.from('orders').select('id, total_amount, status').not('payment_status', 'is', null).gte('created_at', prevPeriodStart.toISOString()).lt('created_at', periodStart.toISOString()),
         supabase.from('customers').select('id', { count: 'exact' }).gte('created_at', periodStart.toISOString()),
         supabase.from('customers').select('id', { count: 'exact' }).gte('created_at', prevPeriodStart.toISOString()).lt('created_at', periodStart.toISOString()),
       ]);
@@ -177,7 +177,7 @@ export default function Dashboard() {
   const { data: revenueChart } = useQuery({
     queryKey: ['dashboard-revenue-chart', period],
     queryFn: async () => {
-      const { data } = await supabase.from('orders').select('created_at, total_amount, status').gte('created_at', periodStart.toISOString()).neq('status', 'cancelled').order('created_at');
+      const { data } = await supabase.from('orders').select('created_at, total_amount, status').not('payment_status', 'is', null).gte('created_at', periodStart.toISOString()).neq('status', 'cancelled').order('created_at');
       const byDay: Record<string, number> = {};
       for (let i = 0; i < days; i++) {
         const d = format(subDays(now, days - 1 - i), 'dd/MM');
