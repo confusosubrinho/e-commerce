@@ -310,10 +310,16 @@ export function Header() {
             {/* Cart */}
             <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="relative rounded-full border-2 border-primary bg-primary text-primary-foreground hover:bg-primary/90 min-w-[44px] min-h-[44px]" onMouseEnter={prefetchCartPage}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="relative rounded-full border-2 border-primary bg-primary text-primary-foreground hover:bg-primary/90 min-w-[44px] min-h-[44px]"
+                  onMouseEnter={prefetchCartPage}
+                  aria-label={itemCount > 0 ? `Carrinho de compras, ${itemCount} ${itemCount === 1 ? 'item' : 'itens'}` : 'Abrir carrinho de compras'}
+                >
                   <ShoppingBag className="h-5 w-5" />
                   {itemCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-secondary text-secondary-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-scale-bounce" key={itemCount}>
+                    <span className="absolute -top-2 -right-2 bg-secondary text-secondary-foreground text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-scale-bounce" key={itemCount} aria-hidden="true">
                       {itemCount}
                     </span>
                   )}
@@ -379,6 +385,7 @@ export function Header() {
                                   size="icon"
                                   className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
                                   onClick={() => removeItem(item.variant.id)}
+                                  aria-label={`Remover ${item.product.name} do carrinho`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>

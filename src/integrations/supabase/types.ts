@@ -3230,6 +3230,33 @@ export type Database = {
         }
         Relationships: []
       }
+      tenants: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          domain: string | null
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          domain?: string | null
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          domain?: string | null
+          active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       traffic_sessions: {
         Row: {
           created_at: string

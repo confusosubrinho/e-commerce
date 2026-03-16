@@ -1,7 +1,8 @@
-export type AdminRole = 'owner' | 'manager' | 'operator' | 'viewer';
+export type AdminRole = 'owner' | 'manager' | 'operator' | 'viewer' | 'super_admin';
 
 export const ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
   owner: ['*'],
+  super_admin: ['*'],
   manager: [
     'products.*', 'categories.*', 'orders.*', 'customers.*',
     'coupons.*', 'banners.*', 'personalization.*', 'analytics.*',
@@ -19,6 +20,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
 
 export const ROLE_LABELS: Record<AdminRole, string> = {
   owner: 'Proprietário',
+  super_admin: 'Super Admin',
   manager: 'Gerente',
   operator: 'Operador',
   viewer: 'Visualizador',
@@ -26,6 +28,7 @@ export const ROLE_LABELS: Record<AdminRole, string> = {
 
 export const ROLE_COLORS: Record<AdminRole, string> = {
   owner: 'bg-primary text-primary-foreground',
+  super_admin: 'bg-violet-600 text-white',
   manager: 'bg-blue-500 text-white',
   operator: 'bg-amber-500 text-white',
   viewer: 'bg-muted text-muted-foreground',

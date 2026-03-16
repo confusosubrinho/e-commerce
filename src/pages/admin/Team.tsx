@@ -108,6 +108,7 @@ export default function Team() {
                 <Select value={role} onValueChange={v => setRole(v as AdminRole)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="super_admin">{ROLE_LABELS.super_admin}</SelectItem>
                     <SelectItem value="manager">Gerente</SelectItem>
                     <SelectItem value="operator">Operador</SelectItem>
                     <SelectItem value="viewer">Visualizador</SelectItem>
@@ -223,6 +224,7 @@ export default function Team() {
                         </Badge>
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="super_admin">{ROLE_LABELS.super_admin}</SelectItem>
                         <SelectItem value="manager">Gerente</SelectItem>
                         <SelectItem value="operator">Operador</SelectItem>
                         <SelectItem value="viewer">Visualizador</SelectItem>

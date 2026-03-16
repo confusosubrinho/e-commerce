@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCart } from '@/contexts/CartContext';
+import { useTenant } from '@/hooks/useTenant';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -93,6 +94,7 @@ function luhnCheck(num: string): boolean {
 export default function Checkout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { tenantId } = useTenant();
   const { items, subtotal, total, clearCart, updateQuantity, selectedShipping, setSelectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId } = useCart();
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
@@ -522,6 +524,7 @@ export default function Checkout() {
                   installments: selectedInstallments,
                   order_access_token: reusedGuestToken,
                 },
+                tenantId: tenantId ?? undefined,
               },
               requestId
             );
@@ -678,6 +681,7 @@ export default function Checkout() {
                 success_url: `${window.location.origin}/pedido-confirmado/${order.id}?token=${guestToken}`,
                 cancel_url: `${window.location.origin}/carrinho`,
               },
+              tenantId: tenantId ?? undefined,
             },
             requestId
           );
@@ -710,6 +714,7 @@ export default function Checkout() {
               installments: selectedInstallments,
               order_access_token: guestToken,
             },
+            tenantId: tenantId ?? undefined,
           },
           requestId
         );
@@ -791,6 +796,7 @@ export default function Checkout() {
                 expiration_year: expiryYear,
                 security_code: formData.cardCvv,
               },
+              tenantId: tenantId ?? undefined,
             },
             requestId
           );
@@ -806,7 +812,7 @@ export default function Checkout() {
 
       const { data: paymentResult, error: pmtError } = await invokeCheckoutFunction<{ error?: string; appmax_order_id?: string; pay_reference?: string; pix_qrcode?: string; pix_emv?: string; pix_expiration_date?: string }>(
         'checkout-process-payment',
-        { body: paymentPayload },
+        { body: paymentPayload, tenantId: tenantId ?? undefined },
         requestId
       );
 

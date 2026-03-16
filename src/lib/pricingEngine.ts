@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { formatPrice as formatCurrency } from '@/lib/formatters';
 
 export interface PricingConfig {
   id: string;

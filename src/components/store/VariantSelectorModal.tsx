@@ -96,6 +96,8 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
             src={resolveImageUrl(primaryImage?.url)}
             alt={product.name}
             className="w-20 h-20 object-cover rounded"
+            loading="lazy"
+            decoding="async"
           />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm line-clamp-2">{product.name}</p>

@@ -8,6 +8,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : 1,
+  timeout: 60000, // 60s por teste (fluxos com redirect/network)
   reporter: process.env.CI ? [['list'], ['html', { outputFolder: 'test-results/playwright-report', open: 'never' }]] : 'list',
   outputDir: 'test-results/playwright',
   use: {

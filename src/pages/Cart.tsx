@@ -121,6 +121,8 @@ export default function Cart() {
                     src={resolveImageUrl(item.product.images?.[0]?.url)}
                     alt={item.product.name}
                     className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-lg"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </Link>
                 <div className="flex-1">

@@ -86,6 +86,8 @@ export function CartProductSuggestions({ compact = false }: CartProductSuggestio
                   src={resolveImageUrl(img?.url)}
                   alt={product.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  loading="lazy"
+                  decoding="async"
                 />
               </div>
               <div className="p-1.5">

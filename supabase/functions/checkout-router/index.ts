@@ -1,11 +1,13 @@
 /**
  * PR4: Checkout router mínimo — delega para implementações existentes e retorna shape unificado.
  * PR9 Fase 1: route "start" — schema rígido (zod), preços/totais recalculados no servidor, allowlist, rate limit.
+ * Fase 8 mt-backend: lê tenant_id da requisição (x-tenant-id ou body.tenant_id), usa em inserts e repassa às funções downstream.
  */
 import { z } from "https://esm.sh/zod@3.23.8";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { getTenantIdFromRequest } from "../_shared/tenant.ts";
 
 const SINGLETON_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -78,7 +80,7 @@ Deno.serve(async (req) => {
   const corsHeaders = {
     ...getCorsHeaders(req.headers.get("Origin")),
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type, x-request-id, stripe-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+      "authorization, x-client-info, apikey, content-type, x-request-id, x-tenant-id, stripe-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   };
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -98,6 +100,7 @@ Deno.serve(async (req) => {
     return jsonRes({ success: false, error: "Body JSON inválido" }, 400, corsHeaders);
   }
 
+  const tenantId = getTenantIdFromRequest(req, body);
   const route = (body?.route ?? body?.action) as Route | undefined;
   const requestId = (body?.request_id as string) || req.headers.get("x-request-id") || null;
 
@@ -266,6 +269,7 @@ Deno.serve(async (req) => {
       const { data: newOrder, error: orderErr } = await supabase
         .from("orders")
         .insert({
+          tenant_id: tenantId,
           order_number: "TEMP",
           user_id: userId,
           cart_id: cartId,
@@ -328,7 +332,7 @@ Deno.serve(async (req) => {
         });
         await supabase.from("order_items").insert(
           fullItems.map(({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, sku_snapshot, yampi_sku_id }) =>
-            ({ order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, sku_snapshot, yampi_sku_id })
+            ({ tenant_id: tenantId, order_id, product_variant_id, product_id, product_name, variant_info, quantity, unit_price, total_price, title_snapshot, image_snapshot, sku_snapshot, yampi_sku_id })
           )
         );
       }
@@ -345,6 +349,7 @@ Deno.serve(async (req) => {
           const stockData = stockResult.data as { success: boolean; error?: string } | null;
           if (stockData?.success) {
             await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
               variant_id: i.variant_id,
               order_id: orderId,
               type: "reserve",
@@ -361,11 +366,16 @@ Deno.serve(async (req) => {
         targetUrl,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "x-tenant-id": tenantId,
+          },
           body: JSON.stringify({
             items: items.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })),
             attribution,
             request_id: requestId,
+            tenant_id: tenantId,
           }),
         },
         22_000
@@ -414,6 +424,7 @@ Deno.serve(async (req) => {
           const stockData = stockResult.data as { success: boolean; error?: string } | null;
           if (stockData?.success) {
             await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
               variant_id: i.variant_id,
               order_id: orderId,
               type: "reserve",
@@ -430,7 +441,11 @@ Deno.serve(async (req) => {
         targetUrl,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "x-tenant-id": tenantId,
+          },
           body: JSON.stringify({
             action: "create_checkout_session",
             order_id: orderId,
@@ -442,6 +457,7 @@ Deno.serve(async (req) => {
             success_url: successUrl || `${origin}/checkout/obrigado?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: cancelUrl || `${origin}/carrinho`,
             request_id: requestId,
+            tenant_id: tenantId,
           }),
         },
         22_000
@@ -478,7 +494,11 @@ Deno.serve(async (req) => {
         targetUrl,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}` },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${serviceRoleKey}`,
+            "x-tenant-id": tenantId,
+          },
           body: JSON.stringify({
             action: "create_payment_intent",
             order_id: orderId,
@@ -488,6 +508,7 @@ Deno.serve(async (req) => {
             discount_amount: discountAmount,
             order_access_token: guestToken,
             request_id: requestId,
+            tenant_id: tenantId,
           }),
         },
         22_000
@@ -553,13 +574,14 @@ Deno.serve(async (req) => {
   const target = TARGET_MAP[route as Exclude<Route, "start">];
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${target}`;
 
-  const targetBody: Record<string, unknown> = { ...body, request_id: requestId };
+  const targetBody: Record<string, unknown> = { ...body, request_id: requestId, tenant_id: tenantId };
   delete targetBody.route;
   if (route === "resolve") targetBody.action = "resolve";
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${serviceRoleKey}`,
+    "x-tenant-id": tenantId,
     ...(requestId && { "x-request-id": requestId }),
   };
   const auth = req.headers.get("authorization");

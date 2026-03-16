@@ -2,8 +2,7 @@
 
 Documento de design de alto nível para a evolução da plataforma para o modelo multi-tenant (múltiplas lojas independentes na mesma infraestrutura).
 
-> **Status:** Planejamento – ainda não implementado.
-> Esta é a visão arquitetural. A implementação começa na Fase 7 do [`ROADMAP.md`](ROADMAP.md).
+> **Status:** Base implementada (Fases 7 e 8 do [`ROADMAP.md`](ROADMAP.md)). Schema, RLS, discovery e uso de `tenant_id` nas Edge Functions de checkout estão em produção. Múltiplos tenants operacionais.
 
 ---
 
@@ -95,6 +94,8 @@ CREATE POLICY "super_admin_bypass" ON orders
 ---
 
 ## Descoberta de tenant (Tenant Resolution)
+
+**Implementado (Fase 7 e 8):** `src/lib/tenant.ts` exporta `DEFAULT_TENANT_ID`, `resolveTenantId()`, `resolveTenantIdAsync(supabase)`, `getTenantIdByDomain()`, `getTenantIdBySlug()`, `getSlugFromPath()`. `useTenant()` usa React Query e resolve o tenant por: 1) domínio customizado (`tenants.domain`), 2) path `/loja/:slug` (`tenants.slug`), 3) tenant padrão. RLS no banco garante isolamento. Testes em `src/test/tenant.test.ts`.
 
 ### Opção 1: Por subdomínio
 ```

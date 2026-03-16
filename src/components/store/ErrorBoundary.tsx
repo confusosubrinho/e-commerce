@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
       return (
-        <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center" role="alert" aria-live="assertive">
           <h1 className="text-xl font-semibold text-foreground mb-2">Algo deu errado</h1>
           <p className="text-muted-foreground mb-6 max-w-md">
             Ocorreu um erro inesperado. Recarregue a página para tentar novamente.

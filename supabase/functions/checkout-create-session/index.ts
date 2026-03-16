@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { logError } from "../_shared/log.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
@@ -19,15 +20,18 @@ Deno.serve(async (req) => {
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const correlationId = req.headers.get("x-request-id") || crypto.randomUUID();
+  const SCOPE = "checkout-create-session";
+
   try {
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const requestId = (body?.request_id as string) || req.headers.get("x-request-id") || null;
-    console.log(JSON.stringify({ scope: "checkout-create-session", request_id: requestId, action: body?.action }));
+    const requestId = (body?.request_id as string) || req.headers.get("x-request-id") || correlationId;
+    console.log(JSON.stringify({ scope: SCOPE, correlation_id: correlationId, request_id: requestId, action: body?.action }));
 
     const action = body?.action as string | undefined;
 
@@ -374,9 +378,10 @@ Deno.serve(async (req) => {
     return jsonRes({ redirect_url: "/checkout" });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erro interno";
-    return new Response(JSON.stringify({ error: msg }), {
+    logError(SCOPE, correlationId, err);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
-      headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

@@ -175,6 +175,7 @@ export function ProductCard({ product }: ProductCardProps) {
             onClick={handleFavoriteClick}
             disabled={favoriteLoading}
             className={`absolute top-2 right-2 bg-background/80 p-1.5 rounded-full hover:bg-background transition-all shadow-sm ${favoriteLoading ? 'opacity-50 animate-pulse' : ''}`}
+            aria-label={isFavorite(product.id) ? `Remover ${product.name} dos favoritos` : `Adicionar ${product.name} aos favoritos`}
           >
             <Heart className={`h-4 w-4 transition-transform ${isFavorite(product.id) ? 'fill-destructive text-destructive scale-110' : 'text-muted-foreground'}`} />
           </button>
@@ -187,6 +188,7 @@ export function ProductCard({ product }: ProductCardProps) {
               onClick={handleBuyClick}
               className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press"
               title={isOutOfStock ? 'Ver produto' : 'Comprar'}
+              aria-label={isOutOfStock ? `Ver detalhes de ${product.name}` : `Comprar ${product.name}`}
             >
               {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
             </button>

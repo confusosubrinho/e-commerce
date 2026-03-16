@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
+import { useTenant } from "@/hooks/useTenant";
 import { captureAttribution, getAttribution } from "@/lib/attribution";
 import { Loader2, ShieldCheck, Lock, CreditCard } from "lucide-react";
 import { getCartItemUnitPrice } from "@/lib/cartPricing";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 export default function CheckoutStart() {
   const navigate = useNavigate();
+  const { tenantId } = useTenant();
   const { items, subtotal, discount, total, selectedShipping, clearCart, appliedCoupon, cartId, shippingZip } = useCart();
   const [error, setError] = useState<string | null>(null);
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -77,7 +79,7 @@ export default function CheckoutStart() {
           (payload as Record<string, unknown>).order_access_token = crypto.randomUUID();
         }
 
-        const { data, error: invokeError } = await invokeCheckoutRouter<CheckoutStartResponse>("start", payload, requestId);
+        const { data, error: invokeError } = await invokeCheckoutRouter<CheckoutStartResponse>("start", payload, requestId, undefined, tenantId ?? undefined);
         if (invokeError) throw invokeError;
         if (!data) throw new Error("Resposta vazia do checkout");
 
@@ -169,6 +171,8 @@ export default function CheckoutStart() {
                       src={item.product.images?.[0]?.url || "/placeholder.svg"}
                       alt={item.product.name}
                       className="w-10 h-10 rounded object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate">{item.product.name}</p>

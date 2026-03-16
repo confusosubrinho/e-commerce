@@ -18,6 +18,7 @@ import {
   Search,
   Sun,
   Moon,
+  Shield,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
@@ -66,6 +67,7 @@ interface MenuItem {
 
 const allMenuItems: MenuItem[] = [
   { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
+  { title: 'Super Admin', url: '/admin/super', icon: Shield, permission: 'super_admin.access' },
   { 
     title: 'Catálogo', 
     icon: Package,

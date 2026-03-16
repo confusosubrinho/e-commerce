@@ -33,7 +33,7 @@ describe('Webhook security', () => {
       body: JSON.stringify({ type: 'payment_intent.succeeded', data: {} }),
     });
     expect(res.status).toBe(400);
-  });
+  }, 15000);
 
   it('reconcile-order sem Authorization retorna 401 ou 404', async () => {
     if (!url) return;

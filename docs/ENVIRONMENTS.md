@@ -13,7 +13,8 @@
 ## Regras de uso por ambiente
 
 ### Desenvolvimento local
-- Use um projeto Supabase separado ou o Supabase CLI local (`supabase start`).
+- Use um projeto Supabase separado ou o **Supabase local** (`supabase start`). Guia completo: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md).
+- Configure `.env.local` com as credenciais do `supabase status` (API URL, anon key, service_role key).
 - Nunca aponte `.env` local para o projeto de produção.
 - Gateways de pagamento em modo **sandbox/test** (Stripe test keys, Yampi sandbox, etc.).
 

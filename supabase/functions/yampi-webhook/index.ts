@@ -1,12 +1,26 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { errorResponse } from "../_shared/response.ts";
+import { logError, logInfo } from "../_shared/log.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const SCOPE = "yampi-webhook";
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = {
+    ...getCorsHeaders(origin),
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  };
+  const correlationId = crypto.randomUUID();
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  function jsonOk(body: Record<string, unknown>) {
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -21,21 +35,21 @@ Deno.serve(async (req) => {
     const config = (row as { config?: { webhook_secret?: string } } | null)?.config;
     webhookSecret = config?.webhook_secret ?? Deno.env.get("YAMPI_WEBHOOK_SECRET") ?? undefined;
     if (!webhookSecret) {
-      console.error("[yampi-webhook] Webhook secret não configurado (nem em Configurar Yampi nem YAMPI_WEBHOOK_SECRET) — rejeitando request");
-      return new Response("Webhook secret not configured", { status: 500, headers: corsHeaders });
+      logError(SCOPE, correlationId, new Error("Webhook secret não configurado"));
+      return errorResponse("Webhook secret not configured", 500, corsHeaders);
     }
 
     const incomingToken = url.searchParams.get("token");
     if (!incomingToken || incomingToken !== webhookSecret) {
-      console.warn("[yampi-webhook] Webhook token inválido recebido");
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      logError(SCOPE, correlationId, new Error("Webhook token inválido"));
+      return errorResponse("Unauthorized", 401, corsHeaders);
     }
 
     const payload = await req.json();
     const event = payload?.event || payload?.type || "unknown";
     const resourceData = payload?.resource || payload?.data || payload;
 
-    console.log("[yampi-webhook] Event:", event, "Resource keys:", Object.keys(resourceData || {}));
+    logInfo(SCOPE, correlationId, "Event received", { event, resource_keys: Object.keys(resourceData || {}) });
 
     const paymentMethod = resourceData?.payment_method || resourceData?.payment?.method || null;
     const gateway = resourceData?.gateway || resourceData?.payment?.gateway || null;
@@ -995,7 +1009,7 @@ Deno.serve(async (req) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erro interno";
     const stack = err instanceof Error ? err.stack : undefined;
-    console.error("yampi-webhook error:", msg, stack);
+    logError(SCOPE, correlationId, err);
 
     // Log failure to error_logs for debugging
     try {
@@ -1011,10 +1025,3 @@ Deno.serve(async (req) => {
     return jsonOk({ ok: false, error: msg });
   }
 });
-
-function jsonOk(body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}

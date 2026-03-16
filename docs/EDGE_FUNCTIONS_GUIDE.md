@@ -13,67 +13,45 @@ Padrão de desenvolvimento para todas as Supabase Edge Functions do projeto.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { successResponse, errorResponse } from "../_shared/response.ts";
+import { logError, logInfo } from "../_shared/log.ts";
 
-// Handler principal – pequeno, só faz parse e delega
+const SCOPE = "nome-da-funcao";
+
 Deno.serve(async (req: Request) => {
-  const origin = req.headers.get("origin");
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+  const correlationId = req.headers.get("x-request-id") || crypto.randomUUID();
 
-  // 1. Tratar preflight CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: getCorsHeaders(origin) });
+    return new Response(null, { headers: corsHeaders });
   }
 
-  const correlationId = crypto.randomUUID();
-
   try {
-    // 2. Validar autenticação (se necessário)
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return errorResponse("Unauthorized", 401, getCorsHeaders(origin));
+      return errorResponse("Unauthorized", 401, corsHeaders);
     }
 
-    // 3. Parse do body
     const body = await req.json();
-
-    // 4. Criar cliente Supabase com o token do usuário (ou service role)
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // 5. Executar lógica de negócio (delegar para helper)
     const result = await processarAlgo(supabase, body, correlationId);
-
-    // 6. Resposta de sucesso
-    return successResponse(result, getCorsHeaders(origin));
-
+    return successResponse(result, corsHeaders);
   } catch (error) {
-    console.error(`[nome-da-funcao][${correlationId}]`, error);
+    logError(SCOPE, correlationId, error);
     return errorResponse(
       error instanceof Error ? error.message : "Erro interno",
       500,
-      getCorsHeaders(origin)
+      corsHeaders
     );
   }
 });
 
-// Helpers de resposta padronizados
-function successResponse(data: unknown, corsHeaders: Record<string, string>) {
-  return new Response(
-    JSON.stringify({ ok: true, data }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
-  );
-}
-
-function errorResponse(message: string, status: number, corsHeaders: Record<string, string>, hint?: string) {
-  return new Response(
-    JSON.stringify({ ok: false, error: message, hint }),
-    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status }
-  );
-}
-
-// Lógica de negócio em função separada
 async function processarAlgo(supabase: SupabaseClient, body: unknown, correlationId: string) {
   // ...implementação...
 }
@@ -117,6 +95,8 @@ async function processarAlgo(supabase: SupabaseClient, body: unknown, correlatio
 | Arquivo | Uso |
 |---------|-----|
 | `cors.ts` | `getCorsHeaders(origin)` – headers CORS por origem |
+| `response.ts` | `successResponse(data, corsHeaders, status?)`, `errorResponse(message, status, corsHeaders, hint?)` – formato `{ ok, data?, error?, hint? }` |
+| `log.ts` | `logError(scope, correlationId, error, context?)`, `logInfo(scope, correlationId, message, context?)` – log estruturado com PII filtrado |
 | `fetchWithTimeout.ts` | `fetchWithTimeout(url, options, timeoutMs)` – fetch com timeout |
 | `appmax.ts` | Helpers específicos da integração Appmax |
 | `bling-sync-fields.ts` | Mapeamento de campos para sync com Bling |

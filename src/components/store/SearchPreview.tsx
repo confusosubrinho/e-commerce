@@ -166,6 +166,8 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
                     src={resolveImageUrl(primaryImage?.url)}
                     alt={product.name}
                     className="w-14 h-14 rounded-lg object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm line-clamp-1">{product.name}</p>

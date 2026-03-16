@@ -14,6 +14,8 @@ export function generateRequestId(): string {
 export type InvokeCheckoutOptions = {
   body?: Record<string, unknown>;
   headers?: Record<string, string>;
+  /** Multi-tenant: envia x-tenant-id e tenant_id no body para as Edge Functions. */
+  tenantId?: string | null;
 };
 
 /** Shape unificado de resposta do checkout-router (PR4): sempre success e opcionalmente error no top level. */
@@ -25,16 +27,18 @@ export type CheckoutRouterResponse<T = Record<string, unknown>> = T & {
 /**
  * Invoca o checkout-router com route + payload. Resposta unificada com success e error.
  * Use route: "resolve" | "create_gateway_session" | "stripe_intent" | "process_payment".
+ * Multi-tenant: passe tenantId para que o router use em orders/order_items/inventory_movements.
  */
 export async function invokeCheckoutRouter<T = Record<string, unknown>>(
   route: string,
   payload: Record<string, unknown>,
   requestId?: string | null,
-  timeoutMs: number = DEFAULT_CHECKOUT_TIMEOUT_MS
+  timeoutMs: number = DEFAULT_CHECKOUT_TIMEOUT_MS,
+  tenantId?: string | null
 ): Promise<{ data: CheckoutRouterResponse<T> | null; error: Error | null }> {
   return invokeCheckoutFunction<CheckoutRouterResponse<T>>(
     "checkout-router",
-    { body: { ...payload, route } },
+    { body: { ...payload, route }, tenantId },
     requestId,
     timeoutMs
   );
@@ -63,9 +67,11 @@ export async function invokeCheckoutFunction<T = unknown>(
   const rid = requestId ?? generateRequestId();
   const body = options.body ?? {};
   const bodyWithRequestId = { ...body, request_id: rid };
+  if (options.tenantId) bodyWithRequestId.tenant_id = options.tenantId;
   const headers: Record<string, string> = {
     ...options.headers,
     "x-request-id": rid,
+    ...(options.tenantId && { "x-tenant-id": options.tenantId }),
   };
 
   const invokePromise = supabase.functions.invoke(functionName, {

@@ -87,6 +87,7 @@ const Reviews = lazy(() => lazyRetry(() => import("./pages/admin/Reviews")));
 const Team = lazy(() => lazyRetry(() => import("./pages/admin/Team")));
 const CheckoutSettings = lazy(() => lazyRetry(() => import("./pages/admin/CheckoutSettings")));
 const CommerceHealth = lazy(() => lazyRetry(() => import("./pages/admin/CommerceHealth")));
+const SuperAdmin = lazy(() => lazyRetry(() => import("./pages/admin/SuperAdmin")));
 const BlogAdmin = lazy(() => lazyRetry(() => import("./pages/admin/BlogAdmin")));
 const CheckoutStart = lazy(() => lazyRetry(() => import("./pages/CheckoutStart")));
 const BlogPage = lazy(() => lazyRetry(() => import("./pages/BlogPage")));
@@ -150,11 +151,17 @@ const persister =
       })
     : undefined;
 
-// Minimal page loading fallback
+// Minimal page loading fallback — a11y: role status + aria-live para leitores de tela
 function PageFallback() {
   return (
-    <div className="flex items-center justify-center py-20 animate-fade-in-soft">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    <div
+      className="flex flex-col items-center justify-center gap-3 py-20 animate-fade-in-soft"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" aria-hidden="true" />
+      <span className="text-sm text-muted-foreground">Carregando...</span>
     </div>
   );
 }
@@ -271,6 +278,7 @@ const App = () => {
                 <Route path="equipe" element={<Team />} />
                 <Route path="checkout-transparente" element={<CheckoutSettings />} />
                 <Route path="commerce-health" element={<CommerceHealth />} />
+                <Route path="super" element={<SuperAdmin />} />
                 <Route path="blog" element={<BlogAdmin />} />
               </Route>
               <Route path="/admin/integrations/appmax/callback" element={<AppmaxCallback />} />

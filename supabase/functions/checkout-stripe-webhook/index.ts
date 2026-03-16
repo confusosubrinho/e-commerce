@@ -1,19 +1,26 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { successResponse, errorResponse } from "../_shared/response.ts";
+import { logError, logInfo } from "../_shared/log.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, stripe-signature",
-};
+const SCOPE = "checkout-stripe-webhook";
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = {
+    ...getCorsHeaders(origin),
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, stripe-signature",
+  };
+  const correlationId = req.headers.get("x-correlation-id") || crypto.randomUUID();
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return errorResponse("Method not allowed", 405, corsHeaders);
   }
 
   const supabase = createClient(
@@ -37,11 +44,8 @@ Deno.serve(async (req) => {
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
   if (!signature || !webhookSecret) {
-    console.error("Missing stripe-signature header or STRIPE_WEBHOOK_SECRET");
-    return new Response(
-      JSON.stringify({ error: "Missing signature or webhook secret" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    logError(SCOPE, correlationId, new Error("Missing stripe-signature header or STRIPE_WEBHOOK_SECRET"));
+    return errorResponse("Missing signature or webhook secret", 400, corsHeaders);
   }
 
   // Read raw body BEFORE any JSON parsing — required for signature validation
@@ -52,16 +56,11 @@ Deno.serve(async (req) => {
     event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("⚠️ Webhook signature verification failed:", msg);
-    return new Response(JSON.stringify({ error: "Invalid signature" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    logError(SCOPE, correlationId, err, { event_type: "signature_verification" });
+    return errorResponse("Invalid signature", 400, corsHeaders);
   }
 
-  console.log(`✅ Stripe event received: ${event.type} (${event.id})`);
-  const correlationId = req.headers.get("x-correlation-id") || `stripe-${event.id}`;
-  console.log(`[${correlationId}] Processing ${event.type}`);
+  logInfo(SCOPE, correlationId, `Event received: ${event.type}`, { event_id: event.id, event_type: event.type });
 
   // ── IDEMPOTENCY CHECK ─────────────────────────────────────────────
   const { error: idempError } = await supabase
@@ -74,16 +73,11 @@ Deno.serve(async (req) => {
     });
 
   if (idempError) {
-    // unique violation = already processed → return 200
     if (idempError.code === "23505") {
-      console.log(`⏭️ Duplicate event ${event.id} — skipping`);
-      return new Response(JSON.stringify({ received: true, duplicate: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      logInfo(SCOPE, correlationId, "Duplicate event — skipping", { event_id: event.id });
+      return successResponse({ received: true, duplicate: true }, corsHeaders);
     }
-    // Non-duplicate DB error — log but continue processing
-    console.error("Idempotency insert error:", idempError.message);
+    logError(SCOPE, correlationId, idempError, { event_id: event.id });
   }
 
   // ── HELPERS ────────────────────────────────────────────────────────
@@ -108,8 +102,15 @@ Deno.serve(async (req) => {
     return error;
   }
 
-  /** Restore stock for an order with audit trail */
+  /** Restore stock for an order with audit trail (mt-backend: usa tenant_id do pedido). */
   async function restoreStock(orderId: string) {
+    const { data: orderRow } = await supabase
+      .from("orders")
+      .select("tenant_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    const tenantId = (orderRow?.tenant_id as string) ?? "00000000-0000-0000-0000-000000000001";
+
     const { data: items } = await supabase
       .from("order_items")
       .select("product_variant_id, quantity")
@@ -132,6 +133,7 @@ Deno.serve(async (req) => {
             p_quantity: item.quantity,
           });
           await supabase.from("inventory_movements").insert({
+            tenant_id: tenantId,
             variant_id: item.product_variant_id,
             order_id: orderId,
             type: "refund",
@@ -516,21 +518,14 @@ Deno.serve(async (req) => {
       .update({ processed_at: new Date().toISOString(), error_message: null })
       .eq("event_id", event.id);
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return successResponse({ received: true }, corsHeaders);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`🔥 Webhook processing error for ${event.type}:`, msg);
+    logError(SCOPE, correlationId, error, { event_type: event.type, event_id: event.id });
     await supabase
       .from("stripe_webhook_events")
       .update({ processed_at: new Date().toISOString(), error_message: msg })
       .eq("event_id", event.id);
-    // Return 200 even on processing errors to prevent Stripe retries for logic bugs
-    return new Response(JSON.stringify({ received: true, error: msg }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+    return successResponse({ received: true, error: msg }, corsHeaders);
   }
 });

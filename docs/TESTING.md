@@ -47,9 +47,13 @@ npm run qa:backend
 ```
 src/
 └── test/
-    ├── webhook-security.test.ts   – segurança de webhooks
+    ├── webhook-security.test.ts      – segurança de webhooks
     ├── release-expired-reservations.test.ts – expiração de reservas
-    └── (novos testes aqui)
+    ├── formatters.test.ts            – preço, data, status, provider
+    ├── pricingEngine.test.ts         – PIX, parcelas, gateway
+    ├── cartPricing.test.ts           – preço unitário/total, hasSaleDiscount
+    ├── purchase-flow.test.tsx        – fluxo carrinho + CheckoutStart (HelmetProvider)
+    └── (outros)
 ```
 
 ### Como escrever um teste unitário
@@ -71,10 +75,12 @@ describe('funcaoATestar', () => {
 ```
 
 ### Áreas prioritárias para testes unitários
-- Funções de formatação de preços e datas (`src/lib/`)
+- Funções de formatação de preços e datas (`src/lib/formatters.ts`) ✅
+- Motor de preços e parcelas (`src/lib/pricingEngine.ts`) ✅
+- Preço de item no carrinho (`src/lib/cartPricing.ts`) ✅
 - Regras de status de pedido (transições válidas/inválidas)
 - Matching de SKUs Yampi ↔ produtos locais
-- Validação de webhooks (segurança)
+- Validação de webhooks (segurança) ✅
 - Lógica de cálculo de totais e frete
 
 ---
@@ -117,6 +123,9 @@ e2e/
 ### Configuração
 Os testes E2E precisam de variáveis de ambiente. Copie `e2e/.env.example` (se existir) ou configure as variáveis necessárias.
 
+- **Timeout global:** 60s por teste (`playwright.config.ts`), para reduzir falhas em fluxos com redirect/network.
+- **Retries em CI:** 2; sem retry local.
+
 ---
 
 ## Cobertura mínima esperada
@@ -132,16 +141,27 @@ Os testes E2E precisam de variáveis de ambiente. Copie `e2e/.env.example` (se e
 
 ## CI/CD
 
-O pipeline de CI (GitHub Actions ou similar) deve rodar em todo PR:
+### CI (todo PR)
 
-```yaml
-# .github/workflows/ci.yml (exemplo)
-- npm run lint
-- npm run typecheck
-- npm run test
-```
+O workflow `.github/workflows/ci.yml` roda em todo **push** e **pull request** para `main`:
 
-E2E roda antes de deploy em produção (não em todo PR, para evitar lentidão).
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test` (testes unitários e de componente)
+
+Nenhum segredo é necessário; o CI não acessa Supabase nem APIs externas.
+
+### E2E em CI
+
+Os testes E2E (Playwright) **não** rodam automaticamente em todo PR. O workflow `.github/workflows/e2e.yml` está configurado com **workflow_dispatch**: para rodar, vá em **Actions → E2E → Run workflow**.
+
+**Requisitos para rodar E2E em CI:**
+
+1. Configurar no repositório os **secrets**: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` (recomendado: projeto Supabase de staging).
+2. Ao disparar o workflow, o job instala dependências, instala o browser Chromium do Playwright e executa `npm run test:e2e`.
+3. Os **artifacts** (relatório HTML, traces e screenshots em falha) ficam disponíveis na run por 7 dias.
+
+**Comando local equivalente:** `npm run test:e2e` (com `.env` ou `.env.local` apontando para o ambiente desejado).
 
 ---
 

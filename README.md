@@ -100,7 +100,20 @@ Edite o `.env` com as credenciais reais. Veja `.env.example` para a lista comple
 
 > **Nunca commite o arquivo `.env` com valores reais.**
 
-### 4. Rodar em desenvolvimento
+### 4. (Opcional) Banco de dados local para testes
+
+Para rodar um **Supabase local** (Postgres + Auth) na sua máquina e usar em desenvolvimento e testes, sem apontar para produção:
+
+1. Instale [Docker Desktop](https://www.docker.com/products/docker-desktop/) e o [Supabase CLI](https://supabase.com/docs/guides/cli).
+2. Na raiz do projeto: `npm run supabase:start` (ou `npx supabase start`).
+3. Rode `npm run supabase:status` e copie a **API URL** e as chaves **anon** e **service_role**.
+4. Crie `.env.local` a partir de `.env.local.example` e preencha com esses valores.
+5. Rode `npm run seed:qa` para criar um admin e dados mínimos (categoria, produto).
+6. Use `npm run dev` — o app passará a usar o Supabase local.
+
+Guia completo: **[docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md)**.
+
+### 5. Rodar em desenvolvimento
 
 ```bash
 npm run dev
@@ -122,6 +135,11 @@ O app estará disponível em `http://localhost:8080`.
 | `npm run test` | Testes unitários com Vitest |
 | `npm run test:watch` | Testes em modo watch |
 | `npm run test:e2e` | Testes E2E com Playwright |
+| `npm run supabase:start` | Sobe o Supabase local (Docker) |
+| `npm run supabase:stop` | Para o Supabase local |
+| `npm run supabase:status` | Mostra URLs e chaves do ambiente local |
+| `npm run supabase:reset` | Recria o banco local e reaplica migrations |
+| `npm run seed:qa` | Cria admin + dados mínimos para E2E (usa .env.local ou .env) |
 | `npm run test:e2e:ui` | Playwright com interface gráfica |
 | `npm run qa:ultimate` | Lint + typecheck + testes + E2E |
 
@@ -174,6 +192,7 @@ e-commerce/
 | [`docs/SUPABASE_CHANGES_PLAN.md`](docs/SUPABASE_CHANGES_PLAN.md) | Como solicitar mudanças no banco à IA |
 | [`docs/SUPABASE_CHANGELOG.md`](docs/SUPABASE_CHANGELOG.md) | Histórico de mudanças no banco |
 | [`docs/ENVIRONMENTS.md`](docs/ENVIRONMENTS.md) | Ambientes dev/staging/produção |
+| [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) | Banco local (Supabase CLI + Docker) para testes |
 | [`docs/SECURITY_OVERVIEW.md`](docs/SECURITY_OVERVIEW.md) | Segurança, segredos, backup e privacidade |
 | [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Métricas, logs e monitoramento |
 | [`docs/API_INVENTORY.md`](docs/API_INVENTORY.md) | Inventário de integrações externas |
