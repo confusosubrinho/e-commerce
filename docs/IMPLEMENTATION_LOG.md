@@ -27,6 +27,42 @@ Toda vez que uma alteração for feita, deve ser adicionada aqui com data, arqui
 
 ---
 
+## 2026-03-05 – Fase 2: Qualidade de código – centralização de helpers duplicados
+
+**Tarefa do plano:** `fase2-scan`, `fase2-formatters`, `fase2-order-utils`, `fase2-cleanup`
+
+### Arquivos alterados
+- `src/lib/formatters.ts` – adicionados status `paid`, `refunded`, `failed` aos três mapas de status; adicionado `formatCurrency` como alias de `formatPrice`; ajustadas cores de badge para usar paleta Tailwind consistente
+- `src/lib/pricingEngine.ts` – `formatCurrency` agora re-exportado de `@/lib/formatters` (elimina duplicação de implementação idêntica)
+- `src/pages/MyAccount.tsx` – removidas definições locais de `formatPrice`, `statusLabels`, `statusColors`; importados de `@/lib/formatters`
+- `src/pages/admin/Customers.tsx` – removidas definições locais de `statusLabels`, `statusColors`; importados de `@/lib/formatters`
+- `src/pages/Cart.tsx` – `formatPrice` local substituído por alias de `formatCurrency` (já importada)
+- `src/pages/Checkout.tsx` – `formatPrice` local substituído por alias de `formatPricingCurrency` (já importada)
+- `src/pages/CheckoutReturn.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/ProductCarousel.tsx` – `formatPrice` com `useCallback` removido; adicionado import de `@/lib/formatters`
+- `src/components/store/Header.tsx` – `formatPrice` com `useCallback` removido; adicionado import de `@/lib/formatters`
+- `src/components/store/ShippingCalculator.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/SearchPreview.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/CategoryFilters.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/StripePaymentForm.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/StockNotifyModal.tsx` – `formatPrice` local removido; adicionado import de `@/lib/formatters`
+- `src/components/store/ProductCard.tsx` – `formatPrice` local substituído por alias de `formatCurrency` (já importada)
+- `src/components/store/VariantSelectorModal.tsx` – `formatPrice` local substituído por alias de `fmtCurrency` (já importada)
+
+### O que mudou
+- **13 duplicações de `formatPrice`/`formatCurrency`** eliminadas — agora um único ponto de verdade em `src/lib/formatters.ts`
+- **4 duplicações de `statusLabels`/`statusColors`** eliminadas em `MyAccount`, `Customers`, etc.
+- Status de pedido `paid`, `refunded`, `failed` adicionados aos mapas centrais (antes só existiam em definições locais)
+- `pricingEngine.ts` não mais duplica a implementação de formatação de moeda
+
+### Notas
+- Migrations de banco? **Não**
+- Passos manuais? **Não**
+- Risco de regressão? **Baixo** — mudança puramente cosmética/estrutural; TypeScript sem erros verificado (`npx tsc --noEmit` = 0 erros); linter passou em todos os 16 arquivos modificados
+- **Dívida técnica anotada:** ~40 Edge Functions antigas definem `const corsHeaders = { "Access-Control-Allow-Origin": "*" }` inline ao invés de usar `getCorsHeaders()` de `supabase/functions/_shared/cors.ts`. Migrar progressivamente quando cada função for tocada.
+
+---
+
 ## 2026-03-05 – Fase 1: Documentação enterprise completa
 
 **Tarefa do plano:** `docs-readme`, `supabase-plan`, `workflow-conventions`, `api-governance`, `env-observability`
