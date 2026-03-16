@@ -47,12 +47,7 @@ export default function Cart() {
   const { data: storeSettings } = useStoreSettings();
   const freeShippingThreshold = storeSettings?.free_shipping_threshold ?? 399;
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
+  const formatPrice = formatCurrency;
 
   const remainingForFreeShipping = freeShippingThreshold - subtotal;
   const hasFreeShipping = subtotal >= freeShippingThreshold;

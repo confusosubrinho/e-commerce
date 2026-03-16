@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { formatPrice, formatDate } from '@/lib/formatters';
+import { formatPrice, formatDate, ORDER_STATUS_LABELS, ORDER_STATUS_BADGE_COLORS } from '@/lib/formatters';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Search, Eye, Mail, Phone, Calendar, DollarSign, ArrowUpDown, ShoppingBag, Download, Upload, Loader2, CheckCircle, AlertCircle, Users, MoreHorizontal, MessageCircle, Pencil, Save, X, MapPin, Package, Cake } from 'lucide-react';
@@ -44,22 +44,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
-const statusLabels: Record<string, string> = {
-  pending: 'Pendente',
-  processing: 'Processando',
-  paid: 'Pago',
-  shipped: 'Enviado',
-  delivered: 'Entregue',
-  cancelled: 'Cancelado',
-};
-const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  processing: 'bg-blue-100 text-blue-800',
-  paid: 'bg-green-100 text-green-800',
-  shipped: 'bg-purple-100 text-purple-800',
-  delivered: 'bg-emerald-100 text-emerald-800',
-  cancelled: 'bg-red-100 text-red-800',
-};
+// statusLabels and statusColors imported from @/lib/formatters as ORDER_STATUS_LABELS / ORDER_STATUS_BADGE_COLORS
+const statusLabels = ORDER_STATUS_LABELS;
+const statusColors = ORDER_STATUS_BADGE_COLORS;
 
 function getWhatsAppNumber(phone: string | null) {
   if (!phone) return '';

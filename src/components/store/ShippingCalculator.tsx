@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useCart } from '@/contexts/CartContext';
 import { ShippingOption } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
+import { formatPrice } from '@/lib/formatters';
 
 interface ShippingCalculatorProps {
   compact?: boolean;
@@ -34,12 +35,6 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
     return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
 
   const calculateShipping = async (cleanCep: string) => {
     setIsLoading(true);

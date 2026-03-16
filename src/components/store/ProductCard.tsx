@@ -59,8 +59,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const discountPercentage = hasDiscount
     ? Math.round((1 - Number(product.sale_price) / Number(product.base_price)) * 100)
     : 0;
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+  const formatPrice = formatCurrency;
   const currentPrice = Number(product.sale_price || product.base_price);
   const hasProductSale = hasDiscount; // product already has sale_price < base_price
   const applyPix = pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasProductSale) : true;

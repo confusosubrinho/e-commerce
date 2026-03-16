@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { useSearchPreviewProducts } from '@/hooks/useProducts';
+import { formatPrice } from '@/lib/formatters';
 
 const DEBOUNCE_MS = 400;
 
@@ -89,12 +90,6 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
     }
   }, [isOpen, results, highlightedIndex, navigate]);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
 
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>

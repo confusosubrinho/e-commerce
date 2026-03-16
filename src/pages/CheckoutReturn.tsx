@@ -6,6 +6,7 @@ import { StoreLayout } from "@/components/store/StoreLayout";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, Package, Loader2 } from "lucide-react";
 import { feedback } from "@/lib/feedback";
+import { formatPrice } from "@/lib/formatters";
 
 interface OrderInfo {
   id: string;
@@ -91,9 +92,6 @@ export default function CheckoutReturn() {
 
     fetchOrder();
   }, [sessionId, attempts, order]);
-
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price);
 
   return (
     <StoreLayout>

@@ -11,6 +11,7 @@ import { VariantSelectorModal } from './VariantSelectorModal';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
 import { FadeInOnScroll } from './FadeInOnScroll';
+import { formatPrice } from '@/lib/formatters';
 
 interface ProductCarouselProps {
   products: Product[];
@@ -77,12 +78,7 @@ export function ProductCarousel({
     }
   };
 
-  const formatPrice = useCallback((price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  }, []);
+  // formatPrice imported from @/lib/formatters
 
   const handleQuickBuy = (product: Product, e: React.MouseEvent) => {
     e.preventDefault();

@@ -3,6 +3,7 @@ import { ChevronDown, X, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
+import { formatPrice } from '@/lib/formatters';
 import {
   Sheet,
   SheetContent,
@@ -62,12 +63,6 @@ export function CategoryFilters({
 }: CategoryFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
 
   const handleSizeToggle = (size: string) => {
     const newSizes = filters.sizes.includes(size)

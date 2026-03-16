@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, Lock } from 'lucide-react';
+import { formatPrice } from '@/lib/formatters';
 
 let stripePromise: Promise<StripeType | null> | null = null;
 
@@ -106,9 +107,6 @@ function CheckoutForm({ clientSecret, onSuccess, onError, total, isLoading, setI
       setIsLoading(false);
     }
   };
-
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
 
   return (
     <div className="space-y-4">

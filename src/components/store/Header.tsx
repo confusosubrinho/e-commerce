@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatPrice } from '@/lib/formatters';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, ShoppingBag, Menu, MessageCircle, ChevronDown, Trash2, Plus, Minus, HelpCircle, Percent, Truck, Heart, Star, Sparkles, Gift, Tag, Flame, Zap, Crown, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -103,12 +104,7 @@ export function Header() {
     navigate(`/busca?q=${encodeURIComponent(query)}`);
   };
 
-  const formatPrice = useCallback((price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  }, []);
+  // formatPrice imported at module level from @/lib/formatters
 
   // Close mega menu when clicking outside
   useEffect(() => {

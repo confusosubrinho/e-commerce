@@ -62,8 +62,7 @@ export function VariantSelectorModal({ product, open, onOpenChange }: VariantSel
   const currentPrice = Number(product.sale_price || product.base_price);
   const hasDiscount = product.sale_price && product.sale_price < product.base_price;
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+  const formatPrice = fmtCurrency;
 
   const handleAdd = () => {
     if (!selectedVariant) return;

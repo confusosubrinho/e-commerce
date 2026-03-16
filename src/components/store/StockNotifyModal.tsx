@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Bell, Mail, MessageCircle } from 'lucide-react';
+import { formatPrice } from '@/lib/formatters';
 
 interface StockNotifyModalProps {
   open: boolean;
@@ -33,8 +34,6 @@ export function StockNotifyModal({
   const [honeypot, setHoneypot] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

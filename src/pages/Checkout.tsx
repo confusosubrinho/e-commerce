@@ -291,9 +291,7 @@ export default function Checkout() {
     }
   }, [formData.cep, formData.state, appliedCoupon, removeCoupon, toast]);
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
-  };
+  const formatPrice = formatPricingCurrency;
 
   const steps = [
     { id: 'identification', label: 'Identificação', icon: MapPin },
