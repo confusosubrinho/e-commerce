@@ -3474,6 +3474,29 @@ export type Database = {
         }
         Relationships: []
       }
+      user_tenants: {
+        Row: {
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       variation_value_map: {
         Row: {
           created_at: string
@@ -3652,6 +3675,7 @@ export type Database = {
         Args: { p_quantity: number; p_variant_id: string }
         Returns: Json
       }
+      get_current_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3669,6 +3693,7 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
