@@ -66,7 +66,7 @@ export async function invokeCheckoutFunction<T = unknown>(
 
   const rid = requestId ?? generateRequestId();
   const body = options.body ?? {};
-  const bodyWithRequestId = { ...body, request_id: rid };
+  const bodyWithRequestId: Record<string, unknown> = { ...body, request_id: rid };
   if (options.tenantId) bodyWithRequestId.tenant_id = options.tenantId;
   const headers: Record<string, string> = {
     ...options.headers,
