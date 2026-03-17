@@ -387,13 +387,15 @@ function MobileMenuSheet() {
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const { data: storeSettings } = useStoreSettings();
   const logoSrc = storeSettings?.header_logo_url || storeSettings?.logo_url || logoFallback;
-  const menuItems = useFilteredMenu();
+  const menuSections = useFilteredMenu();
 
   useEffect(() => {
-    menuItems.forEach(item => {
-      if (item.children?.some(child => location.pathname === child.url)) {
-        setOpenGroups(prev => prev.includes(item.title) ? prev : [...prev, item.title]);
-      }
+    menuSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.children?.some(child => location.pathname === child.url)) {
+          setOpenGroups(prev => prev.includes(item.title) ? prev : [...prev, item.title]);
+        }
+      });
     });
   }, [location.pathname]);
 
@@ -429,76 +431,95 @@ function MobileMenuSheet() {
           </SheetTitle>
         </SheetHeader>
         <ScrollArea className="flex-1">
-          <nav className="p-2 space-y-1">
-            {menuItems.map((item) => (
-              item.children ? (
-                <div key={item.title}>
-                  <button
-                    onClick={() => toggleGroup(item.title)}
-                    className={cn(
-                      "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm transition-colors",
-                      isGroupActive(item.children)
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-foreground hover:bg-muted"
-                    )}
-                  >
-                    <span className="flex items-center gap-3">
-                      <item.icon className="h-4 w-4" />
-                      {item.title}
-                    </span>
-                    <ChevronDown className={cn(
-                      "h-4 w-4 transition-transform",
-                      openGroups.includes(item.title) && "rotate-180"
-                    )} />
-                  </button>
-                  {openGroups.includes(item.title) && (
-                    <div className="ml-7 mt-1 space-y-0.5 border-l-2 border-muted pl-3">
-                      {item.children.map((child) => (
-                        <Link
-                          key={child.url}
-                          to={child.url}
+          <nav className="py-2">
+            {menuSections.map((section, sIdx) => (
+              <div key={section.label}>
+                {sIdx > 0 && <div className="mx-3 my-2 border-t border-border/50" />}
+                <p className="px-4 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                  {section.label}
+                </p>
+                <div className="px-2 space-y-0.5">
+                  {section.items.map((item) => (
+                    item.children ? (
+                      <div key={item.title}>
+                        <button
+                          onClick={() => toggleGroup(item.title)}
                           className={cn(
-                            "block px-3 py-2 rounded-md text-sm transition-colors",
-                            isActiveRoute(child.url)
+                            "flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm transition-colors",
+                            isGroupActive(item.children)
                               ? "bg-primary/10 text-primary font-medium"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                              : "text-foreground hover:bg-muted"
                           )}
                         >
-                          {child.title}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+                          <span className="flex items-center gap-3">
+                            <item.icon className="h-4 w-4" />
+                            {item.title}
+                          </span>
+                          <ChevronDown className={cn(
+                            "h-3.5 w-3.5 text-muted-foreground/60 transition-transform",
+                            openGroups.includes(item.title) && "rotate-180"
+                          )} />
+                        </button>
+                        {openGroups.includes(item.title) && (
+                          <div className="ml-7 mt-1 space-y-0.5 border-l-2 border-muted pl-3">
+                            {item.children.map((child) => (
+                              <Link
+                                key={child.url}
+                                to={child.url}
+                                className={cn(
+                                  "block px-3 py-2 rounded-md text-sm transition-colors",
+                                  isActiveRoute(child.url)
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                                )}
+                              >
+                                {child.title}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <Link
+                        key={item.title}
+                        to={item.url!}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                          isActiveRoute(item.url)
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "text-foreground hover:bg-muted"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.title}
+                      </Link>
+                    )
+                  ))}
                 </div>
-              ) : (
-                <Link
-                  key={item.title}
-                  to={item.url!}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                    isActiveRoute(item.url)
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.title}
-                </Link>
-              )
+              </div>
             ))}
           </nav>
         </ScrollArea>
-        <div className="p-3 border-t">
-          <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sair
-          </Button>
+        <div className="border-t">
+          <div className="p-3">
+            <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" asChild>
+              <Link to="/" target="_blank">
+                <Store className="h-4 w-4 mr-2" />
+                Ver Loja
+              </Link>
+            </Button>
+          </div>
+          <div className="px-3 pb-3">
+            <Button variant="ghost" size="sm" className="w-full justify-start text-destructive/80 hover:text-destructive hover:bg-destructive/10" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
   );
 }
-
 // Mobile bottom tab bar
 function MobileBottomBar() {
   const location = useLocation();
