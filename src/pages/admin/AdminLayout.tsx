@@ -212,29 +212,33 @@ const mobileTabItems = [
   { title: 'Analytics', url: '/admin/vendas', icon: TrendingUp },
 ];
 
-function useFilteredMenu() {
+function useFilteredMenu(): MenuSection[] {
   const { role, can } = useAdminRole();
 
-  return useMemo(() => allMenuItems.reduce<MenuItem[]>((acc, item) => {
-    // Check top-level permission
-    if (item.permission && !can(item.permission)) return acc;
+  return useMemo(() => allMenuSections.reduce<MenuSection[]>((sections, section) => {
+    const filteredItems = section.items.reduce<MenuItem[]>((acc, item) => {
+      if (item.permission && !can(item.permission)) return acc;
 
-    if (item.children) {
-      const filteredChildren = item.children.filter(child => {
-        if (!child.permission) return true;
-        // Special: team.read only for owner
-        if (child.permission === 'team.read') return role === 'owner';
-        // Settings only for owner/manager
-        if (child.permission === 'settings.read') return role === 'owner' || role === 'manager';
-        return can(child.permission);
-      });
-      if (filteredChildren.length > 0) {
-        acc.push({ ...item, children: filteredChildren });
+      if (item.children) {
+        const filteredChildren = item.children.filter(child => {
+          if (!child.permission) return true;
+          if (child.permission === 'team.read') return role === 'owner';
+          if (child.permission === 'settings.read') return role === 'owner' || role === 'manager';
+          return can(child.permission);
+        });
+        if (filteredChildren.length > 0) {
+          acc.push({ ...item, children: filteredChildren });
+        }
+      } else {
+        acc.push(item);
       }
-    } else {
-      acc.push(item);
+      return acc;
+    }, []);
+
+    if (filteredItems.length > 0) {
+      sections.push({ ...section, items: filteredItems });
     }
-    return acc;
+    return sections;
   }, []), [role, can]);
 }
 
@@ -247,14 +251,16 @@ function AdminSidebar() {
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const { data: storeSettings } = useStoreSettings();
   const logoSrc = storeSettings?.header_logo_url || storeSettings?.logo_url || logoFallback;
-  const menuItems = useFilteredMenu();
+  const menuSections = useFilteredMenu();
 
   useEffect(() => {
     const groupsToOpen: string[] = [];
-    menuItems.forEach(item => {
-      if (item.children?.some(child => location.pathname === child.url)) {
-        groupsToOpen.push(item.title);
-      }
+    menuSections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.children?.some(child => location.pathname === child.url)) {
+          groupsToOpen.push(item.title);
+        }
+      });
     });
     setOpenGroups(prev => [...new Set([...prev, ...groupsToOpen])]);
   }, [location.pathname]);
@@ -289,71 +295,85 @@ function AdminSidebar() {
         </Link>
       </div>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                item.children ? (
-                  <Collapsible
-                    key={item.title}
-                    open={openGroups.includes(item.title)}
-                    onOpenChange={() => toggleGroup(item.title)}
-                  >
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton 
-                          className={cn(
-                            "w-full justify-between",
-                            isGroupActive(item.children) && "bg-primary/15 text-primary font-semibold"
-                          )}
-                        >
-                          <span className="flex items-center gap-2">
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </span>
-                          <ChevronDown className={cn(
-                            "h-4 w-4 transition-transform",
-                            openGroups.includes(item.title) && "rotate-180"
-                          )} />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.children.map((child) => (
-                            <SidebarMenuSubItem key={child.url}>
-                              <SidebarMenuSubButton 
-                                asChild 
-                                isActive={isActiveRoute(child.url)}
-                              >
-                                <Link to={child.url}>{child.title}</Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
+        {menuSections.map((section, sectionIdx) => (
+          <SidebarGroup key={section.label}>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+              {section.label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map((item) => (
+                  item.children ? (
+                    <Collapsible
+                      key={item.title}
+                      open={openGroups.includes(item.title)}
+                      onOpenChange={() => toggleGroup(item.title)}
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton 
+                            className={cn(
+                              "w-full justify-between",
+                              isGroupActive(item.children) && "bg-primary/10 text-primary font-medium"
+                            )}
+                          >
+                            <span className="flex items-center gap-2">
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </span>
+                            <ChevronDown className={cn(
+                              "h-3.5 w-3.5 text-muted-foreground/60 transition-transform",
+                              openGroups.includes(item.title) && "rotate-180"
+                            )} />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.children.map((child) => (
+                              <SidebarMenuSubItem key={child.url}>
+                                <SidebarMenuSubButton 
+                                  asChild 
+                                  isActive={isActiveRoute(child.url)}
+                                >
+                                  <Link to={child.url}>{child.title}</Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  ) : (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActiveRoute(item.url)}>
+                        <Link to={item.url!} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
-                  </Collapsible>
-                ) : (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActiveRoute(item.url)}>
-                      <Link to={item.url!} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  )
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
-      <div className="mt-auto p-4 border-t">
-        <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
-          <LogOut className="h-4 w-4 mr-2" />
-          {!isCollapsed && 'Sair'}
-        </Button>
+      <div className="mt-auto border-t">
+        <div className="p-3 flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="flex-1 justify-start text-muted-foreground hover:text-foreground" asChild>
+            <Link to="/" target="_blank">
+              <Store className="h-4 w-4 mr-2" />
+              {!isCollapsed && 'Ver Loja'}
+            </Link>
+          </Button>
+        </div>
+        <div className="px-3 pb-3">
+          <Button variant="ghost" size="sm" className="w-full justify-start text-destructive/80 hover:text-destructive hover:bg-destructive/10" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            {!isCollapsed && 'Sair'}
+          </Button>
+        </div>
       </div>
     </Sidebar>
   );
