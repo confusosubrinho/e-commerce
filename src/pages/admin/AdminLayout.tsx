@@ -19,6 +19,25 @@ import {
   Sun,
   Moon,
   Shield,
+  Palette,
+  FileText,
+  Plug,
+  CreditCard,
+  Bell,
+  UserCog,
+  Activity,
+  Code,
+  HelpCircle,
+  Mail,
+  Image,
+  Megaphone,
+  TrendingUp,
+  ShoppingBag,
+  Layers,
+  Globe,
+  BookOpen,
+  Wrench,
+  ClipboardList,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
@@ -61,82 +80,136 @@ interface MenuItem {
   title: string;
   url?: string;
   icon: any;
-  permission?: string; // required permission
+  permission?: string;
+  badge?: string;
   children?: { title: string; url: string; permission?: string }[];
 }
 
-const allMenuItems: MenuItem[] = [
-  { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
-  { title: 'Super Admin', url: '/admin/super', icon: Shield, permission: 'super_admin.access' },
-  { 
-    title: 'Catálogo', 
-    icon: Package,
-    children: [
-      { title: 'Produtos', url: '/admin/produtos' },
-      { title: 'Categorias', url: '/admin/categorias' },
-      { title: 'Avaliações', url: '/admin/avaliacoes', permission: 'reviews.read' },
-      { title: 'Galeria de Mídia', url: '/admin/galeria' },
-    ]
-  },
-  { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingCart, permission: 'orders.read' },
-  { title: 'Clientes', url: '/admin/clientes', icon: Users, permission: 'customers.read' },
+interface MenuSection {
+  label: string;
+  items: MenuItem[];
+}
+
+const allMenuSections: MenuSection[] = [
   {
-    title: 'Vendas & Analytics',
-    icon: BarChart3,
-    permission: 'analytics.read',
-    children: [
-      { title: 'Análise de Vendas', url: '/admin/vendas' },
-      { title: 'Tráfego & UTM', url: '/admin/trafego' },
-      { title: 'Registro Manual', url: '/admin/registro-manual' },
-      { title: 'Carrinhos Abandonados', url: '/admin/carrinhos-abandonados' },
-    ]
+    label: 'Geral',
+    items: [
+      { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
+      { 
+        title: 'Pedidos', 
+        icon: ShoppingBag,
+        permission: 'orders.read',
+        children: [
+          { title: 'Todos os Pedidos', url: '/admin/pedidos' },
+          { title: 'Carrinhos Abandonados', url: '/admin/carrinhos-abandonados' },
+        ]
+      },
+      { title: 'Clientes', url: '/admin/clientes', icon: Users, permission: 'customers.read' },
+    ],
   },
-  { 
-    title: 'Marketing', 
-    icon: Tags,
-    permission: 'coupons.read',
-    children: [
-      { title: 'Cupons', url: '/admin/cupons' },
-      { title: 'Email Automações', url: '/admin/email-automations' },
-    ]
+  {
+    label: 'Catálogo',
+    items: [
+      { 
+        title: 'Produtos', 
+        icon: Package,
+        children: [
+          { title: 'Todos os Produtos', url: '/admin/produtos' },
+          { title: 'Categorias', url: '/admin/categorias' },
+          { title: 'Avaliações', url: '/admin/avaliacoes', permission: 'reviews.read' },
+        ]
+      },
+      { title: 'Galeria de Mídia', url: '/admin/galeria', icon: Image },
+    ],
   },
-  { 
-    title: 'Aparência', 
-    icon: PenSquare,
-    permission: 'personalization.read',
-    children: [
-      { title: 'Personalização da Home', url: '/admin/personalizacao' },
-      { title: 'Tema Visual', url: '/admin/tema' },
-      { title: 'Redes Sociais', url: '/admin/redes-sociais' },
-      { title: 'Páginas Institucionais', url: '/admin/paginas' },
-      { title: 'Blog', url: '/admin/blog' },
-    ]
+  {
+    label: 'Crescimento',
+    items: [
+      { 
+        title: 'Analytics', 
+        icon: TrendingUp,
+        permission: 'analytics.read',
+        children: [
+          { title: 'Vendas', url: '/admin/vendas' },
+          { title: 'Tráfego & UTM', url: '/admin/trafego' },
+          { title: 'Registro Manual', url: '/admin/registro-manual' },
+        ]
+      },
+      { 
+        title: 'Marketing', 
+        icon: Megaphone,
+        permission: 'coupons.read',
+        children: [
+          { title: 'Cupons', url: '/admin/cupons' },
+          { title: 'Email Automações', url: '/admin/email-automations' },
+        ]
+      },
+    ],
   },
-  { 
-    title: 'Configurações', 
-    icon: Settings,
-    children: [
-      { title: 'Loja', url: '/admin/configuracoes', permission: 'settings.read' },
-      { title: 'Juros e Cartões', url: '/admin/precos', permission: 'settings.read' },
-      { title: 'Integrações', url: '/admin/integracoes', permission: 'settings.read' },
-      { title: 'Checkout & Pagamentos', url: '/admin/checkout-transparente', permission: 'settings.read' },
-      { title: 'Notificações', url: '/admin/notificacoes' },
-      { title: 'Equipe & Acessos', url: '/admin/equipe', permission: 'team.read' },
-      { title: 'Sistema & Logs', url: '/admin/sistema', permission: 'settings.read' },
-      { title: 'Commerce Health', url: '/admin/commerce-health', permission: 'settings.read' },
-      { title: 'Código Externo', url: '/admin/configuracoes/codigo', permission: 'settings.read' },
-      { title: 'Manual de Conversões', url: '/admin/configuracoes/conversoes', permission: 'settings.read' },
-      { title: 'Central de Ajuda', url: '/admin/ajuda' },
-    ]
+  {
+    label: 'Conteúdo & Aparência',
+    items: [
+      { 
+        title: 'Loja Online', 
+        icon: Palette,
+        permission: 'personalization.read',
+        children: [
+          { title: 'Home Page', url: '/admin/personalizacao' },
+          { title: 'Tema Visual', url: '/admin/tema' },
+          { title: 'Redes Sociais', url: '/admin/redes-sociais' },
+        ]
+      },
+      { 
+        title: 'Páginas', 
+        icon: FileText,
+        permission: 'personalization.read',
+        children: [
+          { title: 'Institucionais', url: '/admin/paginas' },
+          { title: 'Blog', url: '/admin/blog' },
+        ]
+      },
+    ],
+  },
+  {
+    label: 'Configurações',
+    items: [
+      { title: 'Geral', url: '/admin/configuracoes', icon: Settings, permission: 'settings.read' },
+      { 
+        title: 'Pagamentos', 
+        icon: CreditCard,
+        permission: 'settings.read',
+        children: [
+          { title: 'Checkout', url: '/admin/checkout-transparente' },
+          { title: 'Juros e Cartões', url: '/admin/precos' },
+        ]
+      },
+      { title: 'Integrações', url: '/admin/integracoes', icon: Plug, permission: 'settings.read' },
+      { title: 'Equipe & Acessos', url: '/admin/equipe', icon: UserCog, permission: 'team.read' },
+      { title: 'Notificações', url: '/admin/notificacoes', icon: Bell },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { title: 'Commerce Health', url: '/admin/commerce-health', icon: Activity, permission: 'settings.read' },
+      { title: 'Logs & Diagnóstico', url: '/admin/sistema', icon: Wrench, permission: 'settings.read' },
+      { title: 'Código Externo', url: '/admin/configuracoes/codigo', icon: Code, permission: 'settings.read' },
+      { title: 'Conversões', url: '/admin/configuracoes/conversoes', icon: ClipboardList, permission: 'settings.read' },
+      { title: 'Central de Ajuda', url: '/admin/ajuda', icon: HelpCircle },
+      { title: 'Super Admin', url: '/admin/super', icon: Shield, permission: 'super_admin.access' },
+    ],
   },
 ];
 
-// Bottom tab bar items for mobile - most used screens
+// Flatten for legacy compatibility (getPageTitle, etc.)
+const allMenuItems: MenuItem[] = allMenuSections.flatMap(s => s.items);
+
+// Mobile bottom tab bar items
 const mobileTabItems = [
   { title: 'Home', url: '/admin', icon: LayoutDashboard },
   { title: 'Produtos', url: '/admin/produtos', icon: Package },
-  { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingCart },
-  { title: 'Vendas', url: '/admin/vendas', icon: BarChart3 },
+  { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingBag },
+  { title: 'Analytics', url: '/admin/vendas', icon: TrendingUp },
 ];
 
 function useFilteredMenu() {
