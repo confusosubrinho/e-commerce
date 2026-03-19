@@ -994,7 +994,7 @@ function MelhorEnvioPanel() {
         const { error } = await supabase.from('store_settings').update(form as any).eq('id', settings.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('store_settings').insert(form);
+        const { error } = await supabase.from('store_settings').insert(form as any);
         if (error) throw error;
       }
     },
