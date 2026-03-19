@@ -139,6 +139,7 @@ export type Database = {
           is_active: boolean | null
           last_access: string | null
           role: string
+          tenant_id: string
           user_id: string | null
         }
         Insert: {
@@ -151,6 +152,7 @@ export type Database = {
           is_active?: boolean | null
           last_access?: string | null
           role?: string
+          tenant_id?: string
           user_id?: string | null
         }
         Update: {
@@ -163,9 +165,18 @@ export type Database = {
           is_active?: boolean | null
           last_access?: string | null
           role?: string
+          tenant_id?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "admin_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       admin_notifications: {
         Row: {
@@ -2508,6 +2519,7 @@ export type Database = {
           id: string
           notes: string | null
           product_id: string
+          tenant_id: string
         }
         Insert: {
           after_data?: Json | null
@@ -2520,6 +2532,7 @@ export type Database = {
           id?: string
           notes?: string | null
           product_id: string
+          tenant_id?: string
         }
         Update: {
           after_data?: Json | null
@@ -2532,6 +2545,7 @@ export type Database = {
           id?: string
           notes?: string | null
           product_id?: string
+          tenant_id?: string
         }
         Relationships: [
           {
@@ -2539,6 +2553,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_change_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -2652,6 +2673,7 @@ export type Database = {
           rating: number
           replied_at: string | null
           status: string
+          tenant_id: string
           title: string | null
           updated_at: string
           user_id: string | null
@@ -2668,6 +2690,7 @@ export type Database = {
           rating: number
           replied_at?: string | null
           status?: string
+          tenant_id?: string
           title?: string | null
           updated_at?: string
           user_id?: string | null
@@ -2684,6 +2707,7 @@ export type Database = {
           rating?: number
           replied_at?: string | null
           status?: string
+          tenant_id?: string
           title?: string | null
           updated_at?: string
           user_id?: string | null
@@ -2694,6 +2718,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
