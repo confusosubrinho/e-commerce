@@ -991,7 +991,7 @@ function MelhorEnvioPanel() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (settings?.id) {
-        const { error } = await supabase.from('store_settings').update(form).eq('id', settings.id);
+        const { error } = await supabase.from('store_settings').update(form as any).eq('id', settings.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from('store_settings').insert(form);
