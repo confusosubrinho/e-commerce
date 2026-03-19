@@ -1571,7 +1571,7 @@ function BlingPanel() {
 
   useEffect(() => {
     if (settings) {
-      const s = settings as Record<string, string | null>;
+      const s = settings as unknown as Record<string, string | null>;
       setForm({
         bling_client_id: s.bling_client_id || '',
         bling_client_secret: s.bling_client_secret || '',
