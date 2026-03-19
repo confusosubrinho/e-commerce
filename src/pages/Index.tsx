@@ -8,6 +8,7 @@ import { DynamicSection } from '@/components/store/DynamicSection';
 import { useHomeSections } from '@/hooks/useHomeSections';
 import { useHomePageSections } from '@/hooks/useHomePageSections';
 import { trackSession } from '@/lib/utmTracker';
+import { useTenant } from '@/hooks/useTenant';
 
 const HighlightBanners = lazy(() => import('@/components/store/HighlightBanners').then(m => ({ default: m.HighlightBanners })));
 const InstagramFeed = lazy(() => import('@/components/store/InstagramFeed').then(m => ({ default: m.InstagramFeed })));
@@ -67,10 +68,11 @@ const SECTION_COMPONENTS: Record<string, ComponentType<any>> = {
 
 const Index = () => {
   const { data: pagesSections, isLoading } = useHomePageSections();
+  const { tenantId } = useTenant();
 
   useEffect(() => {
-    trackSession();
-  }, []);
+    trackSession(tenantId);
+  }, [tenantId]);
 
   return (
     <StoreLayout>

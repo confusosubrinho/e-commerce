@@ -418,11 +418,13 @@ Deno.serve(async (req) => {
 
     if (channel === "external" && provider === "stripe") {
       // Y46: Reserve stock atomically for Stripe external to prevent overselling (same as Yampi external)
+      const reservedItems: Array<{ variant_id: string; quantity: number }> = [];
       if (orderId && !existingOrder) {
         for (const i of itemsInput) {
           const stockResult = await supabase.rpc("decrement_stock", { p_variant_id: i.variant_id, p_quantity: i.quantity });
           const stockData = stockResult.data as { success: boolean; error?: string } | null;
           if (stockData?.success) {
+            reservedItems.push({ variant_id: i.variant_id, quantity: i.quantity });
             await supabase.from("inventory_movements").insert({
               tenant_id: tenantId,
               variant_id: i.variant_id,
@@ -465,12 +467,37 @@ Deno.serve(async (req) => {
       const stripeData = stripeRes.ok ? (await stripeRes.json().catch(() => ({}))) as Record<string, unknown> : {};
       const checkoutUrl = stripeData.checkout_url as string | undefined;
       const errMsg = stripeData.error as string | undefined;
-      if (errMsg)
+      const shouldFail = !stripeRes.ok || !!errMsg || !checkoutUrl;
+      if (shouldFail) {
+        // Compensação: se a sessão do Stripe falhar depois que reservamos estoque aqui, devemos reverter.
+        if (reservedItems.length > 0 && orderId) {
+          for (const item of reservedItems) {
+            await supabase.rpc("increment_stock", { p_variant_id: item.variant_id, p_quantity: item.quantity });
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
+              variant_id: item.variant_id,
+              order_id: orderId,
+              type: "refund",
+              quantity: item.quantity,
+            });
+          }
+
+          await supabase
+            .from("orders")
+            .update({ status: "cancelled", updated_at: new Date().toISOString() })
+            .eq("id", orderId)
+            .eq("tenant_id", tenantId);
+        }
+
+        const message =
+          errMsg ||
+          (stripeRes.ok ? "Erro ao iniciar checkout Stripe" : stripeRes.statusText || "Erro ao iniciar checkout Stripe");
         return jsonRes(
-          { success: false, provider, channel, experience, action: "redirect", error: errMsg },
+          { success: false, provider, channel, experience, action: "redirect", error: message },
           stripeRes.ok ? 200 : stripeRes.status,
           corsHeaders
         );
+      }
       console.log(JSON.stringify({ scope: "checkout-router", request_id: requestId, route: "start", provider, channel, duration_ms: Date.now() - t0 }));
       return jsonRes(
         {

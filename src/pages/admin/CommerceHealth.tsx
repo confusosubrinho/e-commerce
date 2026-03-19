@@ -11,6 +11,7 @@ import { AlertTriangle, CheckCircle, Loader2, XCircle, RefreshCw, RotateCcw } fr
 import { useToast } from '@/hooks/use-toast';
 import { useAdminSessionExpired } from '@/contexts/AdminAuthContext';
 import { logAudit, generateCorrelationId } from '@/lib/auditLogger';
+import { fetchCommerceHealth, fetchCommerceHealthLists } from '@/lib/commerceHealth';
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') + '/functions/v1';
 
@@ -24,37 +25,13 @@ export default function CommerceHealth() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['commerce-health'],
-    queryFn: async () => {
-      const { data: d, error: e } = await supabase.rpc('commerce_health' as any);
-      if (e) throw e;
-      return d as unknown as {
-        ok: boolean;
-        error?: string;
-        checks?: {
-          index_payments_provider_transaction_id?: boolean;
-          duplicate_payments_count?: number;
-          negative_stock_count?: number;
-          orders_paid_without_payment_count?: number;
-          payments_succeeded_without_order_paid_count?: number;
-          last_stripe_webhook_at?: string | null;
-        };
-      };
-    },
+    queryFn: () => fetchCommerceHealth(supabase),
     staleTime: 1000 * 60,
   });
 
   const { data: lists, isLoading: listsLoading, refetch: refetchLists } = useQuery({
     queryKey: ['commerce-health-lists'],
-    queryFn: async () => {
-      const { data: d, error: e } = await supabase.rpc('commerce_health_lists' as any);
-      if (e) throw e;
-      return d as unknown as {
-        ok: boolean;
-        paid_without_payment_order_ids?: string[];
-        duplicate_payment_order_ids?: string[];
-        expired_reservation_order_ids?: string[];
-      };
-    },
+    queryFn: () => fetchCommerceHealthLists(supabase),
     staleTime: 1000 * 60,
   });
 

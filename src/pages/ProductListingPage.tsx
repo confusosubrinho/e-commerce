@@ -5,6 +5,7 @@ import { StoreLayout } from '@/components/store/StoreLayout';
 import { ProductGrid } from '@/components/store/ProductGrid';
 import { CategoryFilters, FilterState } from '@/components/store/CategoryFilters';
 import { useProducts } from '@/hooks/useProducts';
+import { sortProductList, type ProductSortKey } from '@/lib/productSort';
 
 type ListingType = 'mais-vendidos' | 'promocoes' | 'novidades';
 
@@ -98,18 +99,9 @@ export default function ProductListingPage() {
       result = result.filter(p => p.is_new);
     }
 
-    switch (filters.sortBy) {
-      case 'price-asc': result.sort((a, b) => Number(a.sale_price || a.base_price) - Number(b.sale_price || b.base_price)); break;
-      case 'price-desc': result.sort((a, b) => Number(b.sale_price || b.base_price) - Number(a.sale_price || a.base_price)); break;
-      case 'name-asc': result.sort((a, b) => a.name.localeCompare(b.name)); break;
-      case 'name-desc': result.sort((a, b) => b.name.localeCompare(a.name)); break;
-      case 'oldest': result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
-      default: result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
-    }
-
+    result = sortProductList(result, (filters.sortBy || 'newest') as ProductSortKey);
     const hasStock = (p: typeof result[0]) => p.variants?.some((v: any) => v.is_active && v.stock_quantity > 0) ?? false;
     result.sort((a, b) => (hasStock(a) ? 0 : 1) - (hasStock(b) ? 0 : 1));
-
     return result;
   }, [products, filters]);
 

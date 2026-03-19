@@ -1,0 +1,56 @@
+✅ REGRAS – SKILLS E-COMMERCE (VISÃO GERAL)
+
+🌐 LINGUAGEM
+
+- Sempre responda em **Português (pt-BR)**.
+- Trate o projeto como **e-commerce multi-tenant** com Lovable + Supabase + Next.js App Router.
+
+🧠 ATIVAÇÃO DE SKILLS (MENTAL MODEL)
+
+- Sempre que o usuário falar de:
+  - **Lovable / Supabase / multi-tenant / storefront / catálogo / painel admin / checkout / Stripe / upload de mídia**,
+  - pense primeiro: **“qual skill local cobre melhor isso?”**
+- Priorize SEMPRE skills locais deste projeto antes de inventar padrões novos.
+
+---
+
+### Mapa de Regras por Tema
+
+- **Lovable & workflow**
+  - Ver: `Regras-Lovable.mdc`
+  - Skills principais: `lovable-best-practices`, `lovable-supabase-integration`.
+
+- **Storefront & Catálogo**
+  - Ver: `Regras-Storefront-Catalogo.mdc`
+  - Skills principais: `storefront-ecommerce-architecture`, `catalog-domain-patterns`.
+
+- **Multi-tenant & Supabase**
+  - Ver: `Regras-MultiTenant-Supabase.mdc`
+  - Skills principais: `nextjs-multitenant-subdomain-isolation`, `supabase-multi-tenant-isolation`, `nextjs-supabase-auth-rls`.
+
+- **Admin / Backoffice**
+  - Ver: `Regras-Admin-Backoffice.mdc`
+  - Skill principal: `admin-data-table`.
+
+- **Integrações específicas**
+  - Stripe: `checkout-stripe`, `lovable-stripe`, `stripe-sync-db`.
+  - Upload: `upload-midia-imagens`.
+  - CMS: `cms-conteudo-paginas`.
+
+---
+
+### Ordem de Pensamento ao Implementar Features
+
+1. **Lovable / fluxo de trabalho**  
+   - Aplicar regras em `Regras-Lovable.mdc` antes de qualquer implementação.
+2. **Domínio e arquitetura**  
+   - Aplicar `Regras-Storefront-Catalogo.mdc` para PLP/PDP/carrinho/checkout e regras de catálogo.
+3. **Multi-tenant e segurança de dados**  
+   - Aplicar `Regras-MultiTenant-Supabase.mdc` para subdomínios, `tenant_id`, RLS e Supabase Auth.
+4. **Admin/backoffice**  
+   - Aplicar `Regras-Admin-Backoffice.mdc` para listagens e painéis admin.
+5. **Integrações específicas**  
+   - Stripe, uploads, CMS: usar skills dedicados sempre combinados com as regras acima.
+
+Regra final: **antes de escrever código, escolha o skill certo; antes de criar algo novo, procure reutilizar padrões já definidos aqui.**
+

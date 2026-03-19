@@ -1,0 +1,92 @@
+✅ REGRAS – ADMIN / BACKOFFICE
+
+🌐 CONTEXTO
+
+- Foco em **painel administrativo**:
+  - listagens de produtos, pedidos, clientes, cupons, banners, etc.
+  - filtros, busca, paginação, bulk actions.
+  - shadcn/ui + TanStack Table com server-side data.
+
+---
+
+### 1. Data Tables Admin – `admin-data-table`
+
+- **Quando usar**
+  - Sempre que criar ou alterar:
+    - tabelas de listagem em painel admin,
+    - backoffice de catálogo/pedidos/clientes/cupons/banners,
+    - telas com filtros e paginação complexos.
+
+- **Stack esperada**
+  - UI:
+    - **shadcn/ui**:
+      - Table, Button, Input, Dropdown, Badge, Dialog, etc.
+  - Tabela:
+    - **TanStack Table** (`@tanstack/react-table`).
+  - Dados:
+    - paginação, ordenação, filtros **server-side**.
+
+- **Contrato de URL**
+  - Parâmetros padrão:
+    - `page`: 1..N,
+    - `perPage`: 10/20/50/100,
+    - `sort`: `campo.direcao` (ex.: `created_at.desc`),
+    - `q`: busca textual simples,
+    - `filters`: string serializada (JSON compacto / URL-encoded) ou múltiplos `f_*`.
+  - Regras:
+    - URL é a **fonte da verdade** de estado da tabela.
+    - Toda mudança de filtro/sort/página deve atualizar a URL.
+    - No servidor:
+      - validar e normalizar todos os params (Zod recomendado).
+
+- **Workflow completo (recomendado)**
+  1. Definir colunas:
+     - `id`, `header`, `accessorKey`/`accessorFn`.
+     - coluna de ações (menu de linha),
+     - coluna de seleção (checkbox) para bulk actions.
+  2. Definir metadados de filtros:
+     - tipos (`select`, `multi-select`, `date-range`, `range numérico`),
+     - opções estáticas ou carregadas do servidor.
+  3. Parsear query params no servidor:
+     - clamp de `page >= 1`,
+     - limites de `perPage`,
+     - validação de campos de sort,
+     - parse/validação do objeto `filters`.
+  4. Montar query:
+     - aplicar filtros/ordenação/paginação,
+     - retornar `{ rows, total }` para calcular `pageCount`.
+  5. Renderizar tabela no client:
+     - dados já paginados,
+     - TanStack Table cuida apenas da UI e interação.
+  6. Sincronizar interações:
+     - ao mudar filtros/sort/página/perPage, atualizar a URL e revalidar no servidor.
+
+- **Estados obrigatórios**
+  - `loading`: skeleton ou estado de carregamento claro.
+  - `empty`: mensagem amigável + CTA (ex.: “Criar produto”).
+  - `error`: feedback com opção de tentar novamente.
+  - `success`: tabela renderizada com dados e ações.
+
+- **Bulk actions**
+  - Implementar seleção de linhas + ações coletivas:
+    - ex.: ativar/desativar, deletar, exportar.
+  - Sempre:
+    - confirmar ações destrutivas (Dialog),
+    - exibir feedback (toasts),
+    - revalidar dados após conclusão.
+
+- **Multi-tenant**
+  - Em contexto multi-tenant:
+    - toda query de listagem **deve** filtrar por `tenant_id` efetivo.
+    - nunca permitir que o tenant seja escolhido via dropdown sem validação forte:
+      - se houver seleção de tenant no admin global, validar no backend que o usuário pode acessar aquele tenant.
+
+- **Organização de arquivos**
+  - Por domínio/entidade, ex.:
+    - `src/<dominio>/admin/<entidade>/list/`
+      - `columns.tsx`
+      - `filters.ts`
+      - `table.tsx`
+      - `toolbar.tsx`
+      - `query.ts` (parse/validate + montagem da query)
+

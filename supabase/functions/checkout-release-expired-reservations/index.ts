@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
   const { data: orders, error: listError } = await supabase
     .from("orders")
-    .select("id, provider, transaction_id")
+    .select("id, provider, transaction_id, tenant_id")
     .eq("status", "pending")
     .lt("created_at", cutoff);
 
@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
 
         // Y24: Record inventory_movement of type "release" for audit trail
         await supabase.from("inventory_movements").insert({
+          tenant_id: (order.tenant_id as string) ?? "00000000-0000-0000-0000-000000000001",
           variant_id: item.product_variant_id,
           order_id: order.id,
           type: "release",

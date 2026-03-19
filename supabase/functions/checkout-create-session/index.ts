@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logError } from "../_shared/log.ts";
+import { getTenantIdFromRequest } from "../_shared/tenant.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
@@ -30,6 +31,7 @@ Deno.serve(async (req) => {
   );
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const tenantId = getTenantIdFromRequest(req, body);
     const requestId = (body?.request_id as string) || req.headers.get("x-request-id") || correlationId;
     console.log(JSON.stringify({ scope: SCOPE, correlation_id: correlationId, request_id: requestId, action: body?.action }));
 
@@ -206,6 +208,7 @@ Deno.serve(async (req) => {
     await supabase.from("abandoned_carts").insert({
       session_id: sessionId,
       user_id: userId,
+      tenant_id: tenantId,
       subtotal,
       cart_data: cartDetails,
       page_url: attribution?.landing_page || null,

@@ -1,0 +1,144 @@
+✅ REGRAS – STOREFRONT & CATÁLOGO
+
+🌐 CONTEXTO
+
+- Foco em **storefront de e-commerce** em Next.js App Router:
+  - PLP (Product Listing Page),
+  - PDP (Product Detail Page),
+  - carrinho,
+  - checkout,
+  - domínio de catálogo (produtos, categorias, variações).
+
+---
+
+### 1. Storefront (App Router) – `storefront-ecommerce-architecture`
+
+- **Quando usar**
+  - Sempre que implementar/alterar:
+    - PLP/PDP,
+    - carrinho,
+    - checkout,
+    - componentes de vitrine,
+    - rotas “padrão vercel/commerce”.
+
+- **Princípios de arquitetura**
+  - **RSC-first**
+    - Pages/layouts como Server Components por padrão.
+    - `use client` apenas para:
+      - interação rica (menus, carrosséis, formulários complexos),
+      - componentes que realmente precisam de estado no client.
+  - **Estados obrigatórios**
+    - Para PLP, PDP, carrinho e checkout:
+      - `loading`,
+      - `error`,
+      - `empty`,
+      - `success`.
+    - Não esconder erro com fallback genérico; mostrar algo útil ao usuário.
+  - **Dados no servidor**
+    - Foco em:
+      - Server Components,
+      - Route Handlers (GET/POST),
+      - Server Actions.
+    - Evitar `useEffect` para buscar dados que deveriam vir pela árvore de RSC.
+
+- **PLP (Product Listing Page)**
+  - Query params no servidor: `page`, `perPage`, `sort`, `q`, filtros.
+  - Composição esperada:
+    - Toolbar (filtros, ordenação, busca),
+    - Grid de cards de produtos,
+    - Paginação server-side.
+  - Suspense:
+    - aplicar em grid e, se necessário, em facets/filtros mais caros.
+
+- **PDP (Product Detail Page)**
+  - Composição esperada:
+    - `ProductGallery`,
+    - `ProductInfo` (preço, descrição, status),
+    - `VariantSelector` (client apenas se precisar de interação rica),
+    - `AddToCartButton` (client para clique, mas mutação via Server Action/rota server).
+  - Obrigações:
+    - Canonical + metadados SEO consistentes.
+    - Tratar 404/erro de produto inexistente.
+    - Resolver variantes, estoque e preço no servidor.
+
+- **Carrinho**
+  - Leitura:
+    - sempre no servidor (cookie/sessão/DB).
+  - Escrita:
+    - via Server Actions ou rotas server (POST/PUT/DELETE).
+  - Após mutação:
+    - revalidar caminho/tag ou utilizar `router.refresh`, conforme arquitetura.
+  - Nunca duplicar regra de cálculo de preço/total apenas no client.
+
+- **Checkout**
+  - Separar etapas:
+    - dados do cliente,
+    - entrega,
+    - pagamento.
+  - Nunca marcar pedido como pago no client:
+    - página de sucesso é apenas UX;
+    - confirmação real vem de webhook/processo server-side.
+
+---
+
+### 2. Domínio de Catálogo – `catalog-domain-patterns`
+
+- **Quando usar**
+  - Quando o assunto envolver:
+    - produtos, categorias, variações/SKU,
+    - estoque, preço, imagens,
+    - SEO, destaque,
+    - listagens/admin de catálogo.
+
+- **Organização de código**
+  - Estruturar por domínio:
+    - `catalog/products`,
+    - `catalog/categories`,
+    - `catalog/variants`,
+    - módulos de apoio (`catalog/pricing`, `catalog/inventory`).
+  - Evitar:
+    - “lixo” genérico tipo `src/services` ou `src/utils` para regra de negócio.
+
+- **Invariantes de produto**
+  - Produtos devem considerar:
+    - variações (ex.: tamanho/cor) como entidades/estruturas próprias,
+    - estoque por SKU/variante,
+    - lista de imagens com:
+      - ordem,
+      - imagem principal,
+      - metadados mínimos.
+    - SEO:
+      - `slug`,
+      - title/description,
+      - campos que suportem preview de card.
+    - status:
+      - draft / active / archived (ou equivalente).
+    - destaque:
+      - flag explícita ou campo de ordenação.
+
+- **Invariantes de categoria**
+  - Slug único (global ou por tenant, conforme modelo).
+  - SEO próprio (title/description).
+  - Ordem controlada (campo `sortOrder` ou similar).
+
+- **Regra de preço/estoque/variação (não duplicar)**
+  - Regra de:
+    - preço (promoção, preço base, moeda, regras por variante),
+    - estoque (disponível, reservado, mínimos, backorder),
+    - variações (atributos, SKU, combinações),
+  - deve residir em módulos dedicados do domínio, nunca copiada em múltiplos lugares.
+
+- **CRUD admin de catálogo**
+  - Toda tela admin de produtos/categorias/variantes deve ter:
+    - listagem com:
+      - loading,
+      - empty,
+      - error,
+      - success,
+    - filtros principais (status, categoria, busca por texto),
+    - paginação consistente (cursor ou offset),
+    - validação centralizada (schema único, ex.: Zod).
+  - Favorecer:
+    - componentes base reutilizáveis para tabela/filtros/paginação,
+    - semântica consistente de filtros entre products/categories/variants.
+

@@ -11,7 +11,8 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const functionsUrl = url.replace(/\/$/, '') + '/functions/v1/checkout/release-expired-reservations';
+const functionsUrl =
+  url.replace(/\/$/, '') + '/functions/v1/checkout-release-expired-reservations';
 
 async function run() {
   const res = await fetch(functionsUrl, {

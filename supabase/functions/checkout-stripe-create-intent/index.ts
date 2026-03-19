@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { DEFAULT_TENANT_ID } from "../_shared/tenant.ts";
 
 function jsonRes(body: Record<string, unknown>, status = 200, corsHeaders: Record<string, string>) {
   return new Response(JSON.stringify(body), {
@@ -180,10 +181,74 @@ Deno.serve(async (req) => {
       // ── Compute server total ──
       const { data: orderRow } = await supabase
         .from("orders")
-        .select("shipping_cost")
+        .select("shipping_cost, tenant_id, status, transaction_id")
         .eq("id", order_id)
         .maybeSingle();
       const orderShippingCost = Number(orderRow?.shipping_cost ?? 0);
+      const tenantIdForMovements = (orderRow?.tenant_id as string | undefined) ?? DEFAULT_TENANT_ID;
+      const orderStatus = orderRow?.status as string | undefined;
+      let paymentIntentIdToUse = orderRow?.transaction_id as string | undefined;
+      let shouldReuseExistingIntentEffective =
+        !!paymentIntentIdToUse && (orderStatus === "pending" || orderStatus === "processing");
+
+      // Lock / idempotency for embedded/internal flow:
+      // avoid a window where two concurrent "start checkout" requests both debit stock
+      // before transaction_id (PaymentIntent id) is persisted in orders.
+      if (!shouldReuseExistingIntentEffective) {
+        const canTryLock = orderStatus === "pending";
+        let lockAcquired = false;
+
+        if (canTryLock) {
+          const { data: lockRow, error: lockErr } = await supabase
+            .from("orders")
+            .update({
+              status: "processing",
+              notes: "STRIPE_PI_INFLIGHT",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", order_id)
+            .eq("status", "pending")
+            .select("id, status, transaction_id")
+            .maybeSingle();
+
+          if (lockErr) {
+            return jsonRes({ error: `Falha ao adquirir lock do pedido: ${lockErr.message}` }, 500, corsHeaders);
+          }
+
+          lockAcquired = !!lockRow;
+          paymentIntentIdToUse = lockRow?.transaction_id as string | undefined;
+          shouldReuseExistingIntentEffective =
+            !!paymentIntentIdToUse && (lockRow?.status === "pending" || lockRow?.status === "processing");
+        }
+
+        if (!shouldReuseExistingIntentEffective) {
+          // Someone else may already be creating the PI: wait briefly for transaction_id to appear.
+          for (let attempt = 0; attempt < 6; attempt++) {
+            const { data: latest } = await supabase
+              .from("orders")
+              .select("status, transaction_id")
+              .eq("id", order_id)
+              .maybeSingle();
+
+            if (latest?.transaction_id) {
+              paymentIntentIdToUse = latest.transaction_id as string;
+              shouldReuseExistingIntentEffective = true;
+              break;
+            }
+
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((r) => setTimeout(r, 200));
+          }
+
+          if (!shouldReuseExistingIntentEffective) {
+            return jsonRes(
+              { error: "Checkout em processamento. Tente novamente em instantes." },
+              409,
+              corsHeaders
+            );
+          }
+        }
+      }
 
       const serverBaseTotal = serverSubtotal - validatedDiscount + orderShippingCost;
       let serverTotal: number;
@@ -239,27 +304,68 @@ Deno.serve(async (req) => {
 
       // ── Stock validation ──
       const stockDecrements: { variant_id: string; quantity: number }[] = [];
-      for (const product of (products || [])) {
-        if (!product.variant_id) continue;
-        const qty = product.quantity || 1;
-        const { data: result, error: rpcError } = await supabase.rpc("decrement_stock", {
-          p_variant_id: product.variant_id,
-          p_quantity: qty,
-        });
-        if (rpcError) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+      if (!shouldReuseExistingIntentEffective) {
+        for (const product of (products || [])) {
+          if (!product.variant_id) continue;
+          const qty = product.quantity || 1;
+          const { data: result, error: rpcError } = await supabase.rpc("decrement_stock", {
+            p_variant_id: product.variant_id,
+            p_quantity: qty,
+          });
+          if (rpcError) {
+            for (const dec of stockDecrements) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id: order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+            return jsonRes({ error: `Erro de estoque: ${rpcError.message}` }, 400, corsHeaders);
           }
-          return jsonRes({ error: `Erro de estoque: ${rpcError.message}` }, 400, corsHeaders);
-        }
-        const stockResult = typeof result === "string" ? JSON.parse(result) : result;
-        if (!stockResult?.success) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+
+          const stockResult = typeof result === "string" ? JSON.parse(result) : result;
+          if (!stockResult?.success) {
+            for (const dec of stockDecrements) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id: order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+            return jsonRes({ error: stockResult?.message || "Estoque insuficiente" }, 400, corsHeaders);
           }
-          return jsonRes({ error: stockResult?.message || "Estoque insuficiente" }, 400, corsHeaders);
+
+          stockDecrements.push({ variant_id: product.variant_id, quantity: qty });
+          try {
+            // Audit trail: hold/reservation for this order until PI succeeds/confirmed.
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantIdForMovements,
+              variant_id: product.variant_id,
+              order_id: order_id,
+              type: "reserve",
+              quantity: qty,
+            });
+          } catch (e) {
+            // If we already debited stock but couldn't write the reservation record, we must rollback.
+            for (const dec of stockDecrements) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id: order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+            return jsonRes({ error: "Falha ao registrar reserva de estoque" }, 500, corsHeaders);
+          }
         }
-        stockDecrements.push({ variant_id: product.variant_id, quantity: qty });
       }
 
       // ── Create or find Stripe customer ──
@@ -311,21 +417,50 @@ Deno.serve(async (req) => {
       const descriptor = storeName.toUpperCase().replace(/[^A-Z0-9 ]/g, "").slice(0, 22).trim() || "LOJA";
       intentParams.statement_descriptor = descriptor.slice(0, 22);
 
-      let paymentIntent;
-      try {
-        paymentIntent = await stripe.paymentIntents.create(intentParams, {
-          idempotencyKey: `pi_${order_id}`,
-        });
-      } catch (stripeErr: any) {
-        // If PIX is not enabled in the Stripe account, return a clear message
-        if (isPixMethod && stripeErr.message?.includes("pix")) {
-          // Rollback stock
+      let paymentIntent: Stripe.PaymentIntent;
+      if (shouldReuseExistingIntentEffective && paymentIntentIdToUse) {
+        // Embedded/internal retry: never debit estoque novamente.
+        paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentIdToUse);
+      } else {
+        try {
+          paymentIntent = await stripe.paymentIntents.create(intentParams, {
+            idempotencyKey: `pi_${order_id}`,
+          });
+        } catch (stripeErr: any) {
+        // PaymentIntent could not be created. Since we already decremented stock above,
+        // we must rollback immediately to avoid leaving inventory "stuck" until TTL.
           for (const dec of stockDecrements) {
             await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantIdForMovements,
+              variant_id: dec.variant_id,
+              order_id: order_id,
+              type: "refund",
+              quantity: dec.quantity,
+            });
           }
-          return jsonRes({ error: "O método PIX não está ativado na sua conta Stripe. Use cartão de crédito ou ative o PIX no painel Stripe." }, 400, corsHeaders);
+
+          const msg = stripeErr?.message || "Erro ao criar PaymentIntent";
+
+          // Mark order as failed so release-expired-reservations won't double-restore it.
+          await supabase.from("orders").update({
+            status: "failed",
+            notes: `STRIPE PI CREATE FAILED: ${msg}`,
+            last_webhook_event: "payment_intent.create_failed",
+            updated_at: new Date().toISOString(),
+          }).eq("id", order_id);
+
+          // If PIX is not enabled in the Stripe account, return a clear message.
+          if (isPixMethod && msg.toLowerCase().includes("pix")) {
+            return jsonRes(
+              { error: "O método PIX não está ativado na sua conta Stripe. Use cartão de crédito ou ative o PIX no painel Stripe." },
+              400,
+              corsHeaders
+            );
+          }
+
+          return jsonRes({ error: msg }, 500, corsHeaders);
         }
-        throw stripeErr;
       }
 
       // ── Update order with Stripe info ──
@@ -391,7 +526,6 @@ Deno.serve(async (req) => {
 
       // ── Server-side price validation ──
       const lineItems: any[] = [];
-      const stockDecrements: { variant_id: string; quantity: number }[] = [];
       let serverSubtotal = 0;
 
       // Batch fetch all variants to avoid N+1 query
@@ -438,34 +572,13 @@ Deno.serve(async (req) => {
 
         serverSubtotal += realUnitPrice * (product.quantity || 1);
 
-        // Stock validation
-        const qty = product.quantity || 1;
-        const { data: result, error: rpcError } = await supabase.rpc("decrement_stock", {
-          p_variant_id: product.variant_id,
-          p_quantity: qty,
-        });
-        if (rpcError) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-          }
-          return jsonRes({ error: `Erro de estoque: ${rpcError.message}` }, 400, corsHeaders);
-        }
-        const stockResult = typeof result === "string" ? JSON.parse(result) : result;
-        if (!stockResult?.success) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-          }
-          return jsonRes({ error: stockResult?.message || "Estoque insuficiente" }, 400, corsHeaders);
-        }
-        stockDecrements.push({ variant_id: product.variant_id, quantity: qty });
-
         lineItems.push({
           price_data: {
             currency: "brl",
             product_data: { name: product.name },
             unit_amount: Math.round(realUnitPrice * 100),
           },
-          quantity: qty,
+          quantity: product.quantity || 1,
         });
       }
 
@@ -484,9 +597,6 @@ Deno.serve(async (req) => {
       }
 
       if (lineItems.length === 0) {
-        for (const dec of stockDecrements) {
-          await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-        }
         return jsonRes({ error: "Nenhum item válido para checkout" }, 400, corsHeaders);
       }
 
@@ -545,9 +655,6 @@ Deno.serve(async (req) => {
           idempotencyKey: `cs_${order_id}`,
         });
       } catch (stripeErr: any) {
-        for (const dec of stockDecrements) {
-          await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-        }
         const msg = stripeErr?.message || "Erro ao criar sessão de checkout";
         const code = stripeErr?.code || stripeErr?.type;
         console.error("Stripe checkout.sessions.create failed:", msg, code ? `(${code})` : "");

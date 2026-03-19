@@ -1,0 +1,139 @@
+---
+alwaysApply: true
+---
+
+🏗️ REGRAS DE ARQUITETURA DO PROJETO E-COMMERCE
+
+Estas regras especializam a `REGRA UNIFICADA — ENGENHARIA COM IA` para este monorepo de e‑commerce (Storefront + Admin + Backend com Next.js, Supabase, Stripe e multi‑tenant).
+
+## 1. Organização por domínio
+
+- Catálogo: `src/catalog/*` (products, categories, variants, estoque, preço, SEO)
+- Storefront: `src/storefront/*` (PLP, PDP, busca, coleção, carrinho, checkout)
+- Admin/Backoffice: `src/admin/*` (tabelas, CRUD, configurações, CMS leve)
+- Auth/Usuário: `src/auth/*`, `src/user/*`
+- Infra: integrações externas (`supabase`, `stripe`, `resend`, etc.) em módulos dedicados
+
+Regra: **nenhuma regra de negócio importante em componentes de UI**. Sempre em serviços/casos de uso de domínio.
+
+## 2. Frontend (Next.js App Router)
+
+- Usar **Server Components por padrão**. `use client` só quando precisar de interatividade real.
+- Dados:
+  - Server Actions + `next-safe-action` para mutações.
+  - React Query/TanStack (ou equivalente) quando precisar de client cache sofisticado.
+- Formulários:
+  - `react-hook-form` + Zod + `useActionState` (quando usando actions).
+  - Estados obrigatórios: `loading`, `error`, `empty`, `success`.
+- UI:
+  - Tailwind + shadcn/ui + Radix como base de componentes.
+  - Componentes reutilizáveis por domínio (`ProductCard`, `AdminDataTable`, `OrderStatusBadge` etc.).
+- Reaproveitamento obrigatório:
+  - **Proibido** criar novos filtros, cards, grids, badges, tabelas ou estruturas de layout no “olhômetro” sem antes:
+    - Buscar componentes existentes em `src/components/*` (store, admin, ui) e libs em `src/lib/*`.
+    - Verificar se já existe HTML/CSS/JS pronto para ser importado e parametrizado.
+  - Regra prática:
+    - Se algo for visualmente parecido com algo que já existe, **herdar/compor** o componente existente (prop extra, variant, slot) em vez de reimplementar markup + estilos.
+    - Só criar componente totalmente novo quando:
+      - Não houver nada semelhante; e
+      - A necessidade tiver sido registrada (issue/TODO) explicando por que não dá para reutilizar.
+- Performance:
+  - Code-splitting para páginas/dashboards pesados.
+  - `next/image` com WebP, tamanhos explícitos e lazy load.
+
+## 3. Multi-tenant e Supabase
+
+- Todo dado multi-tenant deve ter **`tenant_id` obrigatório**.
+- Policies de RLS:
+  - Negar tudo por padrão; liberar explicitamente por `tenant_id` + `auth.uid()`.
+  - Nunca confiar em `tenant_id` vindo do client.
+- Resolução de tenant:
+  - Sempre via subdomínio/host em `middleware` ou contexto de requisição.
+  - Server Actions e serviços recebem o tenant do contexto, não de parâmetros livres.
+
+## 4. Backend, Server Actions e segurança
+
+- Toda Server Action:
+  - `'use server'`
+  - Usa `next-safe-action` com schema Zod.
+  - Retorna objeto Result/Either (`ok` / `error`) bem tipado, nunca `any`.
+- Integrações externas (Stripe, Resend, etc.):
+  - Encapsuladas em serviços de infra; UI e Server Actions falam apenas com serviços de domínio.
+- Erros:
+  - Esperados → retorno estruturado (sem `throw` genérico).
+  - Inesperados → log estruturado + deixar `error.tsx` / monitoramento tratarem.
+
+## 5. Pagamentos (Stripe) e pedidos
+
+- Fluxo padrão:
+  - Criar Checkout Session no backend/server action.
+  - Confirmar pagamento **apenas** via webhook da Stripe.
+  - Atualizar estado do pedido a partir do webhook (fonte da verdade).
+- Estados de pedido (mínimo):
+  - `pending`, `awaiting_payment`, `paid`, `failed`, `canceled`, `refunded`.
+  - Transições encapsuladas num serviço de domínio (`OrderStatusService` ou similar).
+- Idempotência:
+  - Toda operação crítica (criação de pedido, gravação de pagamento, atualização de estoque) deve ser idempotente.
+
+## 6. Catálogo, estoque e preços
+
+- Produtos:
+  - Entidades de domínio com tipos fortes para preço, estoque, SKU, status.
+  - Lógica de disponibilidade (em estoque, visível, destacado) centralizada em serviços de domínio.
+- Estoque:
+  - Nunca manipular estoque “direto no banco” a partir da UI.
+  - Sempre usar funções/serviços específicos (ex: `reserveStock`, `releaseStock`, `decreaseStockAfterPayment`).
+- Preços:
+  - Lidar com centavos / inteiros (ex: `amount_cents`) para evitar problemas de ponto flutuante.
+
+## 7. CMS leve de conteúdo e mídia
+
+- Páginas e blocos:
+  - Representar conteúdo como **blocos estruturados** (hero, grid, destaque, FAQ, etc.), não HTML livre.
+  - Campos de SEO (title, description, og) presentes em páginas importantes.
+- Uploads:
+  - Supabase Storage com buckets separados por tipo (`product-images`, `banners`, `cms-media`).
+  - Objetos privados quando necessário + signed URLs para acesso controlado.
+
+## 8. Qualidade, testes e CI
+
+- Testes:
+  - Regras de negócio críticas (preço, frete, estoque, descontos, estados de pedido) **devem** ter testes automatizados.
+  - Fluxos principais (login, cadastro, checkout, CRUD básicos do admin) cobertos por E2E (Playwright/Cypress).
+- Tipos e lint:
+  - TypeScript em modo `strict`.
+  - ESLint + Prettier + checagem de tipos rodando no CI; não fazer merge com erros.
+- Git:
+  - Commits pequenos, descritivos e semânticos.
+  - PRs com descrição clara: problema, solução, riscos, plano de teste.
+
+## 9. Observabilidade, logs e métricas
+
+- Logs:
+  - Sempre em formato estruturado (JSON), com:
+    - `level`, `message`, `tenant_id`, `user_id` (quando houver), `traceId`.
+  - Nunca logar segredos, tokens, dados de cartão ou PII sensível em texto puro.
+- Métricas:
+  - Medir pelo menos: tempo de resposta, taxa de erro, throughput, saturação de recursos (DB, CPU/mem).
+  - Definir SLOs para rotas críticas (login, checkout, APIs de pedido).
+
+## 10. Configuração, ambientes e segredos
+
+- `.env`:
+  - Nunca commitar; usar mecanismos de secrets do provedor (Vercel, Supabase, etc.).
+  - Separar claramente configs de `dev`, `staging` e `prod`.
+- Segredos:
+  - Nunca em código-fonte ou logs.
+  - Rotacionar chaves sensíveis segundo boas práticas da plataforma.
+
+## 11. Evolução contínua e decisões
+
+- Boy-scout rule:
+  - Se tocar em código legado ruim, tentar deixá-lo um pouco melhor (sem reescrever tudo).
+- ADRs:
+  - Decisões arquiteturais relevantes devem ser registradas (arquivo simples em `docs/adr` ou similar).
+- Nova stack:
+  - Antes de adicionar lib/serviço novo, sempre checar se:
+    - já não existe algo equivalente no projeto; e
+    - o benefício compensa a complexidade extra de manutenção.
+

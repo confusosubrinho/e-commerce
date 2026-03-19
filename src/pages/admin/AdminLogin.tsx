@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Shield, Lock, AlertTriangle } from 'lucide-react';
 import { useStoreSettings } from '@/hooks/useProducts';
+import { useTenant } from '@/hooks/useTenant';
 import logoFallback from '@/assets/logo.png';
 
 const loginSchema = z.object({
@@ -27,6 +28,7 @@ export default function AdminLogin() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: storeSettings } = useStoreSettings();
+  const { tenantId } = useTenant();
   const logoSrc = storeSettings?.header_logo_url || storeSettings?.logo_url || logoFallback;
   const storeName = storeSettings?.store_name || 'Painel Administrativo';
   const [isLoading, setIsLoading] = useState(false);
@@ -93,11 +95,12 @@ export default function AdminLogin() {
     }
   };
 
-  const logLoginAttempt = async (email: string, success: boolean) => {
+  const logLoginAttempt = async (email: string, success: boolean, tenantIdForLog: string) => {
     try {
       await supabase.from('login_attempts').insert({
         email: email.toLowerCase(),
         success,
+        tenant_id: tenantIdForLog,
       });
     } catch { /* silent */ }
   };
@@ -119,7 +122,7 @@ export default function AdminLogin() {
       if (error) {
         const newAttempts = failedAttempts + 1;
         setFailedAttempts(newAttempts);
-        await logLoginAttempt(data.email, false);
+        await logLoginAttempt(data.email, false, tenantId);
 
         if (newAttempts >= MAX_ATTEMPTS) {
           const lockout = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
@@ -144,12 +147,12 @@ export default function AdminLogin() {
 
       if (!roles || roles.length === 0) {
         await supabase.auth.signOut();
-        await logLoginAttempt(data.email, false);
+        await logLoginAttempt(data.email, false, tenantId);
         toast({ title: 'Acesso negado. Você não é administrador.', variant: 'destructive' });
         return;
       }
 
-      await logLoginAttempt(data.email, true);
+      await logLoginAttempt(data.email, true, tenantId);
       setFailedAttempts(0);
 
       // Check for MFA

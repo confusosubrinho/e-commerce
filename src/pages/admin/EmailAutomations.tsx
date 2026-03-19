@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Mail, AlertTriangle, Clock, Pencil, Plus, Code, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useTenant } from '@/hooks/useTenant';
 
 interface EmailAutomation {
   id: string;
@@ -52,6 +53,7 @@ const triggerLabels: Record<string, string> = {
 export default function EmailAutomations() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { tenantId } = useTenant();
   const [editingEmail, setEditingEmail] = useState<EmailAutomation | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -104,7 +106,7 @@ export default function EmailAutomations() {
       } else {
         const { error } = await supabase
           .from('email_automations')
-          .insert([data]);
+          .insert([{ ...data, tenant_id: tenantId }] as any);
         if (error) throw error;
       }
     },

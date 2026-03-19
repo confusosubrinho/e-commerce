@@ -14,19 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { TwoFactorSetup } from '@/components/admin/TwoFactorSetup';
 import { HelpHint } from '@/components/HelpHint';
 import { Link } from 'react-router-dom';
-
-interface StoreSettings {
-  id: string;
-  store_name: string | null;
-  logo_url: string | null;
-  favicon_url: string | null;
-  
-  contact_email: string | null;
-  contact_phone: string | null;
-  contact_whatsapp: string | null;
-  address: string | null;
-  free_shipping_threshold: number | null;
-}
+import type { StoreSettings } from '@/types/database';
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -34,7 +22,7 @@ export default function Settings() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [faviconUploading, setFaviconUploading] = useState(false);
   
-  const [formData, setFormData] = useState<Partial<StoreSettings & { show_variants_on_grid: boolean }>>({
+  const [formData, setFormData] = useState<Partial<StoreSettings> & { show_variants_on_grid?: boolean }>({
     store_name: '',
     logo_url: '',
     favicon_url: '',
@@ -65,13 +53,13 @@ export default function Settings() {
       setFormData({
         store_name: settings.store_name || '',
         logo_url: settings.logo_url || '',
-        favicon_url: (settings as any).favicon_url || '',
+        favicon_url: settings.favicon_url || '',
         contact_email: settings.contact_email || '',
         contact_phone: settings.contact_phone || '',
         contact_whatsapp: settings.contact_whatsapp || '',
         address: settings.address || '',
-        free_shipping_threshold: settings.free_shipping_threshold || 399,
-        show_variants_on_grid: (settings as any).show_variants_on_grid ?? true,
+        free_shipping_threshold: settings.free_shipping_threshold ?? 399,
+        show_variants_on_grid: settings.show_variants_on_grid ?? true,
       });
     }
   }, [settings]);

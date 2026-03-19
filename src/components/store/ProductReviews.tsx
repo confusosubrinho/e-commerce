@@ -9,6 +9,7 @@ import { ProductReview } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useTenant } from '@/hooks/useTenant';
 
 interface ProductReviewsProps {
   productId: string;
@@ -19,6 +20,7 @@ const PAGE_SIZE = 10;
 
 export function ProductReviews({ productId, productName }: ProductReviewsProps) {
   const { toast } = useToast();
+  const { tenantId } = useTenant();
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
   const [name, setName] = useState('');
@@ -75,6 +77,7 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
         .from('product_reviews')
         .insert({
           product_id: productId,
+          tenant_id: tenantId,
           user_id: user?.id || null,
           customer_name: name.trim().slice(0, 100),
           rating,

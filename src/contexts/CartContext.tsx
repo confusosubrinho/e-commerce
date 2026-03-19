@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { CartItem, Product, ProductVariant, Coupon, ShippingOption } from '@/types/database';
 import { saveAbandonedCart } from '@/lib/utmTracker';
+import { useTenant } from '@/hooks/useTenant';
 import { getCartItemUnitPrice } from '@/lib/cartPricing';
 import { computeCouponDiscount } from '@/lib/couponDiscount';
 
@@ -98,6 +99,7 @@ function getOrCreateCartId(): string {
  const CartContext = createContext<CartContextType | undefined>(undefined);
  
  export function CartProvider({ children }: { children: ReactNode }) {
+  const { tenantId } = useTenant();
    const [items, setItems] = useState<CartItem[]>(() => safeParseCart());
    const [cartId] = useState<string>(() => getOrCreateCartId());
  
@@ -130,7 +132,7 @@ function getOrCreateCartId(): string {
         price: getCartItemUnitPrice(i),
       }));
       const sub = items.reduce((sum, item) => sum + getCartItemUnitPrice(item) * item.quantity, 0);
-      saveAbandonedCart(cartData, sub);
+      saveAbandonedCart(cartData, sub, undefined, undefined, undefined, tenantId);
     }, 30000); // Save after 30s of inactivity
     return () => { if (abandonedTimeout.current) clearTimeout(abandonedTimeout.current); };
   }, [items]);

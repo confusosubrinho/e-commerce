@@ -1,0 +1,117 @@
+✅ REGRAS – MULTI-TENANT & SUPABASE
+
+🌐 CONTEXTO
+
+- Sistema **multi-tenant** (várias lojas/empresas) com:
+  - roteamento por subdomínio em Next.js App Router,
+  - isolamento forte de dados em Supabase/Postgres via `tenant_id` + RLS,
+  - autenticação Supabase Auth como base de identidade.
+
+---
+
+### 1. Subdomínio e isolamento de rota – `nextjs-multitenant-subdomain-isolation`
+
+- **Quando usar**
+  - Quando o usuário falar de:
+    - `tenant.dominio.com`,
+    - wildcard domain,
+    - `middleware.ts` para multi-tenant,
+    - rotas separadas por loja/tenant.
+
+- **Padrão de roteamento**
+  - `middleware.ts`:
+    - extrair `hostname` → derivar `subdomain`,
+    - se subdomínio válido:
+      - `rewrite` para `/${subdomain}${pathname}`,
+    - se não:
+      - seguir fluxo normal (`next()`).
+  - Nunca consultar banco no middleware (Edge); usar apenas para roteamento/normalização.
+
+- **Padrão de diretórios**
+  - `app/[tenant]/layout.tsx`, `app/[tenant]/page.tsx` etc.
+  - `(public)` para site público, se necessário.
+  - Tratar `params.tenant` como **derivado do host**, não como input confiável.
+
+- **Guardrails obrigatórios**
+  - Nunca confiar em `tenant_id` vindo do client (body, query, localStorage).
+  - Rotas internas (`/api`, server actions) devem re-resolver o tenant no servidor.
+  - Cache/ISR deve ser sempre chaveado por tenant:
+    - fetch cache, tags, unstable_cache, etc.
+
+---
+
+### 2. Isolamento em banco (Supabase) – `supabase-multi-tenant-isolation`
+
+- **Quando usar**
+  - Qualquer discussão sobre:
+    - multi-tenant,
+    - tenant_id,
+    - isolamento de lojas/empresas,
+    - RLS/policies multi-tenant.
+
+- **Modelo base**
+  - Tabelas centrais:
+    - `tenants(id, ...)`,
+    - `tenant_members(tenant_id, user_id, role, ...)`.
+  - Tabelas tenant-scoped:
+    - adicionam `tenant_id uuid not null`.
+  - Constraints e índices:
+    - index por `tenant_id` em todas as tabelas tenant-scoped.
+
+- **RLS como guarda principal**
+  - Ativar RLS em todas as tabelas tenant-scoped.
+  - Policies baseadas em membership:
+    - permitir SELECT/INSERT/UPDATE/DELETE apenas se o usuário for membro do tenant do registro.
+  - Sempre negar por padrão e abrir explicitamente com policies.
+
+- **Regras de backend**
+  - O backend nunca aceita `tenant_id` do client:
+    - resolve `tenantId` a partir:
+      - do host/subdomínio,
+      - da sessão/autenticação.
+  - Para qualquer recurso (ex.: `orderId`):
+    - sempre buscar com filtro `WHERE tenant_id = <tenantId>`.
+    - se não achar: retornar **404**, não 403, para evitar enumeração de outros tenants.
+  - Em criação/atualização:
+    - forçar `tenant_id = tenantId` do contexto, ignorando body/inputs.
+
+- **Service Role**
+  - Service Role bypassa RLS:
+    - só usar em:
+      - rotas/admin extremamente controladas,
+      - automatizações internas,
+    - nunca expor em client ou em endpoints públicos.
+
+---
+
+### 3. Supabase Auth + RLS por usuário – `nextjs-supabase-auth-rls`
+
+- **Quando usar**
+  - Temas de:
+    - Supabase Auth,
+    - políticas por usuário,
+    - proteção de rotas,
+    - sessão em Next.js.
+
+- **Princípios**
+  - RLS é a camada principal de autorização:
+    - código de aplicação é camada extra, nunca a única barreira.
+  - Policies por usuário:
+    - tabelas com `user_id` referenciando `auth.users(id)`,
+    - policies usando `auth.uid()` para garantir acesso só aos próprios registros.
+
+- **Stack Next.js**
+  - Usar `@supabase/ssr`:
+    - helpers server-side para criar client com cookies.
+  - `middleware.ts` para:
+    - refresh de sessão,
+    - manter cookies/csrf consistentes.
+  - Consultas:
+    - podem omitir o filtro explícito por `user_id` quando RLS já cuida, desde que:
+      - isso esteja documentado,
+      - policies estejam ativas e bem testadas.
+
+- **Segurança de chaves**
+  - Nunca expor `SUPABASE_SERVICE_ROLE_KEY` no browser ou em código enviado ao client.
+  - Clients de browser devem usar apenas as chaves públicas projetadas para isso.
+

@@ -38,45 +38,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { HelpHint } from '@/components/HelpHint';
 import { ProductExportDialog } from '@/components/admin/ProductExportDialog';
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  base_price: number;
-  sale_price: number | null;
-  sku: string | null;
-  category_id: string | null;
-  is_active: boolean;
-  is_featured: boolean;
-  is_new: boolean;
-  weight: number | null;
-  width: number | null;
-  height: number | null;
-  depth: number | null;
-  gtin: string | null;
-  mpn: string | null;
-  brand: string | null;
-  condition: string | null;
-  google_product_category: string | null;
-  age_group: string | null;
-  gender: string | null;
-  material: string | null;
-  pattern: string | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  seo_keywords: string | null;
-  created_at: string;
-  updated_at: string;
-  bling_product_id: number | null;
-  bling_sync_status: string | null;
-  bling_last_synced_at: string | null;
-  bling_last_error: string | null;
-  category?: { id: string; name: string } | null;
-  images?: { id: string; url: string; alt_text: string | null; display_order: number; is_primary: boolean; media_type: string }[];
-  variants?: { id: string; size: string; color: string | null; color_hex: string | null; sku: string | null; stock_quantity: number; price_modifier: number | null; is_active: boolean; bling_variant_id: number | null }[];
-}
+import type { Product } from '@/types/database';
 
 export default function Products() {
   const queryClient = useQueryClient();

@@ -10,21 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Code, Save, AlertTriangle, BarChart3 } from 'lucide-react';
-
-interface CodeSettings {
-  id: string;
-  head_code: string | null;
-  body_code: string | null;
-  google_analytics_id: string | null;
-  facebook_pixel_id: string | null;
-  tiktok_pixel_id: string | null;
-}
+import type { StoreSettings } from '@/types/database';
 
 export default function CodeSettings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Pick<StoreSettings, 'head_code' | 'body_code' | 'google_analytics_id' | 'facebook_pixel_id' | 'tiktok_pixel_id'>>({
     head_code: '',
     body_code: '',
     google_analytics_id: '',
@@ -42,7 +34,7 @@ export default function CodeSettings() {
         .single();
       
       if (error && error.code !== 'PGRST116') throw error;
-      return data as CodeSettings | null;
+      return data as StoreSettings | null;
     },
   });
 

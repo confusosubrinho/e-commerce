@@ -18,18 +18,8 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-
-// ─── Types ───
-
-interface ShippingRegion {
-  id: string;
-  name: string;
-  states: string[];
-  price: number;
-  min_days: number;
-  max_days: number;
-  enabled: boolean;
-}
+import { StripeGatewayPanel } from '@/components/admin/integrations/StripeGatewayPanel';
+import type { ShippingRegion, SimpleIntegration } from '@/components/admin/integrations/types';
 
 // ─── Appmax Settings Form ───
 
@@ -504,8 +494,8 @@ function DomainSettings() {
 
   useEffect(() => {
     if (storeSettings) {
-      setBaseUrl((storeSettings as any).public_base_url || '');
-      setCallbackPath((storeSettings as any).appmax_callback_path || '/admin/integrations/appmax/callback');
+      setBaseUrl(storeSettings.public_base_url || '');
+      setCallbackPath(storeSettings.appmax_callback_path || '/admin/integrations/appmax/callback');
     }
   }, [storeSettings]);
 
@@ -520,12 +510,12 @@ function DomainSettings() {
     setSaving(true);
     try {
       const normalized = baseUrl.trim().replace(/\/$/, '');
-      const payload: Record<string, any> = {
+      const payload = {
         public_base_url: normalized || null,
         appmax_callback_path: callbackPath || '/admin/integrations/appmax/callback',
       };
       if (storeSettings?.id) {
-        await supabase.from('store_settings').update(payload as any).eq('id', storeSettings.id);
+        await supabase.from('store_settings').update(payload).eq('id', storeSettings.id);
       }
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       toast({ title: 'URLs salvas!' });
@@ -542,7 +532,7 @@ function DomainSettings() {
     setSaving(true);
     try {
       if (storeSettings?.id) {
-        await supabase.from('store_settings').update({ public_base_url: origin } as any).eq('id', storeSettings.id);
+        await supabase.from('store_settings').update({ public_base_url: origin }).eq('id', storeSettings.id);
       }
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       toast({ title: 'Domínio atualizado!', description: origin });
@@ -981,17 +971,17 @@ function MelhorEnvioPanel() {
 
   useEffect(() => {
     if (settings) {
-      const s = settings as any;
+      const s = settings as Record<string, unknown>;
       setForm({
-        melhor_envio_token: s.melhor_envio_token || '',
+        melhor_envio_token: (s.melhor_envio_token as string) || '',
         melhor_envio_sandbox: s.melhor_envio_sandbox !== false,
-        free_shipping_threshold: s.free_shipping_threshold || 399,
-        shipping_store_pickup_enabled: s.shipping_store_pickup_enabled || false,
-        shipping_store_pickup_label: s.shipping_store_pickup_label || 'Retirada na Loja',
-        shipping_store_pickup_address: s.shipping_store_pickup_address || '',
-        shipping_free_enabled: s.shipping_free_enabled || false,
-        shipping_free_label: s.shipping_free_label || 'Frete Grátis',
-        shipping_free_min_value: s.shipping_free_min_value || 0,
+        free_shipping_threshold: (s.free_shipping_threshold as number) || 399,
+        shipping_store_pickup_enabled: !!s.shipping_store_pickup_enabled,
+        shipping_store_pickup_label: (s.shipping_store_pickup_label as string) || 'Retirada na Loja',
+        shipping_store_pickup_address: (s.shipping_store_pickup_address as string) || '',
+        shipping_free_enabled: !!s.shipping_free_enabled,
+        shipping_free_label: (s.shipping_free_label as string) || 'Frete Grátis',
+        shipping_free_min_value: (s.shipping_free_min_value as number) ?? 0,
         shipping_regions: (s.shipping_regions as ShippingRegion[]) || [],
         shipping_allowed_services: (s.shipping_allowed_services as number[]) || [],
       });
@@ -1001,10 +991,10 @@ function MelhorEnvioPanel() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (settings?.id) {
-        const { error } = await supabase.from('store_settings').update(form as any).eq('id', settings.id);
+        const { error } = await supabase.from('store_settings').update(form).eq('id', settings.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('store_settings').insert(form as any);
+        const { error } = await supabase.from('store_settings').insert(form);
         if (error) throw error;
       }
     },
@@ -1581,7 +1571,7 @@ function BlingPanel() {
 
   useEffect(() => {
     if (settings) {
-      const s = settings as any;
+      const s = settings as Record<string, string | null>;
       setForm({
         bling_client_id: s.bling_client_id || '',
         bling_client_secret: s.bling_client_secret || '',
@@ -1606,10 +1596,10 @@ function BlingPanel() {
   const saveCredentials = useMutation({
     mutationFn: async () => {
       if (settings?.id) {
-        const { error } = await supabase.from('store_settings').update(form as any).eq('id', settings.id);
+        const { error } = await supabase.from('store_settings').update(form).eq('id', settings.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('store_settings').insert(form as any);
+        const { error } = await supabase.from('store_settings').insert(form);
         if (error) throw error;
       }
     },
@@ -1655,7 +1645,7 @@ function BlingPanel() {
   const [blingStores, setBlingStores] = useState<{id: string; name: string; type: string}[]>([]);
   const [loadingStores, setLoadingStores] = useState(false);
 
-  const isConnected = !!(settings as any)?.bling_access_token;
+  const isConnected = !!(settings && 'bling_access_token' in settings && (settings as Record<string, unknown>).bling_access_token);
 
   const fetchStores = useCallback(async () => {
     if (!isConnected) return;
@@ -2172,16 +2162,6 @@ function BlingPanel() {
 
 // ─── Main Page ───
 
-interface SimpleIntegration {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  status: 'available' | 'coming_soon' | 'connected';
-  category: 'erp' | 'payment' | 'shipping';
-  configFields?: { key: string; label: string; placeholder: string; type?: string }[];
-}
-
 const simpleIntegrations: SimpleIntegration[] = [
   {
     id: 'mercadopago', name: 'Mercado Pago', description: 'Receba pagamentos via PIX, cartão, boleto e muito mais.',
@@ -2200,262 +2180,6 @@ const simpleIntegrations: SimpleIntegration[] = [
     ],
   },
 ];
-
-// ─── Stripe Gateway Panel ───
-
-function StripeGatewayPanel() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [publishableKey, setPublishableKey] = useState('');
-  const [secretKey, setSecretKey] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [showKey, setShowKey] = useState(false);
-  const [showSecretKey, setShowSecretKey] = useState(false);
-  const [syncingStripeCatalog, setSyncingStripeCatalog] = useState(false);
-  const [stripeSyncProgress, setStripeSyncProgress] = useState('');
-
-  const { data: provider, isLoading } = useQuery({
-    queryKey: ['stripe-provider'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('integrations_checkout_providers')
-        .select('*')
-        .eq('provider', 'stripe')
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  useEffect(() => {
-    if (provider) {
-      const config = (provider.config || {}) as Record<string, string>;
-      setPublishableKey(config.publishable_key || '');
-      setSecretKey(config.secret_key || '');
-    }
-  }, [provider]);
-
-  const handleSave = async () => {
-    if (!publishableKey.startsWith('pk_')) {
-      toast({ title: 'Chave inválida', description: 'A Publishable Key deve começar com pk_', variant: 'destructive' });
-      return;
-    }
-    setSaving(true);
-    try {
-      const existingConfig = (provider?.config || {}) as Record<string, unknown>;
-      const payload = {
-        provider: 'stripe',
-        display_name: 'Stripe',
-        is_active: true,
-        config: { ...existingConfig, publishable_key: publishableKey, secret_key: secretKey.trim() || undefined },
-        updated_at: new Date().toISOString(),
-      };
-      if (provider?.id) {
-        const { error } = await supabase
-          .from('integrations_checkout_providers')
-          .update(payload)
-          .eq('id', provider.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('integrations_checkout_providers')
-          .insert(payload);
-        if (error) throw error;
-      }
-      queryClient.invalidateQueries({ queryKey: ['stripe-provider'] });
-      toast({ title: 'Stripe configurado!' });
-    } catch (err: any) {
-      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggleActive = async () => {
-    if (!provider?.id) return;
-    try {
-      await supabase
-        .from('integrations_checkout_providers')
-        .update({ is_active: !provider.is_active })
-        .eq('id', provider.id);
-      queryClient.invalidateQueries({ queryKey: ['stripe-provider'] });
-      toast({ title: provider.is_active ? 'Stripe desativado' : 'Stripe ativado' });
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-    }
-  };
-
-  const handleSetAsDefault = async () => {
-    try {
-      // Set checkout provider to stripe
-      const { data: checkoutConfig } = await supabase
-        .from('integrations_checkout')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (checkoutConfig?.id) {
-        await supabase.from('integrations_checkout').update({
-          provider: 'stripe',
-          enabled: true,
-        }).eq('id', checkoutConfig.id);
-      } else {
-        await supabase.from('integrations_checkout').insert({
-          provider: 'stripe',
-          enabled: true,
-        });
-      }
-      toast({ title: 'Stripe definido como provedor padrão de pagamento!' });
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
-    }
-  };
-
-  const runStripeCatalogSync = async () => {
-    if (syncingStripeCatalog) return;
-    setSyncingStripeCatalog(true);
-    setStripeSyncProgress('Iniciando...');
-    let offset = 0;
-    const batchSize = 10;
-    let totalProducts = 0;
-    let totalPrices = 0;
-    let totalUpdated = 0;
-    let totalErrors = 0;
-    try {
-      while (true) {
-        setStripeSyncProgress(`Enviando produtos ${offset + 1}-${offset + batchSize}...`);
-        const { data, error } = await supabase.functions.invoke('checkout-stripe-catalog-sync', {
-          body: { only_active: true, offset, limit: batchSize },
-        });
-        if (error) throw error;
-        totalProducts += data?.created_products ?? 0;
-        totalPrices += data?.created_prices ?? 0;
-        totalUpdated += data?.updated_products ?? 0;
-        totalErrors += data?.errors_count ?? 0;
-        const processed = data?.processed ?? 0;
-        setStripeSyncProgress(`${offset + processed} produtos processados`);
-        if (!data?.has_more) break;
-        offset += batchSize;
-      }
-      setStripeSyncProgress('');
-      toast({
-        title: 'Catálogo Stripe sincronizado!',
-        description: `${totalProducts} produtos criados, ${totalPrices} preços criados, ${totalUpdated} produtos atualizados${totalErrors > 0 ? `, ${totalErrors} erros` : ''}.`,
-        variant: totalErrors > 0 ? 'destructive' : 'default',
-      });
-      queryClient.invalidateQueries({ queryKey: ['stripe-provider'] });
-    } catch (err: unknown) {
-      setStripeSyncProgress('');
-      toast({
-        title: 'Erro ao sincronizar',
-        description: err instanceof Error ? err.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncingStripeCatalog(false);
-    }
-  };
-
-  if (isLoading) return <div className="text-sm text-muted-foreground">Carregando...</div>;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant={provider?.is_active ? 'default' : 'secondary'} className="text-xs">
-            {provider?.is_active ? 'Ativo' : 'Inativo'}
-          </Badge>
-        </div>
-        {provider?.id && (
-          <Switch checked={provider.is_active} onCheckedChange={handleToggleActive} />
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Publishable Key (pk_...)</Label>
-          <div className="relative">
-            <Input
-              type={showKey ? 'text' : 'password'}
-              value={publishableKey}
-              onChange={e => setPublishableKey(e.target.value)}
-              placeholder="pk_live_... ou pk_test_..."
-              className="text-xs h-8 pr-8 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            Encontre no <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" className="underline">Stripe Dashboard → API Keys</a>.
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Secret Key (sk_...)</Label>
-          <div className="relative">
-            <Input
-              type={showSecretKey ? 'text' : 'password'}
-              value={secretKey}
-              onChange={e => setSecretKey(e.target.value)}
-              placeholder="sk_live_... ou sk_test_..."
-              className="text-xs h-8 pr-8 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => setShowSecretKey(!showSecretKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showSecretKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            Necessária para criar sessões de checkout e sincronizar o catálogo. Mantenha em sigilo.
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <Label className="text-xs">Catálogo no Stripe</Label>
-          <p className="text-[10px] text-muted-foreground mb-1">
-            Envia produtos ativos e variantes para o catálogo do Stripe (Products e Prices). Salve as chaves antes.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={runStripeCatalogSync}
-            disabled={syncingStripeCatalog || !secretKey.trim()}
-            className="w-full"
-          >
-            {syncingStripeCatalog ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-            {syncingStripeCatalog ? stripeSyncProgress || 'Sincronizando...' : 'Sincronizar catálogo Stripe'}
-          </Button>
-        </div>
-
-        <div className="bg-muted/60 border rounded-md p-2.5 text-xs text-muted-foreground space-y-1">
-          <p><strong>Webhook URL:</strong> Configure no Stripe Dashboard:</p>
-          <code className="block bg-muted px-2 py-1 rounded font-mono text-[10px] break-all">
-            https://{import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/checkout-stripe-webhook
-          </code>
-          <p className="text-[10px]">Eventos: <code>payment_intent.succeeded</code>, <code>payment_intent.payment_failed</code></p>
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        <Button onClick={handleSave} disabled={saving} size="sm" className="flex-1">
-          {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar</>}
-        </Button>
-        <Button onClick={handleSetAsDefault} variant="outline" size="sm">
-          Definir como padrão
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function Integrations() {
   const { toast } = useToast();

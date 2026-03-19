@@ -40,7 +40,8 @@ const BRAZILIAN_STATES = [
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) {
-        navigate('/auth', { state: { from: '/minha-conta' } });
+        // A rota real da página é /conta (ver src/App.tsx)
+        navigate('/auth', { state: { from: '/conta' } });
       } else {
         setUser(session.user);
       }
@@ -48,7 +49,7 @@ const BRAZILIAN_STATES = [
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (!session?.user) navigate('/auth', { state: { from: '/minha-conta' } });
+      if (!session?.user) navigate('/auth', { state: { from: '/conta' } });
       else setUser(session.user);
     });
     return () => subscription.unsubscribe();

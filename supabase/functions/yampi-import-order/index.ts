@@ -468,7 +468,14 @@ Deno.serve(async (req) => {
   if (customerEmail && ["processing", "shipped", "delivered"].includes(localStatus)) {
     const { data: activeAutomation } = await supabase.from("email_automations")
       .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
+
+    const { data: orderTenantRow } = await supabase
+      .from("orders")
+      .select("tenant_id")
+      .eq("id", order.id)
+      .maybeSingle();
     await supabase.from("email_automation_logs").insert({
+      tenant_id: orderTenantRow?.tenant_id,
       recipient_email: customerEmail,
       recipient_name: customerName,
       status: "pending",
@@ -683,7 +690,14 @@ async function importSingleOrder(
   if (customerEmail && ["processing", "shipped", "delivered"].includes(localStatus)) {
     const { data: activeAutomation } = await supabase.from("email_automations")
       .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
+
+    const { data: orderTenantRow } = await supabase
+      .from("orders")
+      .select("tenant_id")
+      .eq("id", order.id)
+      .maybeSingle();
     await supabase.from("email_automation_logs").insert({
+      tenant_id: orderTenantRow?.tenant_id,
       recipient_email: customerEmail,
       recipient_name: customerName,
       status: "pending",

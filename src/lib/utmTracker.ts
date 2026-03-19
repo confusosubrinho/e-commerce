@@ -78,7 +78,7 @@ export function getStoredUTM(): UTMData | null {
   return stored ? JSON.parse(stored) : null;
 }
 
-export async function trackSession(): Promise<void> {
+export async function trackSession(tenantId: string): Promise<void> {
   const existing = sessionStorage.getItem('vl_session_tracked');
   if (existing) return;
 
@@ -109,6 +109,7 @@ export async function trackSession(): Promise<void> {
     await supabase.from('traffic_sessions').insert({
       session_id: sessionId,
       user_id: session?.user?.id || null,
+      tenant_id: tenantId,
       utm_source: utm.utm_source,
       utm_medium: utm.utm_medium,
       utm_campaign: utm.utm_campaign,
@@ -131,7 +132,8 @@ export async function saveAbandonedCart(
   subtotal: number,
   email?: string,
   phone?: string,
-  name?: string
+  name?: string,
+  tenantId?: string
 ): Promise<void> {
   const sessionId = getSessionId();
   const utm = getStoredUTM();
@@ -141,6 +143,7 @@ export async function saveAbandonedCart(
     await supabase.from('abandoned_carts').upsert(
       {
         session_id: sessionId,
+        tenant_id: tenantId,
         email,
         phone,
         customer_name: name,

@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
       if (reconciledSessionId) {
         const { data: existingBySession } = await supabase
           .from("orders")
-          .select("id, order_number, status")
+          .select("id, order_number, status, tenant_id")
           .eq("checkout_session_id", reconciledSessionId)
           .maybeSingle();
 
@@ -273,8 +273,19 @@ Deno.serve(async (req) => {
             if (!alreadyDebit) {
               // Check if there's already a reserve — if so, convert to debit (no need to decrement again)
               const { data: existingReserve } = await supabase.from("inventory_movements").select("id").eq("order_id", existingBySession.id).eq("variant_id", row.product_variant_id).eq("type", "reserve").maybeSingle();
-              if (existingReserve) {
-                // Convert reserve to debit
+              // If TTL already released (type=release) or a previous failure refunded (type=refund),
+              // the reserve record may still exist historically, but stock was restored.
+              // In that case, we must debit again instead of only converting reserve->debit.
+              const { data: restoredMovement } = await supabase
+                .from("inventory_movements")
+                .select("id")
+                .eq("order_id", existingBySession.id)
+                .eq("variant_id", row.product_variant_id)
+                .in("type", ["release", "refund"])
+                .maybeSingle();
+
+              if (existingReserve && !restoredMovement) {
+                // Convert reserve to debit (stock was never released back)
                 await supabase.from("inventory_movements").update({ type: "debit" }).eq("id", existingReserve.id);
               } else {
                 // No reserve exists — decrement stock now
@@ -283,7 +294,13 @@ Deno.serve(async (req) => {
                 if (stockData && !stockData.success) {
                   console.warn(`[yampi-webhook] decrement_stock failed for variant ${row.product_variant_id}: ${stockData.error} — skipping inventory_movement`);
                 } else {
-                  await supabase.from("inventory_movements").insert({ variant_id: row.product_variant_id, order_id: existingBySession.id, type: "debit", quantity: row.quantity });
+                  await supabase.from("inventory_movements").insert({
+                    tenant_id: existingBySession.tenant_id,
+                    variant_id: row.product_variant_id,
+                    order_id: existingBySession.id,
+                    type: "debit",
+                    quantity: row.quantity,
+                  });
                 }
               }
             }
@@ -378,6 +395,7 @@ Deno.serve(async (req) => {
           const { data: activeAutomation } = await supabase.from("email_automations")
             .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
           await supabase.from("email_automation_logs").insert({
+            tenant_id: existingBySession.tenant_id,
             recipient_email: customerEmail || "unknown",
             recipient_name: customerName,
             status: "pending",
@@ -658,7 +676,14 @@ Deno.serve(async (req) => {
       // Link email automation log to active automation
       const { data: activeAutomation2 } = await supabase.from("email_automations")
         .select("id").eq("trigger_event", "order_confirmed").eq("is_active", true).limit(1).maybeSingle();
+
+      const { data: orderTenantRow } = await supabase
+        .from("orders")
+        .select("tenant_id")
+        .eq("id", order.id)
+        .maybeSingle();
       await supabase.from("email_automation_logs").insert({
+        tenant_id: orderTenantRow?.tenant_id,
         recipient_email: customerEmail || "unknown",
         recipient_name: customerName,
         status: "pending",
@@ -993,7 +1018,13 @@ Deno.serve(async (req) => {
         const { data: cancelAutomation } = await supabase.from("email_automations")
           .select("id").eq("trigger_event", "order_cancelled").eq("is_active", true).limit(1).maybeSingle();
         if (customerEmail) {
+          const { data: cancelOrderTenantRow } = await supabase
+            .from("orders")
+            .select("tenant_id")
+            .eq("id", existingOrder.id)
+            .maybeSingle();
           await supabase.from("email_automation_logs").insert({
+            tenant_id: cancelOrderTenantRow?.tenant_id,
             recipient_email: customerEmail,
             recipient_name: customerName,
             status: "pending",

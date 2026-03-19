@@ -44,8 +44,13 @@ export interface Product {
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string | null;
+  // Bling integration (admin)
+  bling_product_id?: number | null;
+  bling_sync_status?: string | null;
+  bling_last_synced_at?: string | null;
+  bling_last_error?: string | null;
   // Relations
-  category?: Category;
+  category?: Category | { id: string; name: string };
   images?: ProductImage[];
   variants?: ProductVariant[];
 }
@@ -59,6 +64,7 @@ export interface Product {
    is_primary: boolean;
    product_variant_id?: string | null;
    created_at: string;
+   media_type?: string;
  }
  
  export interface ProductVariant {
@@ -76,6 +82,7 @@ export interface Product {
    created_at: string;
    custom_attribute_name?: string | null;
    custom_attribute_value?: string | null;
+   bling_variant_id?: number | null;
  }
  
 export interface Banner {
@@ -174,23 +181,44 @@ export interface Banner {
  
   export interface StoreSettings {
     id: string;
-    store_name: string;
+    store_name: string | null;
     logo_url: string | null;
     header_logo_url?: string | null;
+    favicon_url?: string | null;
+    show_variants_on_grid?: boolean;
     contact_email: string | null;
     contact_phone: string | null;
     contact_whatsapp: string | null;
     address: string | null;
     instagram_url: string | null;
     facebook_url: string | null;
-    free_shipping_threshold: number;
-    max_installments: number;
+    free_shipping_threshold: number | null;
+    max_installments?: number | null;
     pix_discount: number | null;
     installments_without_interest: number | null;
     installment_interest_rate: number | null;
     min_installment_value: number | null;
-    created_at: string;
-    updated_at: string;
+    head_code?: string | null;
+    body_code?: string | null;
+    google_analytics_id?: string | null;
+    facebook_pixel_id?: string | null;
+    tiktok_pixel_id?: string | null;
+    public_base_url?: string | null;
+    appmax_callback_path?: string | null;
+    bling_access_token?: string | null;
+    app_version?: string | null;
+    melhor_envio_token?: string | null;
+    melhor_envio_sandbox?: boolean | null;
+    shipping_store_pickup_enabled?: boolean | null;
+    shipping_store_pickup_label?: string | null;
+    shipping_store_pickup_address?: string | null;
+    shipping_free_enabled?: boolean | null;
+    shipping_free_label?: string | null;
+    shipping_free_min_value?: number | null;
+    shipping_regions?: unknown;
+    shipping_allowed_services?: unknown;
+    created_at?: string;
+    updated_at?: string;
   }
  
  export interface CartItem {

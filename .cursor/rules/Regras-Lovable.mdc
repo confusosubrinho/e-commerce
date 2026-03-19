@@ -1,0 +1,104 @@
+✅ REGRAS – LOVABLE (WORKFLOW E SUPABASE)
+
+🌐 LINGUAGEM E CONTEXTO
+
+- Sempre responda em **Português (pt-BR)**.
+- Considere que o projeto roda dentro do **Lovable** (editor visual, histórico por T=0/T–1, Remix, Visual Edit).
+
+---
+
+### 1. Workflow no Lovable (`lovable-best-practices`)
+
+- **Quando usar**
+  - Sempre que o usuário mencionar: Lovable, `lovable.dev`, T=0/T–1, Remix, Visual Edit, ou estiver frustrado com “IA quebrando tudo”.
+
+- **Boas práticas obrigatórias**
+  - **Knowledge file**
+    - Tratar como “cérebro” do projeto.
+    - Incluir:
+      - visão do produto (PRD resumido),
+      - jornadas de usuário,
+      - papéis/roles,
+      - features já implementadas,
+      - diretrizes de UI/UX.
+    - Sempre que o contexto estiver confuso, orientar o usuário a atualizar o Knowledge antes de pedir novas features.
+  - **Plan mode**
+    - Usar para:
+      - planejar features grandes,
+      - investigar bugs complexos,
+      - sair de loops de correções quebradas.
+    - Sugerir prompts do tipo:
+      - “Sugira 3 maneiras de implementar X.”
+      - “Investigue este erro sem mexer em outras partes do app.”
+  - **Blocos pequenos e testáveis**
+    - Implementar **uma** mudança de comportamento por vez.
+    - Sempre especificar:
+      - rota (`/settings`, `/checkout`, etc.),
+      - role (Admin, User, Investor, etc.),
+      - comportamento esperado.
+    - Testar manualmente depois de cada bloco.
+  - **Visual Edit**
+    - Preferir para:
+      - mudar texto, cores, fontes, pequenos layouts.
+    - Evitar usar prompts de código para ajustes meramente visuais quando Visual Edit resolve.
+  - **Versionamento e Remix**
+    - Após features estáveis, orientar o uso de **pin**.
+    - Em caso de bagunça geral:
+      - sugerir **Remix** para recriar o projeto em T=0 (lembrando de desconectar Supabase antes).
+    - Nunca assumir que revert é “inofensivo” quando houver banco conectado.
+
+---
+
+### 2. Lovable + Supabase (`lovable-supabase-integration`)
+
+- **Quando usar**
+  - Sempre que houver integração explícita **Lovable + Supabase** (auth, tabelas, Storage, Edge Functions).
+
+- **Fluxo de conexão**
+  - Explicar sempre o fluxo padrão:
+    1. Criar projeto no Supabase.
+    2. No Lovable: `Settings → Integrations → Supabase → Connect`.
+    3. Autorizar o Lovable no Supabase e escolher o projeto.
+    4. Confirmar no chat que a conexão foi feita.
+
+- **Criação de schema via Lovable**
+  - Quando Lovable gerar SQL:
+    - Orientar a:
+      1. Copiar o SQL.
+      2. Colar no **SQL Editor** do Supabase.
+      3. Executar e checar resultado no **Table Editor**.
+      4. Voltar ao Lovable e confirmar para ele terminar o binding UI ↔ tabela.
+
+- **Auth**
+  - Em Supabase:
+    - Habilitar email/password.
+    - Ajustar confirmação de email conforme ambiente (dev vs produção).
+    - Habilitar OAuth quando o usuário pedir “Sign in with Google” etc.
+  - No Lovable:
+    - Sugerir prompts diretos como:
+      - “Add login usando Supabase Auth.”
+      - “Add ‘Sign in with Google’ button na tela de login.”
+
+- **Storage**
+  - Sugerir uso de Storage para:
+    - avatar de usuário,
+    - imagens de produto/conteúdo,
+    - anexos leves.
+  - Reforçar:
+    - escolha de bucket público/privado,
+    - padrões de path por tenant/usuário, se aplicável.
+
+- **Secrets e Edge Functions**
+  - Nunca pedir/mostrar keys sensíveis no código.
+  - Orientar o uso de secret manager/variáveis de ambiente das Edge Functions.
+  - Quando o usuário pedir lógicas customizadas (ex.: processar pagamento, chamar OpenAI, etc.):
+    - recomendar uma Edge Function Supabase com:
+      - acesso a secrets,
+      - logs inspecionáveis no painel Supabase.
+
+- **Segurança mínima**
+  - Repetir sempre:
+    - **RLS antes de produção** em tabelas sensíveis.
+    - Policies para garantir acesso somente a dados do próprio usuário/tenant.
+    - Não confiar apenas em validação de frontend.
+
