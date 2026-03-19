@@ -50,7 +50,7 @@ export interface Product {
   bling_last_synced_at?: string | null;
   bling_last_error?: string | null;
   // Relations
-  category?: Category | { id: string; name: string };
+  category?: Category | { id: string; name: string; slug?: string };
   images?: ProductImage[];
   variants?: ProductVariant[];
 }
