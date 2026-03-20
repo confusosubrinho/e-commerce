@@ -773,20 +773,27 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
 async function syncStock(supabase: any, token: string) {
   const headers = blingHeaders(token);
   const { data: allVariants } = await supabase.from("product_variants").select("id, bling_variant_id, product_id, sku");
-  const { data: products } = await supabase.from("products").select("id, bling_product_id, is_active").not("bling_product_id", "is", null);
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, bling_product_id, is_active, tenant_id")
+    .not("bling_product_id", "is", null);
   if (!products?.length && !allVariants?.length) return { updated: 0 };
 
   // Only active products
   const activeProductIds = new Set<string>();
   const productBlingMap = new Map<string, number>();
+  const productTenantMap = new Map<string, string | null>();
   for (const p of (products || [])) {
     if (p.is_active === false) continue;
     activeProductIds.add(p.id);
     productBlingMap.set(p.id, p.bling_product_id);
+    productTenantMap.set(p.id, (p.tenant_id as string | null) ?? null);
   }
 
   const blingIdToVariants = new Map<number, string[]>();
+  const variantIdToProductId = new Map<string, string>();
   for (const v of (allVariants || [])) {
+    if (v.product_id) variantIdToProductId.set(v.id, v.product_id);
     if (!activeProductIds.has(v.product_id)) continue;
     if (v.bling_variant_id) {
       if (!blingIdToVariants.has(v.bling_variant_id)) blingIdToVariants.set(v.bling_variant_id, []);
@@ -822,9 +829,21 @@ async function syncStock(supabase: any, token: string) {
           await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid);
           // Record inventory movement for audit
           if (qty !== oldStock) {
-            await supabase.from("inventory_movements").insert({
-              variant_id: vid, quantity: qty - oldStock, type: "bling_sync",
-            }).then(() => {}).catch(() => {});
+            const productId = variantIdToProductId.get(vid);
+            const tenantId = productId ? productTenantMap.get(productId) ?? null : null;
+            if (!tenantId) {
+              console.warn("[bling-sync] Missing tenant_id for inventory_movements insert", {
+                product_id: productId,
+                variant_id: vid,
+              });
+            } else {
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantId,
+                variant_id: vid,
+                quantity: qty - oldStock,
+                type: "bling_sync",
+              }).then(() => {}).catch(() => {});
+            }
           }
           updated++;
         }
@@ -1050,9 +1069,39 @@ serve(async (req) => {
                     stockUpdated++;
                     // Record inventory movement for audit
                     if (qty !== oldQty) {
-                      await supabase.from("inventory_movements").insert({
-                        variant_id: lv.id, quantity: qty - oldQty, type: "bling_sync",
-                      }).then(() => {}).catch(() => {});
+                      const { data: pvRow } = await supabase
+                        .from("product_variants")
+                        .select("product_id")
+                        .eq("id", lv.id)
+                        .maybeSingle();
+
+                      const productId = pvRow?.product_id;
+                      if (!productId) {
+                        console.warn("[bling-sync] Missing product_id for inventory_movements insert", {
+                          variant_id: lv.id,
+                        });
+                      } else {
+                        const { data: prow } = await supabase
+                          .from("products")
+                          .select("tenant_id")
+                          .eq("id", productId)
+                          .maybeSingle();
+
+                        const tenantId = prow?.tenant_id;
+                        if (!tenantId) {
+                          console.warn("[bling-sync] Missing tenant_id for inventory_movements insert", {
+                            product_id: productId,
+                            variant_id: lv.id,
+                          });
+                        } else {
+                          await supabase.from("inventory_movements").insert({
+                            tenant_id: tenantId,
+                            variant_id: lv.id,
+                            quantity: qty - oldQty,
+                            type: "bling_sync",
+                          }).then(() => {}).catch(() => {});
+                        }
+                      }
                     }
                   }
                 }
@@ -1152,16 +1201,20 @@ serve(async (req) => {
 
       case "create_order": {
         // Bug 6 Fix: Check for duplicate and save bling_order_id
-        const { data: existingOrder } = await supabase.from("orders").select("id, notes").eq("id", payload.order_id).maybeSingle();
-        if (existingOrder?.notes?.includes("bling_order_id:")) {
-          result = { bling_order_id: existingOrder.notes.match(/bling_order_id:(\d+)/)?.[1], duplicate: true };
+        const { data: existingOrder } = await supabase
+          .from("orders")
+          .select("id, bling_order_id")
+          .eq("id", payload.order_id)
+          .maybeSingle();
+
+        if (existingOrder?.bling_order_id) {
+          result = { bling_order_id: existingOrder.bling_order_id, duplicate: true };
         } else {
           const orderResult = await createOrder(supabase, token, payload.order_id);
-          // Save bling_order_id back to order
+          // Save bling_order_id back to order (dedicated column)
           if (orderResult.bling_order_id) {
-            const existingNotes = existingOrder?.notes || "";
             await supabase.from("orders").update({
-              notes: `${existingNotes} | bling_order_id:${orderResult.bling_order_id}`.trim(),
+              bling_order_id: orderResult.bling_order_id,
             }).eq("id", payload.order_id);
           }
           result = orderResult;
@@ -1171,17 +1224,19 @@ serve(async (req) => {
       case "generate_nfe": result = await generateNfe(token, parseInt(payload.bling_order_id)); break;
       case "order_to_nfe": {
         // Check for existing bling_order_id to avoid duplicates
-        const { data: nfeOrder } = await supabase.from("orders").select("id, notes").eq("id", payload.order_id).maybeSingle();
+        const { data: nfeOrder } = await supabase
+          .from("orders")
+          .select("id, bling_order_id")
+          .eq("id", payload.order_id)
+          .maybeSingle();
         let orderResult;
-        if (nfeOrder?.notes?.includes("bling_order_id:")) {
-          const existingBlingId = nfeOrder.notes.match(/bling_order_id:(\d+)/)?.[1];
-          orderResult = { bling_order_id: parseInt(existingBlingId || "0"), duplicate: true };
+        if (nfeOrder?.bling_order_id) {
+          orderResult = { bling_order_id: nfeOrder.bling_order_id, duplicate: true };
         } else {
           orderResult = await createOrder(supabase, token, payload.order_id);
           if (orderResult.bling_order_id) {
-            const existingNotes = nfeOrder?.notes || "";
             await supabase.from("orders").update({
-              notes: `${existingNotes} | bling_order_id:${orderResult.bling_order_id}`.trim(),
+              bling_order_id: orderResult.bling_order_id,
             }).eq("id", payload.order_id);
           }
         }

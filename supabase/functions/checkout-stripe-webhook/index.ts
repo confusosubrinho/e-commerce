@@ -82,6 +82,26 @@ Deno.serve(async (req) => {
 
   // ── HELPERS ────────────────────────────────────────────────────────
 
+  /** Map Stripe subscription status to tenant billing_status */
+  function mapStripeSubscriptionStatus(status: string): "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" {
+    switch (status) {
+      case "active":
+        return "active";
+      case "trialing":
+        return "trialing";
+      case "past_due":
+        return "past_due";
+      case "canceled":
+      case "unpaid":
+      case "incomplete_expired":
+        return "canceled";
+      case "incomplete":
+        return "incomplete";
+      default:
+        return "active";
+    }
+  }
+
   /** Update order by transaction_id (payment_intent id) */
   async function updateOrderByPI(piId: string, data: Record<string, unknown>) {
     const { error } = await supabase
@@ -482,6 +502,109 @@ Deno.serve(async (req) => {
               });
             }
           }
+        }
+        break;
+      }
+
+      // ─── Billing dos lojistas (SaaS): customer.subscription.* ───
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const sub = event.data.object as Stripe.Subscription;
+        const tenantId = (sub.metadata?.tenant_id as string) || null;
+        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+        const status = sub.status;
+
+        logInfo(SCOPE, correlationId, `Subscription ${event.type}`, {
+          subscription_id: sub.id,
+          customer_id: customerId,
+          tenant_id: tenantId,
+          status,
+        });
+
+        const billingStatus = mapStripeSubscriptionStatus(status);
+        const planExpiresAt = sub.current_period_end
+          ? new Date(sub.current_period_end * 1000).toISOString()
+          : null;
+
+        let targetTenantId = tenantId;
+        if (!targetTenantId && customerId) {
+          const { data: t } = await supabase
+            .from("tenants")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+          targetTenantId = t?.id ?? null;
+        }
+
+        if (targetTenantId) {
+          const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+          let planId: string | null = null;
+          if (priceId) {
+            const { data: plans } = await supabase
+              .from("tenant_plans")
+              .select("id")
+              .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_yearly.eq.${priceId}`)
+              .limit(1);
+            planId = plans?.[0]?.id ?? null;
+          }
+
+          await supabase
+            .from("tenants")
+            .update({
+              stripe_customer_id: customerId || undefined,
+              stripe_subscription_id: sub.id,
+              plan_id: planId,
+              billing_status: billingStatus,
+              plan_expires_at: planExpiresAt,
+              trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+            })
+            .eq("id", targetTenantId);
+        } else {
+          logError(SCOPE, correlationId, new Error("No tenant_id in metadata and no tenant found by stripe_customer_id"), {
+            subscription_id: sub.id,
+            customer_id: customerId,
+          });
+        }
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+        const tenantId = (sub.metadata?.tenant_id as string) || null;
+        const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+
+        logInfo(SCOPE, correlationId, "Subscription deleted", {
+          subscription_id: sub.id,
+          customer_id: customerId,
+          tenant_id: tenantId,
+        });
+
+        let targetTenantId = tenantId;
+        if (!targetTenantId && customerId) {
+          const { data: t } = await supabase
+            .from("tenants")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+          targetTenantId = t?.id ?? null;
+        }
+
+        if (targetTenantId) {
+          const { data: freePlan } = await supabase
+            .from("tenant_plans")
+            .select("id")
+            .eq("slug", "free")
+            .maybeSingle();
+
+          await supabase
+            .from("tenants")
+            .update({
+              stripe_subscription_id: null,
+              plan_id: freePlan?.id ?? null,
+              billing_status: "canceled",
+              plan_expires_at: null,
+            })
+            .eq("id", targetTenantId);
         }
         break;
       }

@@ -33,17 +33,16 @@ export async function autoPushOrderToBling(
     // Check if order already has bling_order_id
     const { data: order } = await supabase
       .from("orders")
-      .select("id, notes, order_number, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_cost, total_amount, created_at, customer_cpf")
+      .select("id, notes, bling_order_id, order_number, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_cost, total_amount, created_at, customer_cpf")
       .eq("id", orderId)
       .maybeSingle();
 
     if (!order) return { success: false, error: "Pedido não encontrado" };
 
     // Check duplicate: already sent to Bling
-    if (order.notes?.includes("bling_order_id:")) {
-      const existingId = order.notes.match(/bling_order_id:(\d+)/)?.[1];
-      console.log(`[bling-auto] Order ${orderId} already has bling_order_id:${existingId}, skipping`);
-      return { success: true, bling_order_id: Number(existingId), skipped: true };
+    if (order.bling_order_id) {
+      console.log(`[bling-auto] Order ${orderId} already has bling_order_id:${order.bling_order_id}, skipping`);
+      return { success: true, bling_order_id: Number(order.bling_order_id), skipped: true };
     }
 
     // Get token
@@ -146,11 +145,10 @@ export async function autoPushOrderToBling(
 
     const blingOrderId = data?.data?.id;
 
-    // Save bling_order_id to order notes
+    // Save bling_order_id to dedicated column
     if (blingOrderId) {
-      const existingNotes = order.notes || "";
       await supabase.from("orders").update({
-        notes: `${existingNotes} | bling_order_id:${blingOrderId}`.trim(),
+        bling_order_id: blingOrderId,
       }).eq("id", orderId);
       console.log(`[bling-auto] Order ${orderId} → Bling order ${blingOrderId} created successfully`);
     }
@@ -183,19 +181,17 @@ export async function cancelBlingOrder(
 
     const { data: order } = await supabase
       .from("orders")
-      .select("id, notes")
+      .select("id, bling_order_id")
       .eq("id", orderId)
       .maybeSingle();
 
     if (!order) return { success: false, error: "Pedido não encontrado" };
 
-    const blingOrderIdMatch = order.notes?.match(/bling_order_id:(\d+)/);
-    if (!blingOrderIdMatch) {
+    const blingOrderId = order.bling_order_id;
+    if (!blingOrderId) {
       console.log(`[bling-auto] Order ${orderId} has no bling_order_id, skipping cancel`);
       return { success: false, skipped: true, error: "Sem bling_order_id" };
     }
-
-    const blingOrderId = blingOrderIdMatch[1];
 
     let token: string;
     try {

@@ -164,6 +164,37 @@ As seguintes colunas contêm dados pessoais (LGPD/privacidade):
 
 ---
 
+## Módulo: Billing dos lojistas (SaaS)
+
+### `tenant_plans`
+Planos de assinatura disponíveis para tenants.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | UUID | PK |
+| `name` | text | Nome do plano |
+| `slug` | text | Identificador: `free`, `starter`, `pro`, `enterprise` (UNIQUE) |
+| `stripe_price_id_monthly` | text | Stripe Price ID cobrança mensal (null para free) |
+| `stripe_price_id_yearly` | text | Stripe Price ID cobrança anual (null para free) |
+| `features` | jsonb | Lista de features habilitadas |
+| `limits` | jsonb | Limites (ex.: max_products, max_orders_per_month) |
+| `sort_order` | int | Ordem de exibição |
+
+### Colunas de billing em `tenants`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `plan_id` | UUID | FK → tenant_plans |
+| `billing_status` | text | `active`, `trialing`, `past_due`, `canceled`, `unpaid`, `incomplete` |
+| `stripe_customer_id` | text | Stripe Customer do lojista |
+| `stripe_subscription_id` | text | Stripe Subscription ativa |
+| `trial_ends_at` | timestamptz | Fim do trial |
+| `plan_expires_at` | timestamptz | Próxima renovação ou fim da assinatura |
+
+Ver [`TENANT_BILLING_STRIPE.md`](TENANT_BILLING_STRIPE.md) para fluxo e webhooks.
+
+---
+
 ## Como propor mudanças no banco
 
 Veja [`SUPABASE_CHANGES_PLAN.md`](SUPABASE_CHANGES_PLAN.md) para o processo completo e o template de pedido de mudança.

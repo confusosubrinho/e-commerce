@@ -97,12 +97,27 @@ Deno.serve(async (req) => {
         return jsonOk({ ok: true, duplicate: true, hash: approvedHash });
       }
 
-      // Record the event hash early to prevent race conditions
-      await supabase.from("order_events").insert({
-        event_type: "yampi_approved",
-        event_hash: approvedHash,
-        payload: { yampi_order_id: yampiOrderId, transaction_id: transactionId },
-      });
+      // Store approved event hash only after successful processing.
+      async function storeApprovedEventHash(orderId: string) {
+        const { error: insertError } = await supabase.from("order_events").insert({
+          order_id: orderId,
+          event_type: "yampi_approved",
+          event_hash: approvedHash,
+          payload: { yampi_order_id: yampiOrderId, transaction_id: transactionId },
+        });
+
+        if (insertError) {
+          if (insertError.code === "23505") {
+            logInfo(SCOPE, correlationId, "Duplicate approved event hash — skipping insert", {
+              event_hash: approvedHash,
+              order_id: orderId,
+            });
+            return;
+          }
+          logError(SCOPE, correlationId, insertError, { event_hash: approvedHash, order_id: orderId });
+          throw insertError;
+        }
+      }
 
       // #5 Idempotency: check if order already exists by external_reference
       if (yampiOrderId) {
@@ -116,9 +131,11 @@ Deno.serve(async (req) => {
           // Bug fix #4: If order already processing/shipped/delivered, skip re-processing
           if (["processing", "shipped", "delivered"].includes(existingOrder.status)) {
             console.log("[yampi-webhook] Order already exists with status", existingOrder.status, "— skipping re-processing:", existingOrder.id);
+            await storeApprovedEventHash(existingOrder.id);
             return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true, status: existingOrder.status });
           }
           console.log("[yampi-webhook] Order already exists, skipping:", existingOrder.id);
+          await storeApprovedEventHash(existingOrder.id);
           return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true });
         }
       }
@@ -208,6 +225,7 @@ Deno.serve(async (req) => {
           // Bug fix #4: If order already fully processed, skip re-processing payment/stock
           if (["processing", "shipped", "delivered"].includes(existingBySession.status)) {
             console.log("[yampi-webhook] Order already processed with status", existingBySession.status, "— skipping re-processing:", existingBySession.id);
+            await storeApprovedEventHash(existingBySession.id);
             return jsonOk({ ok: true, order_id: existingBySession.id, duplicate: true, status: existingBySession.status });
           }
           // Bug fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
@@ -224,7 +242,7 @@ Deno.serve(async (req) => {
           const shipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
           const shippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || 0;
           const discountAmount = resourceData?.discount || resourceData?.value_discount || 0;
-          let subtotalOrder = totalAmount - shippingCost + discountAmount;
+          let subtotalOrder = totalAmount - shippingCost;
           if (subtotalOrder <= 0) subtotalOrder = totalAmount;
           const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || null;
 
@@ -412,6 +430,7 @@ Deno.serve(async (req) => {
           }
 
           console.log("[yampi-webhook] Order updated by session_id (paid):", existingBySession.id);
+          await storeApprovedEventHash(existingBySession.id);
           return jsonOk({ ok: true, order_id: existingBySession.id, order_number: existingBySession.order_number, updated: true });
         }
       }
@@ -435,7 +454,7 @@ Deno.serve(async (req) => {
       const yampiOrderNumber = resourceData?.number?.toString() || resourceData?.order_number?.toString() || yampiOrderId || "";
       const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || null;
 
-      let subtotal = totalAmount - shippingCost + discountAmount;
+      let subtotal = totalAmount - shippingCost;
       if (subtotal <= 0) subtotal = totalAmount;
 
       // #2 Fetch UTMs from abandoned cart
@@ -511,7 +530,10 @@ Deno.serve(async (req) => {
 
       if (orderError || !order) {
         console.error("[yampi-webhook] Error creating order:", orderError?.message);
-        return jsonOk({ ok: false, error: orderError?.message });
+        return new Response(JSON.stringify({ ok: false, error: orderError?.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       console.log("[yampi-webhook] Order created:", order.id, order.order_number);
@@ -610,12 +632,24 @@ Deno.serve(async (req) => {
           if (stockData && !stockData.success) {
             console.warn(`[yampi-webhook] decrement_stock failed for variant ${localVariant.id}: ${stockData.error} — skipping inventory_movement`);
           } else {
-            await supabase.from("inventory_movements").insert({
-              variant_id: localVariant.id,
-              order_id: order.id,
-              type: "debit",
-              quantity,
-            });
+            const { data: newOrderRow } = await supabase
+              .from("orders")
+              .select("tenant_id")
+              .eq("id", order.id)
+              .maybeSingle();
+
+            const tenantId = newOrderRow?.tenant_id;
+            if (!tenantId) {
+              console.warn("[yampi-webhook] Missing tenant_id for inventory_movements insert", { order_id: order.id });
+            } else {
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantId,
+                variant_id: localVariant.id,
+                order_id: order.id,
+                type: "debit",
+                quantity,
+              });
+            }
           }
         }
       }
@@ -701,6 +735,7 @@ Deno.serve(async (req) => {
         console.warn(`[yampi-webhook] Bling auto-push failed (non-blocking): ${blingErr.message}`);
       }
 
+      await storeApprovedEventHash(order.id);
       return jsonOk({ ok: true, order_id: order.id, order_number: order.order_number });
     }
 
@@ -786,6 +821,13 @@ Deno.serve(async (req) => {
 
         // Fix #3: Restore stock if order had already debited inventory (processing or later)
         if (["processing", "shipped", "delivered"].includes(existingOrder.status)) {
+          const { data: existingOrderTenantRow } = await supabase
+            .from("orders")
+            .select("tenant_id")
+            .eq("id", existingOrder.id)
+            .maybeSingle();
+          const tenantId = existingOrderTenantRow?.tenant_id;
+
           const { data: movements } = await supabase
             .from("inventory_movements")
             .select("variant_id, quantity, type")
@@ -802,9 +844,16 @@ Deno.serve(async (req) => {
               .maybeSingle();
 
             if (!alreadyReleased) {
+              if (!tenantId) {
+                console.warn("[yampi-webhook] Missing tenant_id for inventory_movements insert", {
+                  order_id: existingOrder.id,
+                });
+                continue;
+              }
               const releaseType = mov.type === "debit" ? "refund" : "release";
               await supabase.rpc("increment_stock", { p_variant_id: mov.variant_id, p_quantity: mov.quantity });
               await supabase.from("inventory_movements").insert({
+                tenant_id: tenantId,
                 variant_id: mov.variant_id,
                 order_id: existingOrder.id,
                 type: releaseType,
@@ -958,6 +1007,13 @@ Deno.serve(async (req) => {
           .eq("order_id", existingOrder.id)
           .in("type", ["debit", "reserve"]);
 
+        const { data: cancelOrderTenantRow } = await supabase
+          .from("orders")
+          .select("tenant_id")
+          .eq("id", existingOrder.id)
+          .maybeSingle();
+        const tenantId = cancelOrderTenantRow?.tenant_id;
+
         for (const mov of movements || []) {
           const { data: alreadyReleased } = await supabase
             .from("inventory_movements")
@@ -968,9 +1024,16 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (!alreadyReleased) {
+            if (!tenantId) {
+              console.warn("[yampi-webhook] Missing tenant_id for inventory_movements insert", {
+                order_id: existingOrder.id,
+              });
+              continue;
+            }
             const releaseType = mov.type === "debit" ? "refund" : "release";
             await supabase.rpc("increment_stock", { p_variant_id: mov.variant_id, p_quantity: mov.quantity });
             await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
               variant_id: mov.variant_id,
               order_id: existingOrder.id,
               type: releaseType,
@@ -1053,6 +1116,9 @@ Deno.serve(async (req) => {
       });
     } catch (_) { /* best-effort */ }
 
-    return jsonOk({ ok: false, error: msg });
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

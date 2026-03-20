@@ -134,3 +134,18 @@ Objetivo: garantir isolamento por loja (RLS) e identificar o tenant em cada requ
 - [x] Função `get_current_tenant_id()` e resolução por domínio/slug *(Fase 7 + discovery na Fase 8)*
 - [x] Tenant discovery: resolução por domínio (`tenants.domain`) e por path (`/loja/:slug`) em `src/lib/tenant.ts` e `useTenant()`
 - [x] Testes de isolamento: testes unitários em `src/test/tenant.test.ts` (resolução por contexto; RLS garante isolamento no banco)
+
+---
+
+## Billing dos lojistas (Prioridade 1 – SaaS)
+
+**Status:** ✅ Concluída (2026-03-19)
+
+Objetivo: cobrança de assinaturas dos tenants (lojistas) via Stripe Billing; modelo de planos e feature gates no frontend.
+
+- [x] Migration `20260319100000_tenant_billing_schema.sql`: tabela `tenant_plans`, colunas de billing em `tenants`
+- [x] Webhook `checkout-stripe-webhook`: handlers para `customer.subscription.created/updated/deleted`
+- [x] Frontend: tipos em `src/types/billing.ts`, helpers em `src/lib/plans.ts`, hooks `useTenantPlan` e `usePlanGate`
+- [x] Documentação: [`TENANT_BILLING_STRIPE.md`](TENANT_BILLING_STRIPE.md)
+- [ ] Criar Stripe Customer + Subscription no onboarding (Edge Function ou Server Action)
+- [ ] Página de planos e redirect para Stripe Checkout (Subscription) ou Customer Portal
