@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     if (newStatus && appmaxOrderId) {
       const { data: order } = await supabase
         .from("orders")
-        .select("id, status")
+          .select("id, status")
         .eq("appmax_order_id", appmaxOrderId)
         .maybeSingle();
 
@@ -135,6 +135,16 @@ Deno.serve(async (req) => {
             appmax_order_id: appmaxOrderId,
           });
         }
+
+        // Bug F: reserve -> debit só quando o gateway confirma (evento pago/aprovado).
+        // Mantém idempotência: se não houver reserve, nenhuma linha é alterada.
+        if (newStatus === "processing" && order.status !== "cancelled") {
+          await supabase
+            .from("inventory_movements")
+            .update({ type: "debit" })
+            .eq("order_id", order.id)
+            .eq("type", "reserve");
+        }
       } else {
         await logAppmax(supabase, "warn", `Pedido interno não encontrado para appmax_order_id: ${appmaxOrderId}`);
       }
@@ -143,6 +153,9 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200 });
   } catch (error: any) {
     await logAppmax(supabase, "error", `Erro no webhook: ${error.message}`);
-    return new Response("OK", { status: 200 });
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

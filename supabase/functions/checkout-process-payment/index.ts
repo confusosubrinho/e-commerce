@@ -10,26 +10,9 @@ import {
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ─── In-memory rate limiting ───
-const rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
+// ─── DB-backed rate limiting ───
+const RATE_LIMIT_WINDOW_SECONDS = 60;
 const RATE_LIMIT_MAX_PAYMENT = 10;
-
-function isRateLimited(identifier: string, maxRequests: number): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(identifier) || [];
-  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  recent.push(now);
-  rateLimitMap.set(identifier, recent);
-  if (rateLimitMap.size > 10000) {
-    for (const [key, vals] of rateLimitMap) {
-      const filtered = vals.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-      if (filtered.length === 0) rateLimitMap.delete(key);
-      else rateLimitMap.set(key, filtered);
-    }
-  }
-  return recent.length > maxRequests;
-}
 
 // ─── Appmax v1 API helper ───
 async function appmaxFetch(
@@ -62,18 +45,41 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Rate limit by IP
-  const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(`payment:${clientIP}`, RATE_LIMIT_MAX_PAYMENT)) {
-    return new Response(
-      JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
-      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  const supabase = getServiceClient();
+
+  // Rate limit by IP (DB-backed)
+  const clientIP =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rateIdentifier = `payment:${clientIP}`;
+  try {
+    const { data: allowed, error: rlErr } = await supabase.rpc(
+      "rate_limit_check_and_log",
+      {
+        p_identifier: rateIdentifier,
+        p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+        p_max: RATE_LIMIT_MAX_PAYMENT,
+      }
+    );
+
+    if (rlErr || allowed === false) {
+      return new Response(
+        JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+  } catch (e) {
+    // If rate limit DB fails, fail open to not block checkout.
+    console.warn(
+      `[checkout-process-payment] rate_limit_check_and_log failed: ${
+        (e as Error).message
+      }`,
     );
   }
 
   try {
-    const supabase = getServiceClient();
-
     // Read active environment settings from appmax_settings
     const settings = await getActiveSettings(supabase);
     const appmaxEnv = settings?.environment || "production";
@@ -220,6 +226,30 @@ Deno.serve(async (req) => {
         }
       }
 
+      const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+      let tenantIdForMovements = DEFAULT_TENANT_ID;
+      let hasExistingReserve = false;
+
+      if (order_id) {
+        const { data: orderTenantRow } = await supabase
+          .from("orders")
+          .select("tenant_id")
+          .eq("id", order_id)
+          .maybeSingle();
+
+        tenantIdForMovements = (orderTenantRow?.tenant_id as string) ?? DEFAULT_TENANT_ID;
+
+        const { data: existingReserve } = await supabase
+          .from("inventory_movements")
+          .select("id")
+          .eq("order_id", order_id)
+          .eq("type", "reserve")
+          .limit(1)
+          .maybeSingle();
+
+        hasExistingReserve = !!existingReserve;
+      }
+
       // ── Server-side coupon: load and basic checks first; full validation after we have lineItems ──
       let validatedDiscount = 0;
       let validatedCouponId: string | null = null;
@@ -235,7 +265,6 @@ Deno.serve(async (req) => {
 
         if (couponError || !coupon) return errorResponse("Cupom inválido ou inativo", 400);
         if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) return errorResponse("Cupom expirado", 400);
-        if (coupon.max_uses && (coupon.uses_count || 0) >= coupon.max_uses) return errorResponse("Cupom esgotado", 400);
         couponRow = coupon as Record<string, unknown>;
       }
 
@@ -449,35 +478,95 @@ Deno.serve(async (req) => {
       // Use serverTotal as authoritative amount
       const authorizedAmount = serverTotal;
 
-      // ── Stock validation + atomic decrement ──
-      const stockDecrements: { variant_id: string; quantity: number; name: string }[] = [];
-      for (const product of products) {
-        if (!product.variant_id) continue;
-        const qty = product.quantity || 1;
-        const { data: result, error: rpcError } = await supabase.rpc("decrement_stock", {
-          p_variant_id: product.variant_id,
-          p_quantity: qty,
-        });
+      // ── Stock reserve (decrement + inventory_movements.type=reserve) ──
+      if (products.length > 0 && !order_id) {
+        return errorResponse("order_id obrigatório para reservar estoque", 400);
+      }
 
-        if (rpcError) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-          }
-          throw new Error(`Erro ao verificar estoque: ${rpcError.message}`);
-        }
+      const reservedItems: { variant_id: string; quantity: number }[] = [];
 
-        const stockResult = typeof result === 'string' ? JSON.parse(result) : result;
-        if (!stockResult?.success) {
-          for (const dec of stockDecrements) {
-            await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+      // Se já existir movimentação reserve para este order_id, skipa o decrement
+      // (prevenir double-reserve em retries quando a Edge Function timeoutou).
+      if (order_id && !hasExistingReserve) {
+        for (const product of products) {
+          if (!product.variant_id) continue;
+          const qty = product.quantity || 1;
+
+          const { data: result, error: rpcError } = await supabase.rpc("decrement_stock", {
+            p_variant_id: product.variant_id,
+            p_quantity: qty,
+          });
+
+          if (rpcError) {
+            for (const dec of reservedItems) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+            throw new Error(`Erro ao verificar estoque: ${rpcError.message}`);
           }
-          return jsonResponse({
-            error: stockResult?.message || `Estoque insuficiente para "${product.name}"`,
-            error_code: stockResult?.error,
-            available_stock: stockResult?.available_stock,
-          }, 400);
+
+          const stockResult = typeof result === "string" ? JSON.parse(result) : result;
+          if (!stockResult?.success) {
+            for (const dec of reservedItems) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+
+            return jsonResponse(
+              {
+                error: stockResult?.message || `Estoque insuficiente para "${product.name}"`,
+                error_code: stockResult?.error,
+                available_stock: stockResult?.available_stock,
+              },
+              400
+            );
+          }
+
+          // Audit: reservation
+          try {
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantIdForMovements,
+              variant_id: product.variant_id,
+              order_id,
+              type: "reserve",
+              quantity: qty,
+            });
+            reservedItems.push({ variant_id: product.variant_id, quantity: qty });
+          } catch (e) {
+            // Rollback stock decrement if we cannot persist the reserve movement.
+            for (const dec of reservedItems) {
+              await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantIdForMovements,
+                variant_id: dec.variant_id,
+                order_id,
+                type: "refund",
+                quantity: dec.quantity,
+              });
+            }
+            await supabase.rpc("increment_stock", { p_variant_id: product.variant_id, p_quantity: qty });
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantIdForMovements,
+              variant_id: product.variant_id,
+              order_id,
+              type: "refund",
+              quantity: qty,
+            });
+            return jsonResponse({ error: "Falha ao registrar reserva de estoque" }, 500);
+          }
         }
-        stockDecrements.push({ variant_id: product.variant_id, quantity: qty, name: product.name });
       }
 
       // ── Step 1: Create/update customer (v1) ──
@@ -563,16 +652,15 @@ Deno.serve(async (req) => {
       try {
         paymentData = await appmaxFetch(baseApiUrl, token, paymentEndpoint, paymentPayload);
       } catch (paymentError: any) {
-        for (const dec of stockDecrements) {
-          await supabase.rpc("increment_stock", { p_variant_id: dec.variant_id, p_quantity: dec.quantity });
-        }
         throw paymentError;
       }
 
       // ── Post-payment: update internal order ──
       if (order_id) {
         await supabase.from("orders").update({
-          status: "processing",
+          // Importante: manter como `pending` até o webhook confirmar o pagamento.
+          // A conversão reserve -> debit ocorre no appmax-webhook.
+          status: "pending",
           provider: "appmax",
           coupon_code: coupon_code || null,
           discount_amount: validatedDiscount || discount_amount || 0,
@@ -617,7 +705,22 @@ Deno.serve(async (req) => {
       }
 
       if (validatedCouponId) {
-        await supabase.rpc("increment_coupon_uses", { p_coupon_id: validatedCouponId });
+        const { data: usedOk, error: useErr } = await supabase.rpc("use_coupon_atomic", {
+          p_coupon_id: validatedCouponId,
+        });
+        if (useErr) throw useErr;
+
+        if (!usedOk) {
+          // Falhou por concorrência: cancela pedido e retorna estoque.
+          if (order_id) {
+            try {
+              await supabase.rpc("cancel_order_return_stock", { p_order_id: order_id });
+            } catch (_) {
+              // best-effort: se cancelar falhar, o TTL de reservas ajuda.
+            }
+          }
+          return errorResponse("Cupom esgotado", 400);
+        }
       }
 
       // Auto-push order to Bling after successful payment

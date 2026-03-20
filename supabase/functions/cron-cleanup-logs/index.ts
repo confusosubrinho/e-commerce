@@ -18,6 +18,7 @@ const RETENTION: Record<string, { days?: number; minutes?: number; dateCol: stri
   error_logs:            { minutes: 10, dateCol: "created_at" },
   traffic_sessions:      { days: 30, dateCol: "created_at" },
   abandoned_carts:       { days: 90, dateCol: "created_at" },
+  rate_limit_log:       { minutes: 120, dateCol: "created_at" },
   order_events:          { days: 90, dateCol: "received_at" },
   bling_webhook_events:  { days: 60, dateCol: "created_at" },
   product_change_log:    { days: 180, dateCol: "changed_at" },
@@ -109,15 +110,74 @@ Deno.serve(async (req) => {
                   return d.toISOString();
                 })();
 
+          // Bug C: com SERVICE_ROLE_KEY, precisamos evitar apagar carrinhos de todos tenants.
+          // Para `abandoned_carts`, executa delete por tenant_id.
+          if (table === "abandoned_carts") {
+            const { data: tenants, error: tenantsErr } = await supabase
+              .from("tenants")
+              .select("id")
+              .limit(5000);
+
+            if (tenantsErr) {
+              errors.push(`Tenants load for abandoned_carts: ${tenantsErr.message}`);
+              results.push({ table, deleted: 0, consolidated: 0, error: tenantsErr.message });
+              continue;
+            }
+
+            let deletedSum = 0;
+            for (const t of tenants || []) {
+              const tenantId = (t as any).id as string | null;
+              if (!tenantId) continue;
+
+              const countQuery = supabase
+                .from(table as any)
+                .select("id", { count: "exact", head: true })
+                .lt(config.dateCol, cutoff)
+                .eq("tenant_id", tenantId)
+                .eq("recovered", false);
+
+              const { count, error: countErr } = await countQuery;
+              if (countErr) {
+                errors.push(`Count ${table} tenant ${tenantId}: ${countErr.message}`);
+                continue;
+              }
+
+              const toDelete = Math.min(count || 0, MAX_DELETE_PER_TABLE);
+              if (!isDryRun && toDelete > 0) {
+                const { data: idsToDelete } = await supabase
+                  .from(table as any)
+                  .select("id")
+                  .lt(config.dateCol, cutoff)
+                  .eq("tenant_id", tenantId)
+                  .eq("recovered", false)
+                  .limit(MAX_DELETE_PER_TABLE);
+
+                if (idsToDelete && idsToDelete.length > 0) {
+                  const ids = idsToDelete.map((r: any) => r.id);
+                  for (let i = 0; i < ids.length; i += 500) {
+                    const { error: delErr } = await supabase
+                      .from(table as any)
+                      .delete()
+                      .in("id", ids.slice(i, i + 500))
+                      .eq("tenant_id", tenantId);
+                    if (delErr) errors.push(`Delete ${table}: ${delErr.message}`);
+                  }
+                }
+              }
+
+              deletedSum += toDelete;
+            }
+
+            results.push({ table, deleted: deletedSum, consolidated: 0 });
+            totalDeleted += deletedSum;
+            continue;
+          }
+
           // Count records to delete
           let countQuery = supabase
             .from(table as any)
             .select("id", { count: "exact", head: true })
             .lt(config.dateCol, cutoff);
-
-          if (table === "abandoned_carts") {
-            countQuery = countQuery.eq("recovered", false);
-          }
 
           const { count, error: countErr } = await countQuery;
 
@@ -198,6 +258,7 @@ Deno.serve(async (req) => {
       try {
         // 1. Build set of all referenced URLs across all media tables
         const referencedFiles = new Set<string>();
+        const STORAGE_PREFIX = "/storage/v1/object/public/product-media/";
         for (const { table, cols } of MEDIA_TABLES) {
           const { data: rows } = await supabase
             .from(table as any)
@@ -208,10 +269,15 @@ Deno.serve(async (req) => {
               for (const col of cols) {
                 const val = (row as any)[col];
                 if (val && typeof val === "string") {
-                  // Extract filename from URL
                   const parts = val.split("/");
                   const fname = parts[parts.length - 1];
-                  if (fname) referencedFiles.add(fname);
+
+                  // Bug G: precisamos usar path relativo completo, não apenas nome.
+                  // Ex.: produto-A/banner.jpg != produto-B/banner.jpg
+                  const idx = val.indexOf(STORAGE_PREFIX);
+                  const urlPath = idx >= 0 ? val.slice(idx + STORAGE_PREFIX.length).split("?")[0] : null;
+                  if (urlPath) referencedFiles.add(urlPath);
+                  else if (fname) referencedFiles.add(fname);
                 }
               }
             }
@@ -251,7 +317,7 @@ Deno.serve(async (req) => {
               if (createdAt && createdAt > sevenDaysAgo) continue;
 
               // Check if referenced
-              if (!referencedFiles.has(file.name)) {
+              if (!referencedFiles.has(filePath)) {
                 if (!isDryRun) {
                   const { error: rmErr } = await supabase.storage
                     .from("product-media")

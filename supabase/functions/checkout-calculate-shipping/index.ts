@@ -3,27 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
-// ─── In-memory rate limiting ───
-const rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
+// ─── DB-backed rate limiting ───
+const RATE_LIMIT_WINDOW_SECONDS = 60;
 const RATE_LIMIT_MAX = 30;
-
-function isRateLimited(identifier: string): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(identifier) || [];
-  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  recent.push(now);
-  rateLimitMap.set(identifier, recent);
-  // Cleanup old entries periodically
-  if (rateLimitMap.size > 10000) {
-    for (const [key, vals] of rateLimitMap) {
-      const filtered = vals.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-      if (filtered.length === 0) rateLimitMap.delete(key);
-      else rateLimitMap.set(key, filtered);
-    }
-  }
-  return recent.length > RATE_LIMIT_MAX;
-}
 
 serve(async (req) => {
   const corsHeaders = {
@@ -38,17 +20,25 @@ serve(async (req) => {
 
   // Rate limit by IP
   const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(clientIP)) {
-    return new Response(
-      JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
-      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const rateIdentifier = `shipping:${clientIP}`;
+    const { data: allowed, error: rlErr } = await supabase.rpc("rate_limit_check_and_log", {
+      p_identifier: rateIdentifier,
+      p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+      p_max: RATE_LIMIT_MAX,
+    });
+
+    if (rlErr || allowed === false) {
+      return new Response(
+        JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Get Melhor Envio token from store_settings
     const { data: settings, error: settingsError } = await supabase

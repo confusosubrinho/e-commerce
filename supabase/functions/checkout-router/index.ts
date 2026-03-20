@@ -48,26 +48,10 @@ const startStartSchema = z.object({
   request_id: z.string().optional(),
 });
 
-// Rate limit simples em memória: por cart_id + IP, 30 req/min
-const RATE_LIMIT_WINDOW_MS = 60_000;
+// Rate limit DB-backed: evita bypass em cold-start (Edge Functions stateless).
+// Identificador: cart_id|IP
+const RATE_LIMIT_WINDOW_SECONDS = 60;
 const RATE_LIMIT_MAX = 30;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimitCheck(key: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  if (now >= entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count += 1;
-  return true;
-}
 
 function jsonRes(body: Record<string, unknown>, status = 200, corsHeaders: Record<string, string>) {
   return new Response(JSON.stringify(body), {
@@ -133,11 +117,21 @@ Deno.serve(async (req) => {
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const rateKey = `${cartId}|${ip}`;
-    if (!rateLimitCheck(rateKey)) {
-      return jsonRes({ success: false, error: "Muitas requisições. Tente novamente em alguns minutos." }, 429, corsHeaders);
-    }
-
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const rateIdentifier = `checkout_router:${rateKey}`;
+    try {
+      const { data: allowed, error: rlErr } = await supabase.rpc("rate_limit_check_and_log", {
+        p_identifier: rateIdentifier,
+        p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+        p_max: RATE_LIMIT_MAX,
+      });
+      if (rlErr || allowed === false) {
+        return jsonRes({ success: false, error: "Muitas requisições. Tente novamente em alguns minutos." }, 429, corsHeaders);
+      }
+    } catch (e) {
+      // Fail open: se o DB de rate limit falhar, não bloquear checkout.
+      console.warn("checkout-router: rate_limit_check_and_log falhou (fail-open):", (e as Error).message);
+    }
     const t0 = Date.now();
 
     const variantIds = [...new Set(itemsInput.map((i) => i.variant_id))];
