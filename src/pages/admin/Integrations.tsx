@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 import { useStoreSettings } from '@/hooks/useProducts';
 import { ExternalLink, Check, AlertCircle, Settings2, Plug, CreditCard, Package, PackagePlus, Truck, ChevronDown, ChevronUp, Plus, Trash2, MapPin, Store, Link2, Loader2, ArrowUpDown, Filter, Activity, Clock, RefreshCw, Wifi, Eye, EyeOff, Save, Copy, Stethoscope, ClipboardCopy, Upload } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -1380,7 +1381,7 @@ function BlingMonitoringPanel() {
       if (error) throw error;
       return data as any[];
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.blingMonitor),
   });
 
   const { data: syncRuns } = useQuery({
@@ -1394,7 +1395,7 @@ function BlingMonitoringPanel() {
       if (error) throw error;
       return data as any[];
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.blingMonitor),
   });
 
   const lastWebhook = webhookLogs?.[0];

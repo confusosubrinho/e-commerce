@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 
 export interface AdminNotification {
   id: string;
@@ -24,7 +25,7 @@ export function useNotifications(limit = 10) {
       if (error) throw error;
       return (data as unknown as AdminNotification[]) || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminNotifications),
   });
 }
 
@@ -39,7 +40,7 @@ export function useUnreadCount() {
       if (error) throw error;
       return count || 0;
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminNotifications),
   });
 }
 

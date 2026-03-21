@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -259,7 +260,7 @@ function AppLogsSection() {
       if (error) throw error;
       return { logs: d as any[], total: count || 0 };
     },
-    refetchInterval: 15000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.appLogsLive),
   });
 
   const clearMutation = useMutation({

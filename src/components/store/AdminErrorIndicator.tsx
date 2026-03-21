@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 import { AlertTriangle, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -40,7 +41,7 @@ export function AdminErrorIndicator() {
       return (data as unknown as ErrorLog[]) || [];
     },
     enabled: isAdmin,
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminErrorsIndicator),
   });
 
   if (!isAdmin || !errors?.length || isDismissed) return null;

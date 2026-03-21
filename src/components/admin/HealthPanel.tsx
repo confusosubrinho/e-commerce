@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Activity, AlertTriangle, CheckCircle, Clock, Database, Server, Wifi, XCircle } from 'lucide-react';
@@ -15,7 +16,7 @@ export function HealthPanel() {
       const { data } = await supabase.from('bling_webhook_logs').select('received_at, result').order('received_at', { ascending: false }).limit(1).maybeSingle();
       return data as { received_at?: string; result?: string } | null;
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
   const { data: lastCron } = useQuery({
     queryKey: ['health-last-cron'],
@@ -23,7 +24,7 @@ export function HealthPanel() {
       const { data } = await supabase.from('bling_sync_runs').select('started_at, finished_at, errors_count, trigger_type').order('started_at', { ascending: false }).limit(1).maybeSingle();
       return data as { started_at?: string; errors_count?: number; trigger_type?: string } | null;
     },
-    refetchInterval: 30000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
   const { data: errorCount24h } = useQuery({
     queryKey: ['health-errors-24h'],
@@ -32,7 +33,7 @@ export function HealthPanel() {
       const { count } = await supabase.from('error_logs').select('id', { count: 'exact', head: true }).gte('created_at', since);
       return count || 0;
     },
-    refetchInterval: 60000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
   const { data: appLogErrors } = useQuery({
     queryKey: ['health-app-log-errors'],
@@ -41,7 +42,7 @@ export function HealthPanel() {
       const { count } = await supabase.from('app_logs').select('id', { count: 'exact', head: true }).in('level', ['error', 'critical']).gte('created_at', since);
       return count || 0;
     },
-    refetchInterval: 60000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
   const { data: productStats } = useQuery({
     queryKey: ['health-product-stats'],
@@ -53,7 +54,7 @@ export function HealthPanel() {
       ]);
       return { active: a.count || 0, total: t.count || 0, pending: p.count || 0 };
     },
-    refetchInterval: 60000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
 
   const totalErrors = (errorCount24h || 0) + (appLogErrors || 0);

@@ -31,6 +31,7 @@ const BRAZILIAN_STATES = [
   'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
 ];
 import { isCouponValidForLocation } from '@/lib/couponDiscount';
+import { POLL_MS } from '@/lib/queryRefetch';
 import { generateRequestId, invokeCheckoutFunction } from '@/lib/checkoutClient';
 import { StripePaymentForm, useStripeConfig } from '@/components/store/StripePaymentForm';
 import { Pressable } from '@/components/ui/Pressable';
@@ -782,35 +783,24 @@ export default function Checkout() {
       };
 
       if (formData.paymentMethod === 'card') {
-        try {
-          const tokenizeResponse = await invokeCheckoutFunction<{ error?: string; token?: string }>(
-            'checkout-process-payment',
-            {
-              body: {
-                action: 'tokenize_card',
-                order_id: order.id,
-                order_access_token: guestToken,
-                card_number: formData.cardNumber.replace(/\s/g, ''),
-                card_holder: formData.cardHolder,
-                expiration_month: expiryMonth,
-                expiration_year: expiryYear,
-                security_code: formData.cardCvv,
-              },
-              tenantId: tenantId ?? undefined,
-            },
-            requestId
-          );
-          if (tokenizeResponse.error || tokenizeResponse.data?.error) {
-            throw new Error(tokenizeResponse.data?.error || tokenizeResponse.error?.message || 'Erro ao tokenizar cartão');
-          }
-          paymentPayload.card_token = tokenizeResponse.data?.token;
-        } catch (tokenErr: any) {
-          throw new Error(tokenErr?.message || 'Erro ao processar dados do cartão');
-        }
+        // Um único invoke: create_transaction tokeniza no servidor quando não há card_token
+        paymentPayload.card_number = formData.cardNumber.replace(/\s/g, '');
+        paymentPayload.card_holder = formData.cardHolder;
+        paymentPayload.expiration_month = expiryMonth;
+        paymentPayload.expiration_year = expiryYear;
+        paymentPayload.security_code = formData.cardCvv;
         paymentPayload.installments = selectedInstallments;
       }
 
-      const { data: paymentResult, error: pmtError } = await invokeCheckoutFunction<{ error?: string; appmax_order_id?: string; pay_reference?: string; pix_qrcode?: string; pix_emv?: string; pix_expiration_date?: string }>(
+      const { data: paymentResult, error: pmtError } = await invokeCheckoutFunction<{
+        error?: string;
+        idempotent?: boolean;
+        appmax_order_id?: string;
+        pay_reference?: string;
+        pix_qrcode?: string;
+        pix_emv?: string;
+        pix_expiration_date?: string;
+      }>(
         'checkout-process-payment',
         { body: paymentPayload, tenantId: tenantId ?? undefined },
         requestId
@@ -832,6 +822,14 @@ export default function Checkout() {
         }).eq('id', order.id);
       }
 
+      if (paymentResult?.idempotent) {
+        toast({
+          title: 'Pagamento já estava registrado',
+          description:
+            'Não foi feita uma nova cobrança. Seu pedido segue como já processado; confira os detalhes na próxima tela.',
+        });
+      }
+
       supabase.functions.invoke('bling-sync', {
         body: { action: 'order_to_nfe', order_id: order.id },
       }).catch(() => {});
@@ -849,6 +847,7 @@ export default function Checkout() {
           pixExpirationDate: paymentResult?.pix_expiration_date,
           customerEmail: formData.email,
           guestToken: guestToken,
+          idempotentReplay: !!paymentResult?.idempotent,
         },
         replace: true,
       });
@@ -949,6 +948,7 @@ export default function Checkout() {
         { global: { headers: { 'x-order-token': guestToken } } }
       );
       const poll = async () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         const { data } = await guestClient
           .from('orders')
           .select('status')
@@ -957,7 +957,7 @@ export default function Checkout() {
         if (data?.status) onStatusUpdate(data.status);
       };
       poll();
-      const interval = setInterval(poll, 5000);
+      const interval = setInterval(poll, POLL_MS.checkoutPixGuest);
       return () => clearInterval(interval);
     }
 

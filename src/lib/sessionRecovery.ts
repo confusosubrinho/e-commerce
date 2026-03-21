@@ -62,7 +62,7 @@ export function initSessionRecovery() {
     } catch (e) {
       appLogger.warn('Auth: session health check error', e);
     }
-  }, 30000); // Check every 30s
+  }, 120_000); // Check every 2 min (menos chamadas auth com aba aberta)
 }
 
 async function recoverSession() {

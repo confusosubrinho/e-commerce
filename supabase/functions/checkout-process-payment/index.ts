@@ -203,6 +203,7 @@ Deno.serve(async (req) => {
         shipping_neighborhood, shipping_city, shipping_state,
         payment_method = "pix", products = [], coupon_code, discount_amount = 0,
         card_token,
+        card_number, card_holder, expiration_month, expiration_year, security_code,
       } = payload;
 
       // ── Idempotência: não criar segunda cobrança para o mesmo pedido ──
@@ -635,10 +636,25 @@ Deno.serve(async (req) => {
         };
       } else if (payment_method === "credit-card" || payment_method === "card") {
         paymentEndpoint = "payments/credit-card";
-        if (!card_token) throw new Error("Token do cartão obrigatório. Dados brutos não são aceitos.");
+        let effectiveToken = card_token as string | undefined;
+        if (!effectiveToken) {
+          const rawNum = typeof card_number === "string" ? card_number.replace(/\s/g, "") : "";
+          if (!rawNum || !card_holder || !expiration_month || !expiration_year || !security_code) {
+            throw new Error("Token do cartão obrigatório. Envie card_token ou dados completos do cartão.");
+          }
+          const tokenizeResp = await appmaxFetch(baseApiUrl, token, "payments/tokenize", {
+            number: rawNum,
+            cvv: String(security_code),
+            month: parseInt(String(expiration_month), 10) || 1,
+            year: parseInt(String(expiration_year), 10) || 2025,
+            name: String(card_holder),
+          });
+          effectiveToken = tokenizeResp?.data?.token || tokenizeResp?.token;
+          if (!effectiveToken) throw new Error("Falha ao tokenizar cartão");
+        }
         paymentPayload.payment_data = {
           credit_card: {
-            token: card_token,
+            token: effectiveToken,
             document_number: (customer_cpf || "").replace(/\D/g, ""),
             installments,
             soft_descriptor: softDescriptor,

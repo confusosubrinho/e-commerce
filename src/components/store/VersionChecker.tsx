@@ -62,8 +62,8 @@ export function VersionChecker() {
       }
     };
 
-    const timer = setInterval(check, 60000);
-    const initial = setTimeout(check, 5000);
+    const timer = setInterval(check, 300_000); // 5 min — versão muda raramente
+    const initial = setTimeout(check, 8000);
 
     return () => {
       clearInterval(timer);

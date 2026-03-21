@@ -16,6 +16,7 @@ import { HelpHint } from '@/components/HelpHint';
 import { getCartItemUnitPrice, hasSaleDiscount } from '@/lib/cartPricing';
 import { Pressable } from '@/components/ui/Pressable';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { REFETCH_MS, refetchIntervalWhenVisible } from '@/lib/queryRefetch';
 import { Helmet } from 'react-helmet-async';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -40,7 +41,8 @@ export default function Cart() {
       return new Map(data?.map(v => [v.id, v]) || []);
     },
     enabled: items.length > 0,
-    refetchInterval: 30000,
+    staleTime: 45_000,
+    refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.cartStock),
     refetchOnWindowFocus: true,
   });
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Package, ArrowRight, Copy, Clock, Loader2, MessageCircle } from 'lucide-react';
+import { CheckCircle, Package, ArrowRight, Copy, Clock, Loader2, MessageCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Pressable } from '@/components/ui/Pressable';
 import { useToast } from '@/hooks/use-toast';
 import { useFeedback } from '@/hooks/useFeedback';
@@ -11,6 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 import { Helmet } from 'react-helmet-async';
 import type { Database } from '@/integrations/supabase/types';
+import { POLL_MS } from '@/lib/queryRefetch';
 
 const statusLabels: Record<string, { label: string; description: string; color: string }> = {
   pending: {
@@ -89,6 +91,19 @@ function usePixCountdown(expirationDate: string | null) {
   };
 }
 
+type OrderConfirmClientState = {
+  orderId: string | null;
+  orderNumber: string | null;
+  status: string;
+  paymentMethod: string;
+  pixQrcode: string | null;
+  pixEmv: string | null;
+  pixExpirationDate: string | null;
+  customerEmail: string | null;
+  guestToken: string | null;
+  idempotentReplay: boolean;
+};
+
 export default function OrderConfirmation() {
   const location = useLocation();
   const { orderId: urlOrderId } = useParams<{ orderId: string }>();
@@ -98,9 +113,9 @@ export default function OrderConfirmation() {
 
   const SESSION_KEY = `order_confirm_${urlOrderId || 'unknown'}`;
 
-  const getInitialState = () => {
+  const getInitialState = (): OrderConfirmClientState => {
     // 1. Get any existing persisted state
-    let stored: any = {};
+    let stored: Partial<OrderConfirmClientState> & Record<string, unknown> = {};
     try {
       const s = sessionStorage.getItem(SESSION_KEY);
       if (s) stored = JSON.parse(s);
@@ -118,14 +133,15 @@ export default function OrderConfirmation() {
         pixExpirationDate: location.state.pixExpirationDate || stored.pixExpirationDate || null,
         customerEmail: location.state.customerEmail || stored.customerEmail || null,
         guestToken: location.state.guestToken || stored.guestToken || null,
-      };
+        idempotentReplay: !!(location.state as { idempotentReplay?: boolean }).idempotentReplay || !!stored.idempotentReplay,
+      } satisfies OrderConfirmClientState;
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {}
       return s;
     }
 
     // 3. Fallback to storage or default
     const guestToken = stored.guestToken || searchParams.get('token') || null;
-    const finalState = {
+    const finalState: OrderConfirmClientState = {
       orderId: stored.orderId || urlOrderId || null,
       orderNumber: stored.orderNumber || null,
       status: stored.status || 'pending',
@@ -135,6 +151,7 @@ export default function OrderConfirmation() {
       pixExpirationDate: stored.pixExpirationDate || null,
       customerEmail: stored.customerEmail || null,
       guestToken,
+      idempotentReplay: !!stored.idempotentReplay,
     };
 
     // If we recovered something from storage or URL, ensure it's saved
@@ -227,6 +244,7 @@ export default function OrderConfirmation() {
         { global: { headers: { "x-order-token": guestToken } } }
       );
       const poll = async () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         const { data } = await guestClient
           .from('orders')
           .select('status')
@@ -244,7 +262,7 @@ export default function OrderConfirmation() {
         }
       };
       poll();
-      const interval = setInterval(poll, 10000);
+      const interval = setInterval(poll, POLL_MS.orderConfirmationGuest);
       return () => clearInterval(interval);
     }
 
@@ -304,6 +322,7 @@ export default function OrderConfirmation() {
   const pixQrcode = confirmState.pixQrcode;
   const pixEmv = confirmState.pixEmv;
   const pixExpirationDate = confirmState.pixExpirationDate;
+  const idempotentReplay = confirmState.idempotentReplay;
 
   const orderIdToFetch = confirmState.orderId || urlOrderId;
   const orderNotFound = !isLoading && orderIdToFetch && !orderData;
@@ -383,6 +402,17 @@ export default function OrderConfirmation() {
               Seu pedido <strong className="text-foreground">{orderNumber}</strong> foi registrado com sucesso.
             </p>
           </div>
+
+          {idempotentReplay && (
+            <Alert className="text-left border-primary/30 bg-primary/5">
+              <Info className="h-4 w-4 text-primary" />
+              <AlertTitle>Pedido já estava em processamento</AlertTitle>
+              <AlertDescription>
+                Detectamos que este pagamento já tinha sido enviado antes. Não houve nova cobrança. Use os dados abaixo
+                ou o e-mail de confirmação como referência.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Real-time status indicator */}
           <div className={`bg-muted/50 rounded-lg p-4 space-y-2 ${currentStatusInfo.color}`}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Truck, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,13 +6,24 @@ import { useCart } from '@/contexts/CartContext';
 import { ShippingOption } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { formatPrice } from '@/lib/formatters';
+import {
+  buildShippingQuoteKey,
+  getCachedShippingQuote,
+  setCachedShippingQuote,
+} from '@/lib/shippingQuoteCache';
 
 interface ShippingCalculatorProps {
   compact?: boolean;
   products?: Array<{ weight?: number; width?: number; height?: number; depth?: number; quantity: number }>;
 }
 
-export function ShippingCalculator({ compact = false, products }: ShippingCalculatorProps) {
+function formatCepDisplay(value: string) {
+  const numbers = value.replace(/\D/g, '');
+  if (numbers.length <= 5) return numbers;
+  return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
+}
+
+export function ShippingCalculator({ compact = false, products: _products }: ShippingCalculatorProps) {
   const { shippingZip, setShippingZip, selectedShipping, setSelectedShipping, subtotal, items } = useCart();
   const [localCep, setLocalCep] = useState(shippingZip);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,23 +31,36 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
   const [hasCalculated, setHasCalculated] = useState(false);
   const [freeShippingThreshold, setFreeShippingThreshold] = useState(399);
 
-  // Recálculo intencional apenas na mudança de CEP (UX consciente).
-  // Não adicionamos `items` ao dependency array para evitar chamadas repetidas ao
-  // backend a cada alteração de quantidade. O frete será recalculado quando um novo CEP for informado.
-  useEffect(() => {
-    if (shippingZip && shippingZip.replace(/\D/g, '').length === 8 && !hasCalculated) {
-      calculateShipping(shippingZip.replace(/\D/g, ''));
+  const applyFreeShippingAutoSelect = useCallback(
+    (options: ShippingOption[], threshold: number) => {
+      if (threshold && subtotal >= threshold) {
+        const cheapest = [...options].sort((a, b) => a.price - b.price)[0];
+        if (cheapest) {
+          setSelectedShipping({
+            id: cheapest.id || cheapest.name || 'free-shipping',
+            name: cheapest.name,
+            price: 0,
+            deadline: cheapest.deadline,
+            company: cheapest.company,
+          });
+        }
+      }
+    },
+    [subtotal, setSelectedShipping]
+  );
+
+  const calculateShipping = useCallback(async (cleanCep: string) => {
+    const cacheKey = buildShippingQuoteKey(cleanCep, items);
+    const cached = getCachedShippingQuote(cacheKey);
+    if (cached) {
+      setShippingOptions(cached.options);
+      setFreeShippingThreshold(cached.freeShippingThreshold);
+      setShippingZip(formatCepDisplay(cleanCep));
+      setHasCalculated(true);
+      applyFreeShippingAutoSelect(cached.options, cached.freeShippingThreshold);
+      return;
     }
-  }, [shippingZip]);
 
-  const formatCep = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 5) return numbers;
-    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
-  };
-
-
-  const calculateShipping = async (cleanCep: string) => {
     setIsLoading(true);
     try {
       // Build products payload from cart items
@@ -57,45 +81,60 @@ export function ShippingCalculator({ compact = false, products }: ShippingCalcul
 
       if (error) throw error;
 
+      let resolvedOptions: ShippingOption[];
+      let resolvedThreshold = 399;
+
       if (data?.error) {
         console.error('Shipping API error:', data.error);
-        // Fallback to basic options if API fails
-        setShippingOptions([
+        resolvedOptions = [
           { id: 'fallback-standard', name: 'Envio padrão', price: 18, deadline: '8 a 12 dias úteis', company: 'Correios' },
-        ]);
+        ];
+        setShippingOptions(resolvedOptions);
+        setFreeShippingThreshold(399);
       } else {
-        const options: ShippingOption[] = (data?.options || []).map((opt: any, idx: number) => ({
+        resolvedOptions = (data?.options || []).map((opt: any, idx: number) => ({
           id: opt.id || opt.name || `shipping-${idx}`,
           name: opt.name,
           price: opt.price,
           deadline: opt.deadline,
           company: opt.company,
         }));
-        setShippingOptions(options);
-        setFreeShippingThreshold(data?.free_shipping_threshold || 399);
-      }
-
-      setShippingZip(formatCep(cleanCep));
-      setHasCalculated(true);
-
-      // Auto-select free shipping if eligible
-      if (data?.free_shipping_threshold && subtotal >= data.free_shipping_threshold) {
-        const cheapest = (data?.options || []).sort((a: any, b: any) => a.price - b.price)[0];
-        if (cheapest) {
-          setSelectedShipping({ id: cheapest.id || cheapest.name || 'free-shipping', name: cheapest.name, price: 0, deadline: cheapest.deadline, company: cheapest.company });
+        resolvedThreshold = data?.free_shipping_threshold || 399;
+        setShippingOptions(resolvedOptions);
+        setFreeShippingThreshold(resolvedThreshold);
+        // Não cachear lista vazia: evita 90s sem opções se a API falhou silenciosamente ou CEP sem cobertura transitória
+        if (resolvedOptions.length > 0) {
+          setCachedShippingQuote(cacheKey, resolvedOptions, resolvedThreshold);
         }
       }
+
+      setShippingZip(formatCepDisplay(cleanCep));
+      setHasCalculated(true);
+      applyFreeShippingAutoSelect(resolvedOptions, resolvedThreshold);
     } catch (err: any) {
       console.error('Shipping calculation error:', err);
-      // Fallback
-      setShippingOptions([
+      const fallback: ShippingOption[] = [
         { id: 'fallback-standard', name: 'Envio padrão', price: 18, deadline: '8 a 12 dias úteis', company: 'Correios' },
-      ]);
+      ];
+      setShippingOptions(fallback);
       setHasCalculated(true);
+      applyFreeShippingAutoSelect(fallback, 399);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [items, subtotal, setShippingZip, setSelectedShipping, applyFreeShippingAutoSelect]);
+
+  // Recálculo intencional na mudança de CEP; debounce reduz bursts se o CEP vier digitando.
+  useEffect(() => {
+    if (!shippingZip || shippingZip.replace(/\D/g, '').length !== 8 || hasCalculated) return;
+    const clean = shippingZip.replace(/\D/g, '');
+    const t = window.setTimeout(() => {
+      void calculateShipping(clean);
+    }, 450);
+    return () => clearTimeout(t);
+  }, [shippingZip, hasCalculated, calculateShipping]);
+
+  const formatCep = formatCepDisplay;
 
   const handleCalculate = async () => {
     const cleanCep = localCep.replace(/\D/g, '');
