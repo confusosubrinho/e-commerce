@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { logError } from "../_shared/log.ts";
 import { getTenantIdFromRequest } from "../_shared/tenant.ts";
+import { appendRecoveryEvent, shouldReuseAbandonedCart } from "../_shared/abandonedCart.ts";
+import { fetchYampiWithRateLimit } from "../_shared/yampiRateLimit.ts";
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
@@ -99,9 +100,10 @@ Deno.serve(async (req) => {
       return jsonRes({ flow: "transparent", redirect_url: "/checkout" });
     }
 
-    const { items, attribution } = body as {
+    const { items, attribution, cart_id } = body as {
       items: { variant_id: string; quantity: number }[];
       attribution?: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_term?: string; utm_content?: string; referrer?: string; landing_page?: string };
+      cart_id?: string;
     };
 
     if (!items?.length) {
@@ -202,13 +204,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 7. Register abandoned cart
+    // 7. Register/refresh abandoned cart with dedup window
     const sessionId = crypto.randomUUID();
 
-    await supabase.from("abandoned_carts").insert({
+    const baseCartPayload = {
       session_id: sessionId,
       user_id: userId,
       tenant_id: tenantId,
+      cart_id: cart_id || null,
       subtotal,
       cart_data: cartDetails,
       page_url: attribution?.landing_page || null,
@@ -217,7 +220,48 @@ Deno.serve(async (req) => {
       utm_campaign: attribution?.utm_campaign || null,
       utm_term: attribution?.utm_term || null,
       utm_content: attribution?.utm_content || null,
-    });
+      last_activity_at: new Date().toISOString(),
+      status: 'pending',
+      operational_status: 'active',
+    } as Record<string, unknown>;
+
+    let updatedExisting = false;
+    if (cart_id) {
+      const { data: existingCart } = await supabase
+        .from("abandoned_carts")
+        .select("id, created_at, recovered, status, operational_status, recovery_events")
+        .eq("tenant_id", tenantId)
+        .eq("cart_id", cart_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (shouldReuseAbandonedCart(existingCart as { id: string; created_at: string; recovered?: boolean | null; status?: string | null; operational_status?: string | null } | null)) {
+        const { error: updateErr } = await supabase
+          .from("abandoned_carts")
+          .update({
+            ...baseCartPayload,
+            recovery_events: appendRecoveryEvent((existingCart as { recovery_events?: unknown } | null)?.recovery_events, {
+              at: new Date().toISOString(),
+              type: 'checkout_activity',
+              note: 'cart refresh in dedup window',
+            }),
+          })
+          .eq("id", existingCart!.id);
+        updatedExisting = !updateErr;
+      }
+    }
+
+    if (!updatedExisting) {
+      await supabase.from("abandoned_carts").insert({
+        ...baseCartPayload,
+        recovery_events: appendRecoveryEvent(null, {
+          at: new Date().toISOString(),
+          type: "checkout_activity",
+          note: "cart session created",
+        }),
+      });
+    }
 
     // 8. Provider-specific: Yampi
     if (provider === "yampi") {
@@ -270,11 +314,11 @@ Deno.serve(async (req) => {
               if (yampiProductId) skuUpdateBody.product_id = yampiProductId;
 
               try {
-                const syncRes = await fetchWithTimeout(`${yampiBase}/catalog/skus/${variant.yampi_sku_id}`, {
+                const syncRes = await fetchYampiWithRateLimit(`${yampiBase}/catalog/skus/${variant.yampi_sku_id}`, {
                   method: "PUT",
                   headers: yampiHeaders,
                   body: JSON.stringify(skuUpdateBody),
-                });
+                }, { timeoutMs: 10_000, maxRetries: 2, scope: "checkout-create-session:yampi-sku-sync", requestId });
                 if (!syncRes.ok) {
                   const errBody = await syncRes.text().catch(() => "");
                   console.warn(`[checkout-create-session] Fast sync SKU ${variant.yampi_sku_id} failed (${syncRes.status}): ${errBody}`);
@@ -327,11 +371,11 @@ Deno.serve(async (req) => {
         let lastError = "Erro ao criar link Yampi";
 
         for (const attempt of attempts) {
-          const linkRes = await fetchWithTimeout(attempt.url, {
+          const linkRes = await fetchYampiWithRateLimit(attempt.url, {
             method: "POST",
             headers: yampiHeaders,
             body: JSON.stringify(attempt.body),
-          });
+          }, { timeoutMs: 12_000, maxRetries: 2, scope: "checkout-create-session:yampi-payment-link", requestId });
 
           const parsed = await linkRes.json().catch(() => ({}));
 

@@ -2,6 +2,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/response.ts";
 import { logError, logInfo } from "../_shared/log.ts";
+import { isValidYampiWebhookAuth } from "../_shared/yampiWebhookAuth.ts";
+import { resolveSafeStatus } from "../_shared/orderStatus.ts";
+import { appendRecoveryEvent, resolveLifecycleTransition } from "../_shared/abandonedCart.ts";
+import { reconcileQuoteWithGateway, type QuoteSnapshot } from "../_shared/financialReconciliation.ts";
+import { buildStableWebhookFingerprint } from "../_shared/yampiEventFingerprint.ts";
 
 const SCOPE = "yampi-webhook";
 
@@ -27,8 +32,63 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+
+  async function markRecoveredAbandonedCart(sessionId: string, orderId: string) {
+    const { data: row } = await supabase
+      .from("abandoned_carts")
+      .select("id, recovery_events, operational_status")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!row?.id) return;
+
+    const nowIso = new Date().toISOString();
+    const lifecycle = resolveLifecycleTransition({
+      current: (row as { operational_status?: "active" | "abandoned" | "expired" | "converted" }).operational_status ?? "active",
+      target: "converted",
+      nowIso,
+    });
+    if (!lifecycle) return;
+
+    await supabase
+      .from("abandoned_carts")
+      .update({
+        recovered: true,
+        recovered_at: nowIso,
+        status: "recovered",
+        operational_status: lifecycle.operational_status,
+        converted_at: lifecycle.converted_at ?? nowIso,
+        recovery_channel: "yampi_webhook",
+        converted_order_id: orderId,
+        last_activity_at: nowIso,
+        recovery_events: appendRecoveryEvent((row as { recovery_events?: unknown }).recovery_events, {
+          at: nowIso,
+          type: "converted",
+          channel: "yampi_webhook",
+          order_id: orderId,
+        }),
+      })
+      .eq("id", row.id);
+  }
+
+  async function getExpectedQuoteForOrder(orderId: string): Promise<QuoteSnapshot | null> {
+    const { data: quoteEvent } = await supabase
+      .from("order_events")
+      .select("payload")
+      .eq("order_id", orderId)
+      .eq("event_type", "quote_snapshot")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const expected = (quoteEvent as { payload?: { expected?: QuoteSnapshot } } | null)?.payload?.expected;
+    return expected ?? null;
+  }
+
   try {
-    // Webhook security: validate shared secret in query string (?token=...)
+    // Webhook security: preserve backward compatibility (query token)
+    // and support official Yampi HMAC header validation.
     const url = new URL(req.url);
     let webhookSecret: string | undefined;
     const { data: row } = await supabase.from("integrations_checkout_providers").select("config").eq("provider", "yampi").maybeSingle();
@@ -39,13 +99,25 @@ Deno.serve(async (req) => {
       return errorResponse("Webhook secret not configured", 500, corsHeaders);
     }
 
-    const incomingToken = url.searchParams.get("token");
-    if (!incomingToken || incomingToken !== webhookSecret) {
-      logError(SCOPE, correlationId, new Error("Webhook token inválido"));
+    const rawBody = await req.text();
+    const authCheck = await isValidYampiWebhookAuth({
+      secret: webhookSecret,
+      rawBody,
+      queryToken: url.searchParams.get("token"),
+      headerHmac: req.headers.get("x-yampi-hmac-sha256"),
+    });
+
+    if (!authCheck.valid) {
+      logError(SCOPE, correlationId, new Error("Webhook auth inválida"), {
+        has_query_token: !!url.searchParams.get("token"),
+        has_hmac_header: !!req.headers.get("x-yampi-hmac-sha256"),
+      });
       return errorResponse("Unauthorized", 401, corsHeaders);
     }
 
-    const payload = await req.json();
+    logInfo(SCOPE, correlationId, "Webhook auth validada", { method: authCheck.used });
+
+    const payload = JSON.parse(rawBody || "{}");
     const event = payload?.event || payload?.type || "unknown";
     const resourceData = payload?.resource || payload?.data || payload;
 
@@ -85,7 +157,27 @@ Deno.serve(async (req) => {
       const sessionId = resourceData?.metadata?.session_id || null;
 
       // Idempotency: check order_events hash for approved event
-      const approvedHash = `approved-${yampiOrderId || "unknown"}-${transactionId || yampiOrderId || Date.now()}`;
+      const approvedFp = await buildStableWebhookFingerprint({
+        eventType: "approved",
+        yampiOrderId,
+        transactionId,
+        sessionId,
+        paymentLinkId: resourceData?.payment_link_id?.toString() || null,
+        status: statusValue || null,
+        rawBody,
+      });
+      const approvedHash = approvedFp.fingerprint || "approved-invalid";
+      if (!approvedFp.ok) {
+        logError(SCOPE, correlationId, new Error("Webhook approved sem identificadores estáveis"), {
+          event: event,
+          fingerprint: approvedHash,
+          reason: approvedFp.reason,
+        });
+        return new Response(JSON.stringify({ ok: false, error: "approved_event_missing_identifiers" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const { data: existingEvent } = await supabase
         .from("order_events")
         .select("id")
@@ -256,6 +348,11 @@ Deno.serve(async (req) => {
             (resourceData?.shipping_method as string) ||
             null;
 
+          const expectedQuote = await getExpectedQuoteForOrder(existingBySession.id);
+          const reconciliation = expectedQuote
+            ? reconcileQuoteWithGateway({ expected: expectedQuote, gateway_total: Number(totalAmount || 0), tolerance: 0.5 })
+            : null;
+
           const updatePayload: Record<string, unknown> = {
             subtotal: subtotalOrder,
             total_amount: totalAmount,
@@ -276,12 +373,35 @@ Deno.serve(async (req) => {
             installments,
             transaction_id: transactionId,
             tracking_code: trackingCode,
-            status: "processing",
+            status: reconciliation && !reconciliation.ok ? "pending" : "processing",
             external_reference: yampiOrderId,
           };
+          if (reconciliation && !reconciliation.ok) {
+            updatePayload.payment_status = "reconciliation_required";
+            updatePayload.notes = `RECONCILIATION_MISMATCH total_delta=${reconciliation.delta_total}`;
+          }
           if (shippingMethodUpdate) updatePayload.shipping_method = shippingMethodUpdate;
 
           await supabase.from("orders").update(updatePayload).eq("id", existingBySession.id);
+          if (reconciliation) {
+            await supabase.from("order_events").insert({
+              order_id: existingBySession.id,
+              event_type: reconciliation.ok ? "yampi_reconciliation_ok" : "yampi_reconciliation_mismatch",
+              event_hash: `reconciliation-${existingBySession.id}-${approvedHash}`,
+              payload: {
+                expected_quote: expectedQuote,
+                gateway_total: Number(totalAmount || 0),
+                result: reconciliation,
+              },
+            });
+          } else {
+            await supabase.from("order_events").insert({
+              order_id: existingBySession.id,
+              event_type: "yampi_reconciliation_missing_quote",
+              event_hash: `reconciliation-missing-${existingBySession.id}-${approvedHash}`,
+              payload: { gateway_total: Number(totalAmount || 0) },
+            });
+          }
 
           // Convert existing reserves to debits, or create new debits
           const { data: existingItems } = await supabase.from("order_items").select("id, product_variant_id, quantity").eq("order_id", existingBySession.id);
@@ -395,7 +515,7 @@ Deno.serve(async (req) => {
               raw: payload,
             });
           }
-          if (reconciledSessionId) await supabase.from("abandoned_carts").update({ recovered: true, recovered_at: new Date().toISOString() }).eq("session_id", reconciledSessionId);
+          if (reconciledSessionId) await markRecoveredAbandonedCart(reconciledSessionId, existingBySession.id);
           if (customerEmail) {
             const { data: existingCustomer } = await supabase.from("customers").select("id, total_orders, total_spent").eq("email", customerEmail).maybeSingle();
             if (existingCustomer) {
@@ -674,10 +794,8 @@ Deno.serve(async (req) => {
 
       // Mark abandoned cart as recovered
       if (sessionId) {
-        await supabase
-          .from("abandoned_carts")
-          .update({ recovered: true, recovered_at: new Date().toISOString() })
-          .eq("session_id", sessionId);
+        // Phase D: persist conversion trace with channel + linked order
+        await markRecoveredAbandonedCart(sessionId, order.id);
       }
 
       // #3 Upsert customer
@@ -772,18 +890,21 @@ Deno.serve(async (req) => {
       }
 
       if (existingOrder) {
-        // Prevent status regression: don't overwrite shipped/delivered with processing
-        if (["shipped", "delivered"].includes(existingOrder.status)) {
-          console.log("[yampi-webhook] Ignoring status update: order already", existingOrder.status, existingOrder.id);
+        const safeStatus = resolveSafeStatus(existingOrder.status, newLocalStatus);
+        if (safeStatus !== newLocalStatus) {
+          console.log("[yampi-webhook] Ignoring status update by transition policy", {
+            order_id: existingOrder.id,
+            current: existingOrder.status,
+            requested: newLocalStatus,
+            effective: safeStatus,
+          });
           await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: `status_update_${statusValue}`, event_hash: statusHash, payload });
-          return jsonOk({ ok: true, event, action: "ignored_already_advanced" });
+          return jsonOk({ ok: true, event, action: "ignored_transition_policy", local_status: safeStatus });
         }
 
-        // Only update status, do NOT re-process payment or stock
-        // Fix #5: Intermediate statuses (in_production, etc.) imply payment approved
-        await supabase.from("orders").update({ status: newLocalStatus, payment_status: "approved" } as Record<string, unknown>).eq("id", existingOrder.id);
+        await supabase.from("orders").update({ status: safeStatus, payment_status: "approved" } as Record<string, unknown>).eq("id", existingOrder.id);
         await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: `status_update_${statusValue}`, event_hash: statusHash, payload });
-        console.log("[yampi-webhook] Order status updated:", existingOrder.id, statusValue, "→", newLocalStatus);
+        console.log("[yampi-webhook] Order status updated:", existingOrder.id, statusValue, "→", safeStatus);
       }
       return jsonOk({ ok: true, event, yampi_status: statusValue, local_status: newLocalStatus });
     }
@@ -793,11 +914,26 @@ Deno.serve(async (req) => {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
       const sessionId = resourceData?.metadata?.session_id || null;
 
-      const refundHash = `refund-${externalRef || sessionId}-${transactionId || Date.now()}`;
+      const refundFp = await buildStableWebhookFingerprint({
+        eventType: "refund",
+        yampiOrderId: externalRef || null,
+        transactionId,
+        sessionId,
+        paymentLinkId: resourceData?.payment_link_id?.toString() || null,
+        status: statusValue || null,
+        rawBody,
+      });
+      const refundHash = refundFp.fingerprint || "refund-invalid";
       const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", refundHash).maybeSingle();
       if (existingEvent) {
         console.log("[yampi-webhook] Duplicate refund event, skipping:", refundHash);
         return jsonOk({ ok: true, event, duplicate: true });
+      }
+      if (!refundFp.ok) {
+        logError(SCOPE, correlationId, new Error("Webhook refund sem identificadores estáveis"), {
+          fingerprint: refundHash,
+          reason: refundFp.reason,
+        });
       }
 
       let existingOrder: { id: string; status: string } | null = null;
@@ -917,13 +1053,17 @@ Deno.serve(async (req) => {
       }
 
       if (existingOrder) {
-        // Y27: Prevent status regression — don't overwrite "delivered" with "shipped"
-        if (existingOrder.status === "delivered") {
-          console.log("[yampi-webhook] Ignoring shipped event: order already delivered", existingOrder.id);
+        const safeStatus = resolveSafeStatus(existingOrder.status, "shipped");
+        if (safeStatus !== "shipped") {
+          console.log("[yampi-webhook] Ignoring shipped event by transition policy", {
+            order_id: existingOrder.id,
+            current: existingOrder.status,
+            effective: safeStatus,
+          });
           await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: shippedHash, payload });
-          return jsonOk({ ok: true, event, action: "ignored_already_delivered" });
+          return jsonOk({ ok: true, event, action: "ignored_transition_policy" });
         }
-        const updateData: Record<string, unknown> = { status: "shipped", payment_status: "approved" };
+        const updateData: Record<string, unknown> = { status: safeStatus, payment_status: "approved" };
         if (trackingCode) updateData.tracking_code = trackingCode;
         if (eventShippingCost != null && Number(eventShippingCost) > 0) updateData.shipping_cost = Number(eventShippingCost);
         await supabase.from("orders").update(updateData).eq("id", existingOrder.id);
@@ -956,9 +1096,16 @@ Deno.serve(async (req) => {
       }
 
       if (existingOrder) {
-        await supabase.from("orders").update({ status: "delivered", payment_status: "approved" } as Record<string, unknown>).eq("id", existingOrder.id);
-        await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: deliveredHash, payload });
-        console.log("[yampi-webhook] Order delivered:", existingOrder.id);
+        const { data: orderSnapshot } = await supabase.from("orders").select("status").eq("id", existingOrder.id).maybeSingle();
+        const safeStatus = resolveSafeStatus(orderSnapshot?.status as string | null, "delivered");
+        if (safeStatus === "delivered") {
+          await supabase.from("orders").update({ status: safeStatus, payment_status: "approved" } as Record<string, unknown>).eq("id", existingOrder.id);
+          await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: deliveredHash, payload });
+          console.log("[yampi-webhook] Order delivered:", existingOrder.id);
+        } else {
+          await supabase.from("order_events").insert({ order_id: existingOrder.id, event_type: effectiveEvent, event_hash: deliveredHash, payload });
+          console.log("[yampi-webhook] Ignoring delivered event by transition policy", { order_id: existingOrder.id, effective: safeStatus });
+        }
       }
       return jsonOk({ ok: true, event });
     }

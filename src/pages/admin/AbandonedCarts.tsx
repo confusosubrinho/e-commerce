@@ -47,6 +47,13 @@ interface AbandonedCart {
   contacted_at: string | null;
   created_at: string;
   status?: 'pending' | 'contacted' | 'recovered';
+  operational_status?: 'active' | 'abandoned' | 'expired' | 'converted' | null;
+  recovery_channel?: string | null;
+  converted_order_id?: string | null;
+  last_activity_at?: string | null;
+  abandoned_at?: string | null;
+  expired_at?: string | null;
+  converted_at?: string | null;
   is_test?: boolean;
 }
 
@@ -132,6 +139,10 @@ export default function AbandonedCarts() {
       recovered: true,
       recovered_at: new Date().toISOString(),
       status: 'recovered',
+      operational_status: 'converted',
+      converted_at: new Date().toISOString(),
+      recovery_channel: 'admin_manual',
+      last_activity_at: new Date().toISOString(),
     } as any).eq('id', id);
     refetch();
     toast({ title: 'Carrinho marcado como recuperado!' });
@@ -193,7 +204,7 @@ export default function AbandonedCarts() {
   const stats = {
     total: carts?.length || 0,
     recovered: carts?.filter(c => c.status === 'recovered' || c.recovered).length || 0,
-    pending: carts?.filter(c => c.status === 'pending' || (!c.recovered && !c.contacted_via)).length || 0,
+    pending: carts?.filter(c => c.operational_status !== 'converted' && (c.status === 'pending' || (!c.recovered && !c.contacted_via))).length || 0,
     test: carts?.filter(c => c.is_test).length || 0,
     totalValue: carts?.filter(c => c.status !== 'recovered' && !c.recovered).reduce((sum, c) => sum + c.subtotal, 0) || 0,
   };
@@ -301,6 +312,7 @@ export default function AbandonedCarts() {
                 <TableHead>Origem</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Recuperação</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -341,10 +353,32 @@ export default function AbandonedCarts() {
                         ) : (
                           <Badge variant="secondary">Pendente</Badge>
                         )}
+                        {cart.operational_status === 'active' && (
+                          <Badge variant="outline">Ativo</Badge>
+                        )}
+                        {cart.operational_status === 'abandoned' && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300">Abandonado</Badge>
+                        )}
+                        {cart.operational_status === 'expired' && (
+                          <Badge variant="outline" className="text-muted-foreground">Expirado</Badge>
+                        )}
+                        {cart.operational_status === 'converted' && (
+                          <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-300">Convertido</Badge>
+                        )}
                         {cart.is_test && (
                           <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Teste</Badge>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {cart.recovery_channel ? (
+                        <div className="space-y-1">
+                          <p>{cart.recovery_channel}</p>
+                          {cart.converted_order_id && <p className="font-mono">{cart.converted_order_id.slice(0, 8)}…</p>}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
@@ -368,7 +402,7 @@ export default function AbandonedCarts() {
                   {/* #12 Expanded cart items with images */}
                   {expandedCart === cart.id && (
                     <TableRow key={`${cart.id}-details`}>
-                      <TableCell colSpan={8} className="bg-muted/30 p-4">
+                      <TableCell colSpan={9} className="bg-muted/30 p-4">
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-muted-foreground uppercase">Produtos no carrinho</p>
                           {(cart.cart_data || []).map((item: CartDataItem, idx: number) => (

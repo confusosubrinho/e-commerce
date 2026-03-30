@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.yampi-import-order]
 verify_jwt = false
+
+[functions.yampi-sync-config]
+verify_jwt = false

@@ -897,6 +897,7 @@ function YampiSection({
   const [syncingCategories, setSyncingCategories] = useState(false);
   const [syncingVariations, setSyncingVariations] = useState(false);
   const [syncingImages, setSyncingImages] = useState(false);
+  const [syncingRemoteConfig, setSyncingRemoteConfig] = useState(false);
   const [syncProgress, setSyncProgress] = useState("");
   const [imageProgress, setImageProgress] = useState("");
   const [errorDetailModal, setErrorDetailModal] = useState<any>(null);
@@ -1175,6 +1176,35 @@ function YampiSection({
     }
   };
 
+  const syncRemoteConfig = async () => {
+    setSyncingRemoteConfig(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("yampi-sync-config", {
+        body: { sync_checkout: true, sync_store: true, sync_photos: true },
+      });
+      if (data?.error) throw new Error(String(data.error));
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["integrations-checkout-providers"] });
+      queryClient.invalidateQueries({ queryKey: ["checkout-test-logs"] });
+
+      const warnings = Array.isArray(data?.warnings) ? data.warnings.length : 0;
+      toast({
+        title: warnings ? "Configuração sincronizada com alertas" : "Configuração sincronizada",
+        description: `checkout/store/overview + fotos (${data?.photos_count || 0})`,
+        variant: warnings ? "destructive" : "default",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Erro ao sincronizar configuração",
+        description: err instanceof Error ? err.message : "Erro inesperado",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingRemoteConfig(false);
+    }
+  };
+
   const webhookUrl = projectId ? `https://${projectId}.supabase.co/functions/v1/yampi-webhook` : "";
 
   return (
@@ -1255,14 +1285,14 @@ function YampiSection({
                       <Plug className="h-3 w-3" /> Webhook Yampi
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Cadastre esta URL no painel da Yampi (Webhooks). A chave secreta você define em &quot;Configurar&quot; e deve ser a mesma na URL (?token=...).
+                      Cadastre esta URL no painel da Yampi (Webhooks). Recomendado: enviar assinatura no header <code>X-Yampi-Hmac-SHA256</code> usando a mesma chave secreta configurada abaixo.
                     </p>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground">URL do endpoint:</span>
                     <div className="flex items-center gap-2">
                       <code className="text-[10px] font-mono bg-background px-2 py-1.5 rounded flex-1 overflow-x-auto border break-all">
-                        {webhookUrl}{(yampiConfig as { webhook_secret?: string }).webhook_secret ? "?token=••••••••" : "?token=SUA_CHAVE"}
+                        {webhookUrl}
                       </code>
                       <Button
                         variant="outline"
@@ -1272,15 +1302,15 @@ function YampiSection({
                           const secret = (yampiConfig as { webhook_secret?: string }).webhook_secret;
                           const full = secret ? `${webhookUrl}?token=${secret}` : webhookUrl;
                           navigator.clipboard.writeText(full);
-                          toast({ title: secret ? "URL completa copiada!" : "URL copiada (adicione ?token=SUA_CHAVE na Yampi)" });
+                          toast({ title: secret ? "URL copiada! (fallback com ?token também copiado)" : "URL copiada" });
                         }}
                       >
-                        <Copy className="h-3 w-3 mr-1" /> Copiar URL
+                        <Copy className="h-3 w-3 mr-1" /> Copiar URL (fallback token)
                       </Button>
                     </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Chave secreta: configure no botão &quot;Configurar&quot; (campo &quot;Chave secreta do webhook&quot;) e use o mesmo valor na URL na Yampi.
+                    Fallback legado: se precisar, você pode incluir <code>?token=SUA_CHAVE</code> na URL. A função aceita HMAC (preferencial) e token para compatibilidade.
                   </p>
                 </div>
               )}
@@ -1319,6 +1349,10 @@ function YampiSection({
                   <Button size="sm" variant="outline" onClick={() => syncImages(false)} disabled={syncingImages} className="text-xs" title="Re-envia imagens para todos os SKUs (inclui os que já tinham; útil se quebrou na Yampi)">
                     {syncingImages ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
                     Imagens (todos)
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={syncRemoteConfig} disabled={syncingRemoteConfig} className="text-xs" title="Sincroniza /config/checkout, /config/store-data, /config/overview e /config/photos para o config local">
+                    {syncingRemoteConfig ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Globe className="h-3 w-3 mr-1" />}
+                    Config (Yampi)
                   </Button>
                 </div>
 
@@ -1461,7 +1495,7 @@ function YampiSection({
             <Separator />
             <div className="space-y-1">
               <Label className="text-xs">Chave secreta do webhook</Label>
-              <p className="text-[10px] text-muted-foreground">Mesma chave que você coloca na URL ao cadastrar o webhook na Yampi (?token=...)</p>
+              <p className="text-[10px] text-muted-foreground">Usada para validar assinatura HMAC (<code>X-Yampi-Hmac-SHA256</code>) e também no fallback legado por query token.</p>
               <Input
                 type="password"
                 value={yampiForm.webhook_secret || ""}

@@ -8,10 +8,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { getTenantIdFromRequest } from "../_shared/tenant.ts";
+import { calculateCheckoutQuote } from "../_shared/checkoutQuote.ts";
 
 const SINGLETON_ID = "00000000-0000-0000-0000-000000000001";
 
 const ROUTES = [
+  "quote",
   "start",
   "resolve",
   "create_gateway_session",
@@ -21,7 +23,7 @@ const ROUTES = [
 
 type Route = (typeof ROUTES)[number];
 
-const TARGET_MAP: Record<Exclude<Route, "start">, string> = {
+const TARGET_MAP: Record<Exclude<Route, "start" | "quote">, string> = {
   resolve: "checkout-create-session",
   create_gateway_session: "checkout-create-session",
   stripe_intent: "checkout-stripe-create-intent",
@@ -90,14 +92,14 @@ Deno.serve(async (req) => {
 
   if (!route || !ROUTES.includes(route)) {
     return jsonRes(
-      { success: false, error: "route inválida. Use: start | resolve | create_gateway_session | stripe_intent | process_payment" },
+      { success: false, error: "route inválida. Use: quote | start | resolve | create_gateway_session | stripe_intent | process_payment" },
       400,
       corsHeaders
     );
   }
 
-  // ─── PR9: route "start" — validação rígida, preços do DB, rate limit ───
-  if (route === "start") {
+  // ─── PR9: route "quote/start" — validação rígida, preços do DB, rate limit ───
+  if (route === "quote" || route === "start") {
     const parsed = startStartSchema.safeParse({ ...body, route: "start" });
     if (!parsed.success) {
       const msg = parsed.error.errors.map((e) => e.message).join("; ") || "Payload inválido para route start";
@@ -137,7 +139,7 @@ Deno.serve(async (req) => {
     const variantIds = [...new Set(itemsInput.map((i) => i.variant_id))];
     const { data: variantsRows, error: variantsErr } = await supabase
       .from("product_variants")
-      .select("id, product_id, base_price, sale_price, yampi_sku_id, size, color, sku, products(base_price, sale_price, name)")
+      .select("id, product_id, base_price, sale_price, yampi_sku_id, size, color, sku, products(base_price, sale_price, name, category_id, brand)")
       .in("id", variantIds);
 
     if (variantsErr || !variantsRows?.length) {
@@ -153,16 +155,16 @@ Deno.serve(async (req) => {
       size: string | null;
       color: string | null;
       sku: string | null;
-      products: { base_price?: number; sale_price?: number; name?: string } | null;
+      products: { base_price?: number; sale_price?: number; name?: string; category_id?: string | null; brand?: string | null } | null;
     };
-    const variantMap = new Map<string, { product_id: string | null; name: string; unit_price: number; yampi_sku_id: number | null; size: string | null; color: string | null; sku: string | null }>();
+    const variantMap = new Map<string, { product_id: string | null; category_id: string | null; brand: string | null; name: string; unit_price: number; yampi_sku_id: number | null; size: string | null; color: string | null; sku: string | null }>();
     for (const v of variantsRows as VariantRow[]) {
       const product = v.products;
       const base = v.base_price ?? product?.base_price ?? 0;
       const sale = v.sale_price ?? product?.sale_price ?? null;
       const unitPrice = typeof sale === "number" && sale >= 0 ? sale : (typeof base === "number" ? base : 0);
       const name = (product?.name as string) ?? "";
-      variantMap.set(v.id, { product_id: v.product_id ?? null, name, unit_price: Number(unitPrice), yampi_sku_id: v.yampi_sku_id ?? null, size: v.size ?? null, color: v.color ?? null, sku: v.sku ?? null });
+      variantMap.set(v.id, { product_id: v.product_id ?? null, category_id: (product?.category_id as string | null) ?? null, brand: (product?.brand as string | null) ?? null, name, unit_price: Number(unitPrice), yampi_sku_id: v.yampi_sku_id ?? null, size: v.size ?? null, color: v.color ?? null, sku: v.sku ?? null });
     }
 
     // Fetch primary images for each product
@@ -180,6 +182,7 @@ Deno.serve(async (req) => {
     }
 
     const items: Array<{ variant_id: string; quantity: number; unit_price: number; product_name: string }> = [];
+    const quoteLineItems: Array<{ product_id: string; category_id: string | null; brand: string | null; line_total: number }> = [];
     let subtotal = 0;
     for (const i of itemsInput) {
       const meta = variantMap.get(i.variant_id);
@@ -195,8 +198,49 @@ Deno.serve(async (req) => {
         unit_price: unitPrice,
         product_name: meta.name,
       });
+      if (meta.product_id) {
+        quoteLineItems.push({
+          product_id: meta.product_id,
+          category_id: meta.category_id,
+          brand: meta.brand,
+          line_total: lineTotal,
+        });
+      }
     }
-    const totalAmount = Math.max(0, subtotal - discountAmount + shippingCost);
+
+    let couponRow: Record<string, unknown> | null = null;
+    if (couponCode) {
+      const { data: coupon } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", String(couponCode).toUpperCase())
+        .eq("is_active", true)
+        .maybeSingle();
+      couponRow = (coupon as Record<string, unknown> | null) ?? null;
+    }
+
+    const quote = calculateCheckoutQuote({
+      subtotal,
+      shippingCost,
+      couponCode,
+      couponRow,
+      lineItems: quoteLineItems,
+    });
+
+    if (couponCode && !quote.couponValid) {
+      return jsonRes({ success: false, error: quote.errorMessage || "Cupom inválido" }, 400, corsHeaders);
+    }
+
+    if (couponCode && Math.abs(quote.discountAmount - discountAmount) > 0.1) {
+      console.warn("[checkout-router] discount mismatch corrected", {
+        request_id: requestId,
+        client_discount: discountAmount,
+        server_discount: quote.discountAmount,
+      });
+    }
+
+    const serverDiscountAmount = quote.discountAmount;
+    const totalAmount = quote.totalAmount;
 
     let provider: "stripe" | "yampi" | "appmax" = "stripe";
     let channel: "internal" | "external" = "internal";
@@ -245,6 +289,18 @@ Deno.serve(async (req) => {
       provider = (resolveData.provider as "stripe" | "yampi" | "appmax") || "stripe";
     }
 
+    if (route === "quote") {
+      return jsonRes({
+        success: true,
+        subtotal,
+        shipping_cost: shippingCost,
+        discount_amount: serverDiscountAmount,
+        total_amount: totalAmount,
+        coupon_code: couponCode,
+        quote_source: "checkout-router",
+      }, 200, corsHeaders);
+    }
+
     let orderId: string | null = null;
     let guestToken: string | null = orderAccessToken;
 
@@ -269,7 +325,7 @@ Deno.serve(async (req) => {
           cart_id: cartId,
           subtotal,
           shipping_cost: shippingCost,
-          discount_amount: discountAmount,
+          discount_amount: serverDiscountAmount,
           total_amount: totalAmount,
           status: "pending",
           shipping_name: channel === "external" ? "Aguardando checkout" : "A preencher",
@@ -304,6 +360,28 @@ Deno.serve(async (req) => {
         guestToken = guestTokenNew;
       }
       if (orderId && newOrder && !orderErr) {
+        const { error: quoteEventErr } = await supabase.from("order_events").insert({
+          tenant_id: tenantId,
+          order_id: orderId,
+          event_type: "quote_snapshot",
+          event_hash: `quote-${orderId}`,
+          payload: {
+            expected: {
+              subtotal,
+              discount: serverDiscountAmount,
+              shipping: shippingCost,
+              total: totalAmount,
+              currency: "BRL",
+              items_count: items.length,
+            },
+            route: "start",
+            request_id: requestId,
+          },
+        });
+        if (quoteEventErr && quoteEventErr.code !== "23505") {
+          console.warn("[checkout-router] quote snapshot event insert failed:", quoteEventErr.message);
+        }
+
         const fullItems = items.map((i) => {
           const meta = variantMap.get(i.variant_id)!;
           const variantParts = [meta.size, meta.color].filter(Boolean);
@@ -368,6 +446,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             items: items.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })),
             attribution,
+            cart_id: cartId,
+            order_id: orderId,
             request_id: requestId,
             tenant_id: tenantId,
           }),
@@ -448,7 +528,7 @@ Deno.serve(async (req) => {
             amount: totalAmount,
             products: productsForStripe,
             coupon_code: couponCode,
-            discount_amount: discountAmount,
+            discount_amount: serverDiscountAmount,
             order_access_token: guestToken,
             success_url: successUrl || `${origin}/checkout/obrigado?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: cancelUrl || `${origin}/carrinho`,
@@ -526,7 +606,7 @@ Deno.serve(async (req) => {
             amount: totalAmount,
             products: productsForStripe,
             coupon_code: couponCode,
-            discount_amount: discountAmount,
+            discount_amount: serverDiscountAmount,
             order_access_token: guestToken,
             request_id: requestId,
             tenant_id: tenantId,

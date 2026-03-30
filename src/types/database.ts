@@ -102,18 +102,34 @@ export interface Banner {
  export interface Coupon {
    id: string;
    code: string;
+   name?: string | null;
+   status?: 'draft' | 'active' | 'paused' | 'expired' | 'exhausted' | null;
+   discount_kind?: 'order_discount' | 'free_shipping' | 'hybrid' | null;
    discount_type: 'percentage' | 'fixed';
    discount_value: number;
    min_purchase_amount: number;
+   max_purchase_amount?: number | null;
    max_uses: number | null;
+   usage_per_customer?: number | null;
    uses_count: number;
    expiry_date: string | null;
+   start_at?: string | null;
+   end_at?: string | null;
    is_active: boolean;
    type?: 'standard' | 'free_shipping' | 'first_purchase' | null;
+   campaign_tag?: string | null;
+   internal_note?: string | null;
    applicable_category_id?: string | null;
+   applicable_category_ids?: string[] | null;
    applicable_product_ids?: string[] | null;
+   excluded_product_ids?: string[] | null;
+   excluded_category_ids?: string[] | null;
+   applicable_brand_names?: string[] | null;
    applicable_states?: string[] | null;
+   applicable_cities?: string[] | null;
    applicable_zip_prefixes?: string[] | null;
+   allow_coupon_stack?: boolean;
+   allow_auto_promotions?: boolean;
    created_at: string;
    updated_at: string;
  }

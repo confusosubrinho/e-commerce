@@ -44,6 +44,41 @@ function sanitizePayloadForLog(payload: unknown): unknown {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+async function yampiFetchAllPaginated(
+  yampiBase: string,
+  yampiHeaders: Record<string, string>,
+  path: string,
+  label: string,
+  limit = 50,
+): Promise<Array<Record<string, unknown>>> {
+  const all: Array<Record<string, unknown>> = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const separator = path.includes("?") ? "&" : "?";
+    const pagePath = `${path}${separator}limit=${limit}&page=${page}`;
+    const res = await yampiRequest(yampiBase, yampiHeaders, pagePath, "GET");
+    if (!res.ok) break;
+
+    const pageData = Array.isArray(res.data?.data)
+      ? (res.data.data as Array<Record<string, unknown>>)
+      : [];
+    all.push(...pageData);
+
+    const pagination = (res.data?.meta as Record<string, unknown> | undefined)?.pagination as Record<string, unknown> | undefined;
+    const currentPage = Number(pagination?.current_page ?? page);
+    const perPage = Number(pagination?.per_page ?? limit);
+    const total = Number(pagination?.total ?? all.length);
+    const totalPages = Math.max(1, Math.ceil(total / Math.max(1, perPage)));
+    hasMore = currentPage < totalPages;
+    page = currentPage + 1;
+  }
+
+  console.log(`[YAMPI] ${label}: fetched ${all.length} items`);
+  return all;
+}
+
 // Images are now handled separately via yampi-sync-images function
 // DO NOT upload images during catalog sync to avoid errors
 
@@ -105,13 +140,10 @@ Deno.serve(async (req) => {
     // ─── Resolve brand_id (only on first batch) ───
     let brandId = defaultBrandId;
     if (!brandId) {
-      const brandsRes = await yampiRequest(yampiBase, yampiHeaders, "/catalog/brands?limit=50", "GET");
-      if (brandsRes.ok && brandsRes.data?.data) {
-        const brands = brandsRes.data.data as Array<Record<string, unknown>>;
-        if (brands.length > 0) {
-          brandId = Number(brands[0].id);
-          console.log(`[YAMPI] Using existing brand id=${brandId}`);
-        }
+      const brands = await yampiFetchAllPaginated(yampiBase, yampiHeaders, "/catalog/brands", "brands");
+      if (brands.length > 0) {
+        brandId = Number(brands[0].id);
+        console.log(`[YAMPI] Using existing brand id=${brandId}`);
       }
       if (!brandId) {
         const createBrand = await yampiRequest(yampiBase, yampiHeaders, "/catalog/brands", "POST", {
@@ -122,11 +154,8 @@ Deno.serve(async (req) => {
           brandId = Array.isArray(bd) ? Number((bd[0] as Record<string, unknown>)?.id) : Number((bd as Record<string, unknown>)?.id);
         } else if (createBrand.status === 422) {
           await delay(1000);
-          const retry = await yampiRequest(yampiBase, yampiHeaders, "/catalog/brands?limit=50", "GET");
-          if (retry.ok && retry.data?.data) {
-            const brands = retry.data.data as Array<Record<string, unknown>>;
-            if (brands.length > 0) brandId = Number(brands[0].id);
-          }
+          const retryBrands = await yampiFetchAllPaginated(yampiBase, yampiHeaders, "/catalog/brands", "brands-retry");
+          if (retryBrands.length > 0) brandId = Number(retryBrands[0].id);
         }
         if (!brandId) {
           console.error("[YAMPI] Could not resolve brand. Products may fail.");

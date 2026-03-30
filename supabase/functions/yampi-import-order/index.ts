@@ -17,6 +17,41 @@ function jsonRes(body: Record<string, unknown>, status = 200) {
   });
 }
 
+async function fetchYampiOrdersBySearch(
+  baseUrl: string,
+  yampiOrderId: string,
+  headers: Record<string, string>,
+  limit = 50,
+  maxPages = 10,
+): Promise<Record<string, unknown>[]> {
+  const orders: Record<string, unknown>[] = [];
+  let page = 1;
+
+  while (page <= maxPages) {
+    const searchUrl = `${baseUrl}/orders?include=items,customer,shipping_address,transactions&q=${encodeURIComponent(yampiOrderId)}&limit=${limit}&page=${page}`;
+    const res = await fetchWithTimeout(searchUrl, { headers }, 25_000);
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Yampi API retornou ${res.status} ${errText ? `(${errText.slice(0, 200)})` : ""}`.trim());
+    }
+
+    const json = await res.json();
+    const pageOrders = Array.isArray(json?.data) ? (json.data as Record<string, unknown>[]) : [];
+    orders.push(...pageOrders);
+
+    const pagination = (json?.meta as Record<string, unknown> | undefined)?.pagination as Record<string, unknown> | undefined;
+    const currentPage = Number(pagination?.current_page ?? page);
+    const perPage = Number(pagination?.per_page ?? limit);
+    const total = Number(pagination?.total ?? orders.length);
+    const totalPages = Math.max(1, Math.ceil(total / Math.max(1, perPage)));
+    if (currentPage >= totalPages) break;
+    page = currentPage + 1;
+  }
+
+  return orders;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonRes({ ok: false, error: "Method not allowed" }, 405);
@@ -124,35 +159,27 @@ Deno.serve(async (req) => {
 
   // ── Fetch from Yampi API ──
   const baseUrl = `https://api.dooki.com.br/v2/${alias}`;
-  const searchUrl = `${baseUrl}/orders?include=items,customer,shipping_address,transactions&q=${encodeURIComponent(yampiOrderId)}&limit=5`;
-
   let yampiOrder: Record<string, unknown> | null = null;
 
   try {
+    const headers = {
+      "User-Token": userToken2,
+      "User-Secret-Key": userSecretKey2,
+      Accept: "application/json",
+    };
     // Y44: Use fetchWithTimeout to prevent indefinite hangs
-    const res = await fetchWithTimeout(searchUrl, {
-      headers: {
-        "User-Token": userToken2,
-        "User-Secret-Key": userSecretKey2,
-        Accept: "application/json",
-      },
-    }, 25_000);
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error("[yampi-import] API error:", res.status, errText);
-      return jsonRes({ ok: false, error: `Yampi API retornou ${res.status}` }, 502);
-    }
-
-    const json = await res.json();
-    const orders = json?.data || [];
+    const orders = await fetchYampiOrdersBySearch(baseUrl, yampiOrderId, headers);
 
     // Match by ID or number
     yampiOrder = orders.find((o: Record<string, unknown>) =>
       String(o.id) === yampiOrderId || String(o.number) === yampiOrderId
     ) || orders[0] || null;
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[yampi-import] Fetch error:", err);
+    const message = err instanceof Error ? err.message : "Erro ao conectar com a API Yampi";
+    if (message.includes("Yampi API retornou")) {
+      return jsonRes({ ok: false, error: message }, 502);
+    }
     return jsonRes({ ok: false, error: "Erro ao conectar com a API Yampi" }, 502);
   }
 

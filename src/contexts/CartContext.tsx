@@ -5,6 +5,15 @@ import { useTenant } from '@/hooks/useTenant';
 import { getCartItemUnitPrice } from '@/lib/cartPricing';
 import { computeCouponDiscount } from '@/lib/couponDiscount';
 
+type ServerQuote = {
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  total: number;
+  couponCode?: string | null;
+  updatedAt: string;
+};
+
 function safeParse<T>(key: string, fallback: T, validate?: (parsed: unknown) => parsed is T): T {
   try {
     const stored = localStorage.getItem(key);
@@ -74,7 +83,7 @@ function getOrCreateCartId(): string {
   }
 }
 
- interface CartContextType {
+	 interface CartContextType {
    items: CartItem[];
    cartId: string;
    addItem: (product: Product, variant: ProductVariant, quantity?: number) => void;
@@ -93,8 +102,11 @@ function getOrCreateCartId(): string {
    setSelectedShipping: (shipping: ShippingOption | null) => void;
    shippingZip: string;
    setShippingZip: (zip: string) => void;
-   total: number;
- }
+	   total: number;
+     serverQuote: ServerQuote | null;
+     setServerQuote: (quote: Omit<ServerQuote, 'updatedAt'>) => void;
+     clearServerQuote: () => void;
+	 }
  
  const CartContext = createContext<CartContextType | undefined>(undefined);
  
@@ -105,7 +117,8 @@ function getOrCreateCartId(): string {
  
    const [isCartOpen, setIsCartOpen] = useState(false);
    const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(() => safeParseCoupon());
-   const [selectedShipping, setSelectedShipping] = useState<ShippingOption | null>(() => safeParseShipping());
+   const [selectedShipping, setSelectedShippingState] = useState<ShippingOption | null>(() => safeParseShipping());
+   const [serverQuote, setServerQuoteState] = useState<ServerQuote | null>(() => safeParse<ServerQuote | null>('serverQuote', null));
    const [shippingZip, setShippingZip] = useState(() => {
      try {
        return localStorage.getItem('shippingZip') || '';
@@ -145,20 +158,28 @@ function getOrCreateCartId(): string {
      }
    }, [appliedCoupon]);
  
-   useEffect(() => {
-     if (selectedShipping) {
-       safeSetItem('selectedShipping', JSON.stringify(selectedShipping));
+	   useEffect(() => {
+	     if (selectedShipping) {
+	       safeSetItem('selectedShipping', JSON.stringify(selectedShipping));
      } else {
        try { localStorage.removeItem('selectedShipping'); } catch { /* noop */ }
      }
-   }, [selectedShipping]);
+	   }, [selectedShipping]);
+
+   useEffect(() => {
+     if (serverQuote) {
+       safeSetItem('serverQuote', JSON.stringify(serverQuote));
+     } else {
+       try { localStorage.removeItem('serverQuote'); } catch { /* noop */ }
+     }
+   }, [serverQuote]);
  
    useEffect(() => {
      safeSetItem('shippingZip', shippingZip);
    }, [shippingZip]);
  
-   const addItem = (product: Product, variant: ProductVariant, quantity = 1) => {
-     setItems(prev => {
+	   const addItem = (product: Product, variant: ProductVariant, quantity = 1) => {
+	     setItems(prev => {
        const existing = prev.find(item => item.variant.id === variant.id);
        if (existing) {
          return prev.map(item =>
@@ -168,31 +189,40 @@ function getOrCreateCartId(): string {
          );
        }
        return [...prev, { product, variant, quantity }];
-     });
-     setIsCartOpen(true);
-   };
+	     });
+	     setIsCartOpen(true);
+      setServerQuoteState(null);
+	   };
  
-   const removeItem = (variantId: string) => {
-     setItems(prev => prev.filter(item => item.variant.id !== variantId));
-   };
+	   const removeItem = (variantId: string) => {
+	     setItems(prev => prev.filter(item => item.variant.id !== variantId));
+      setServerQuoteState(null);
+	   };
  
    const updateQuantity = (variantId: string, quantity: number) => {
      if (quantity <= 0) {
        removeItem(variantId);
        return;
      }
-     setItems(prev =>
-       prev.map(item =>
-         item.variant.id === variantId ? { ...item, quantity } : item
-       )
-     );
-   };
+	     setItems(prev =>
+	       prev.map(item =>
+	         item.variant.id === variantId ? { ...item, quantity } : item
+	       )
+	     );
+      setServerQuoteState(null);
+	   };
  
-   const clearCart = () => {
-     setItems([]);
-     setAppliedCoupon(null);
-     setSelectedShipping(null);
+   const setSelectedShipping = (shipping: ShippingOption | null) => {
+     setSelectedShippingState(shipping);
+     setServerQuoteState(null);
    };
+
+   const clearCart = () => {
+	     setItems([]);
+	     setAppliedCoupon(null);
+	     setSelectedShipping(null);
+      setServerQuoteState(null);
+	   };
  
    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
  
@@ -200,18 +230,28 @@ function getOrCreateCartId(): string {
     return sum + getCartItemUnitPrice(item) * item.quantity;
    }, 0);
  
-   const applyCoupon = (coupon: Coupon) => {
-     setAppliedCoupon(coupon);
-   };
+	   const applyCoupon = (coupon: Coupon) => {
+	     setAppliedCoupon(coupon);
+      setServerQuoteState(null);
+	   };
  
-   const removeCoupon = () => {
-     setAppliedCoupon(null);
-   };
- 
-  const rawDiscount = computeCouponDiscount(appliedCoupon, items, subtotal);
-  const discount = Math.min(subtotal, Math.max(0, rawDiscount));
- 
-  const total = Math.max(0, subtotal - discount) + (selectedShipping?.price || 0);
+	   const removeCoupon = () => {
+	     setAppliedCoupon(null);
+      setServerQuoteState(null);
+	   };
+	 
+  const fallbackDiscount = Math.min(subtotal, Math.max(0, computeCouponDiscount(appliedCoupon, items, subtotal)));
+  const canUseServerQuote = !!serverQuote && (!appliedCoupon || serverQuote.couponCode === appliedCoupon.code);
+  const discount = canUseServerQuote ? Math.min(subtotal, Math.max(0, serverQuote!.discount)) : fallbackDiscount;
+  const total = canUseServerQuote
+    ? Math.max(0, Number(serverQuote!.total || 0))
+    : Math.max(0, subtotal - discount) + (selectedShipping?.price || 0);
+
+  const setServerQuote = (quote: Omit<ServerQuote, 'updatedAt'>) => {
+    setServerQuoteState({ ...quote, updatedAt: new Date().toISOString() });
+  };
+
+  const clearServerQuote = () => setServerQuoteState(null);
  
    return (
      <CartContext.Provider value={{
@@ -233,17 +273,20 @@ function getOrCreateCartId(): string {
        setSelectedShipping,
        shippingZip,
        setShippingZip,
-       total,
-     }}>
+	       total,
+        serverQuote,
+        setServerQuote,
+        clearServerQuote,
+	     }}>
        {children}
      </CartContext.Provider>
    );
  }
  
- export function useCart() {
+export function useCart() {
    const context = useContext(CartContext);
    if (!context) {
      throw new Error('useCart must be used within a CartProvider');
-   }
-   return context;
- }
+  }
+  return context;
+}

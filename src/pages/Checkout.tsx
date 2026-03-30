@@ -32,7 +32,7 @@ const BRAZILIAN_STATES = [
 ];
 import { isCouponValidForLocation } from '@/lib/couponDiscount';
 import { POLL_MS } from '@/lib/queryRefetch';
-import { generateRequestId, invokeCheckoutFunction } from '@/lib/checkoutClient';
+import { generateRequestId, invokeCheckoutFunction, invokeCheckoutRouter } from '@/lib/checkoutClient';
 import { StripePaymentForm, useStripeConfig } from '@/components/store/StripePaymentForm';
 import { Pressable } from '@/components/ui/Pressable';
 import { useFeedback } from '@/hooks/useFeedback';
@@ -96,7 +96,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenantId } = useTenant();
-  const { items, subtotal, total, clearCart, updateQuantity, selectedShipping, setSelectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId } = useCart();
+  const { items, subtotal, total, clearCart, updateQuantity, selectedShipping, setSelectedShipping, shippingZip, discount, appliedCoupon, removeCoupon, cartId, setServerQuote } = useCart();
   const { toast } = useToast();
   const { feedback: triggerFeedback } = useFeedback();
   // UX 1: Dynamic logo
@@ -467,15 +467,53 @@ export default function Checkout() {
         return;
       }
 
-      // Compute order total early (needed for both new and reused orders)
+      const quoteItems = items.map((item) => ({
+        variant_id: item.variant.id,
+        quantity: item.quantity,
+      }));
+      const { data: quoteData, error: quoteError } = await invokeCheckoutRouter<{
+        subtotal: number;
+        shipping_cost: number;
+        discount_amount: number;
+        total_amount: number;
+      }>(
+        'quote',
+        {
+          cart_id: cartId,
+          items: quoteItems,
+          shipping_cost: selectedShipping?.price ?? 0,
+          coupon_code: appliedCoupon?.code ?? null,
+        },
+        requestId,
+        undefined,
+        tenantId ?? undefined,
+      );
+
+      if (quoteError || !quoteData?.success) {
+        throw new Error(quoteData?.error || quoteError?.message || 'Não foi possível validar os valores do pedido.');
+      }
+
+      const serverSubtotal = Number(quoteData.subtotal || 0);
+      const serverShippingCost = Number(quoteData.shipping_cost || 0);
+      const serverDiscount = Number(quoteData.discount_amount || 0);
+      const serverBaseTotal = Number(quoteData.total_amount || 0);
+      setServerQuote({
+        subtotal: serverSubtotal,
+        discount: serverDiscount,
+        shipping: serverShippingCost,
+        total: serverBaseTotal,
+        couponCode: appliedCoupon?.code ?? null,
+      });
+
+      // Compute payment total after official server quote (needed for both new and reused orders)
       let orderTotal: number;
       if (formData.paymentMethod === 'pix') {
-        orderTotal = finalTotal;
+        orderTotal = Math.max(0, serverBaseTotal - serverBaseTotal * ((pc.pix_discount || 0) / 100));
       } else if (formData.paymentMethod === 'card' && selectedInstallments > effectiveInterestFree) {
         const selected = installmentOptions.find(o => o.value === selectedInstallments);
-        orderTotal = selected ? selected.total : finalTotal;
+        orderTotal = selected ? selected.total : serverBaseTotal;
       } else {
-        orderTotal = finalTotal;
+        orderTotal = serverBaseTotal;
       }
 
       const { data: existingOrder } = await supabase
@@ -521,7 +559,7 @@ export default function Checkout() {
                   customer_name: formData.name,
                   products: productsForStripe,
                   coupon_code: appliedCoupon?.code || null,
-                  discount_amount: discount,
+                  discount_amount: serverDiscount,
                   installments: selectedInstallments,
                   order_access_token: reusedGuestToken,
                 },
@@ -579,9 +617,9 @@ export default function Checkout() {
           order_number: 'TEMP',
           user_id: userId,
           cart_id: cartId,
-          subtotal: subtotal,
-          shipping_cost: shippingCost,
-          discount_amount: discount,
+          subtotal: serverSubtotal,
+          shipping_cost: serverShippingCost,
+          discount_amount: serverDiscount,
           total_amount: orderTotal,
           status: 'pending',
           shipping_name: formData.name,
@@ -677,7 +715,7 @@ export default function Checkout() {
                 customer_name: formData.name,
                 products: productsForStripe,
                 coupon_code: appliedCoupon?.code || null,
-                discount_amount: discount,
+                discount_amount: serverDiscount,
                 order_access_token: guestToken,
                 success_url: `${window.location.origin}/pedido-confirmado/${order.id}?token=${guestToken}`,
                 cancel_url: `${window.location.origin}/carrinho`,
@@ -711,7 +749,7 @@ export default function Checkout() {
               customer_name: formData.name,
               products: productsForStripe,
               coupon_code: appliedCoupon?.code || null,
-              discount_amount: discount,
+              discount_amount: serverDiscount,
               installments: selectedInstallments,
               order_access_token: guestToken,
             },
@@ -778,7 +816,7 @@ export default function Checkout() {
         shipping_state: formData.state,
         products: productsForAppmax,
         coupon_code: appliedCoupon?.code || null,
-        discount_amount: discount,
+        discount_amount: serverDiscount,
         order_access_token: guestToken,
       };
 
