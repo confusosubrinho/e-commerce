@@ -395,8 +395,12 @@ Deno.serve(async (req) => {
           }
         }
         if (zipPrefixes.length > 0) {
-          const zipDigits = (shipping_zip || "").replace(/\D/g, "").slice(0, 5);
-          if (!zipDigits || !zipPrefixes.some((p: string) => (p || "").replace(/\D/g, "").slice(0, 5) === zipDigits)) {
+          const zipDigits = (shipping_zip || "").replace(/\D/g, "");
+          const zipMatches = zipDigits && zipPrefixes.some((p: string) => {
+            const prefixDigits = (p || "").replace(/\D/g, "");
+            return prefixDigits && zipDigits.startsWith(prefixDigits);
+          });
+          if (!zipMatches) {
             return errorResponse("Este cupom não é válido para o CEP informado", 400);
           }
         }

@@ -10,6 +10,85 @@ function jsonRes(body: Record<string, unknown>, status = 200, corsHeaders: Recor
   });
 }
 
+type CouponLineItem = {
+  product_id: string;
+  category_id: string | null;
+  lineTotal: number;
+};
+
+function validateAndComputeCouponDiscount(
+  coupon: Record<string, unknown> | null,
+  lineItems: CouponLineItem[],
+  subtotal: number,
+  shippingState: string,
+  shippingZip: string,
+): { error: string | null; discount: number } {
+  if (!coupon) return { error: null, discount: 0 };
+
+  const expiryDate = coupon.expiry_date as string | null | undefined;
+  if (expiryDate && new Date(expiryDate) < new Date()) {
+    return { error: "Cupom expirado", discount: 0 };
+  }
+
+  const minPurchase = Number(coupon.min_purchase_amount ?? 0);
+  if (minPurchase > 0 && subtotal < minPurchase) {
+    return { error: `Valor mínimo para este cupom: R$ ${minPurchase}`, discount: 0 };
+  }
+
+  const rawProductIds = Array.isArray(coupon.applicable_product_ids)
+    ? (coupon.applicable_product_ids as unknown[])
+    : [];
+  const productIds = rawProductIds.map((id) => String(id)).filter(Boolean);
+  const categoryId = (coupon.applicable_category_id as string | null) ?? null;
+
+  let applicableSubtotal = 0;
+  if (productIds.length > 0) {
+    const set = new Set(productIds);
+    for (const item of lineItems) {
+      if (set.has(item.product_id)) applicableSubtotal += item.lineTotal;
+    }
+  } else if (categoryId) {
+    for (const item of lineItems) {
+      if (item.category_id === categoryId) applicableSubtotal += item.lineTotal;
+    }
+  } else {
+    applicableSubtotal = subtotal;
+  }
+
+  if (applicableSubtotal <= 0) {
+    return { error: "Este cupom não se aplica aos produtos do pedido", discount: 0 };
+  }
+
+  const states = Array.isArray(coupon.applicable_states)
+    ? (coupon.applicable_states as unknown[]).map((s) => String(s)).filter(Boolean)
+    : [];
+  if (states.length > 0) {
+    const stateNorm = (shippingState || "").trim().toUpperCase().slice(0, 2);
+    const stateMatches = stateNorm && states.some((s) => s.trim().toUpperCase().slice(0, 2) === stateNorm);
+    if (!stateMatches) return { error: "Este cupom não é válido para o estado informado", discount: 0 };
+  }
+
+  const zipPrefixes = Array.isArray(coupon.applicable_zip_prefixes)
+    ? (coupon.applicable_zip_prefixes as unknown[]).map((z) => String(z)).filter(Boolean)
+    : [];
+  if (zipPrefixes.length > 0) {
+    const zipDigits = (shippingZip || "").replace(/\D/g, "");
+    const zipMatches = zipDigits && zipPrefixes.some((prefix) => {
+      const prefixDigits = (prefix || "").replace(/\D/g, "");
+      return prefixDigits && zipDigits.startsWith(prefixDigits);
+    });
+    if (!zipMatches) return { error: "Este cupom não é válido para o CEP informado", discount: 0 };
+  }
+
+  const discountType = String(coupon.discount_type || "");
+  const discountValue = Number(coupon.discount_value || 0);
+  const discountRaw = discountType === "percentage"
+    ? (applicableSubtotal * discountValue) / 100
+    : discountValue;
+
+  return { error: null, discount: Math.min(applicableSubtotal, Math.max(0, discountRaw)) };
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = {
     ...getCorsHeaders(req.headers.get("Origin")),
@@ -101,6 +180,7 @@ Deno.serve(async (req) => {
       let serverSubtotalFull = 0;
       let serverSubtotalSale = 0;
       const priceErrors: string[] = [];
+      const couponLineItems: CouponLineItem[] = [];
 
       // Batch fetch all variants to avoid N+1 query
       const variantIds = (products || [])
@@ -116,7 +196,7 @@ Deno.serve(async (req) => {
           const chunk = variantIds.slice(i, i + chunkSize);
           const { data: variantsChunk, error: variantsError } = await supabase
             .from("product_variants")
-            .select("id, price_modifier, sale_price, base_price, products!inner(id, base_price, sale_price, is_active)")
+            .select("id, price_modifier, sale_price, base_price, products!inner(id, category_id, base_price, sale_price, is_active)")
             .in("id", chunk);
 
           if (!variantsError && variantsChunk) {
@@ -147,6 +227,11 @@ Deno.serve(async (req) => {
 
         const lineTotal = realUnitPrice * (product.quantity || 1);
         serverSubtotal += lineTotal;
+        couponLineItems.push({
+          product_id: String(productData.id),
+          category_id: (productData.category_id as string | null) ?? null,
+          lineTotal,
+        });
 
         const isSale =
           (variantData.sale_price != null && variantData.base_price != null && Number(variantData.sale_price) < Number(variantData.base_price)) ||
@@ -166,15 +251,26 @@ Deno.serve(async (req) => {
           .eq("code", coupon_code.toUpperCase())
           .eq("is_active", true)
           .maybeSingle();
+        if (!coupon) return jsonRes({ error: "Cupom inválido ou inativo" }, 400, corsHeaders);
 
-        if (coupon) {
-          if (coupon.expiry_date && new Date(coupon.expiry_date as string) < new Date()) {
-            return jsonRes({ error: "Cupom expirado" }, 400, corsHeaders);
-          }
-          validatedDiscount = (coupon.discount_type as string) === "percentage"
-            ? (serverSubtotal * Number(coupon.discount_value)) / 100
-            : Number(coupon.discount_value);
-          validatedDiscount = Math.min(serverSubtotal, Math.max(0, validatedDiscount));
+        const { data: orderLocationRow } = await supabase
+          .from("orders")
+          .select("shipping_state, shipping_zip")
+          .eq("id", order_id)
+          .maybeSingle();
+
+        const couponCheck = validateAndComputeCouponDiscount(
+          coupon as Record<string, unknown>,
+          couponLineItems,
+          serverSubtotal,
+          String(orderLocationRow?.shipping_state || ""),
+          String(orderLocationRow?.shipping_zip || ""),
+        );
+        if (couponCheck.error) return jsonRes({ error: couponCheck.error }, 400, corsHeaders);
+        validatedDiscount = couponCheck.discount;
+
+        if (Math.abs(validatedDiscount - Number(discount_amount || 0)) > 0.1) {
+          return jsonRes({ error: "Valor do desconto divergente. Recarregue a página." }, 400, corsHeaders);
         }
       }
 
@@ -527,6 +623,7 @@ Deno.serve(async (req) => {
       // ── Server-side price validation ──
       const lineItems: any[] = [];
       let serverSubtotal = 0;
+      const couponLineItems: CouponLineItem[] = [];
 
       // Batch fetch all variants to avoid N+1 query
       const checkoutVariantIds = (products || [])
@@ -541,7 +638,7 @@ Deno.serve(async (req) => {
           const chunk = checkoutVariantIds.slice(i, i + chunkSize);
           const { data: variantsChunk, error: variantsError } = await supabase
             .from("product_variants")
-            .select("id, price_modifier, sale_price, base_price, products!inner(id, base_price, sale_price, is_active, name)")
+            .select("id, price_modifier, sale_price, base_price, products!inner(id, category_id, base_price, sale_price, is_active, name)")
             .in("id", chunk);
 
           if (!variantsError && variantsChunk) {
@@ -571,6 +668,11 @@ Deno.serve(async (req) => {
         }
 
         serverSubtotal += realUnitPrice * (product.quantity || 1);
+        couponLineItems.push({
+          product_id: String(productData.id),
+          category_id: (productData.category_id as string | null) ?? null,
+          lineTotal: realUnitPrice * (product.quantity || 1),
+        });
 
         lineItems.push({
           price_data: {
@@ -609,11 +711,23 @@ Deno.serve(async (req) => {
           .eq("code", coupon_code.toUpperCase())
           .eq("is_active", true)
           .maybeSingle();
-        if (coupon) {
-          validatedDiscount = (coupon.discount_type as string) === "percentage"
-            ? (serverSubtotal * Number(coupon.discount_value)) / 100
-            : Number(coupon.discount_value);
-          validatedDiscount = Math.min(serverSubtotal, Math.max(0, validatedDiscount));
+        if (!coupon) return jsonRes({ error: "Cupom inválido ou inativo" }, 400, corsHeaders);
+        const { data: orderLocationRow } = await supabase
+          .from("orders")
+          .select("shipping_state, shipping_zip")
+          .eq("id", order_id)
+          .maybeSingle();
+        const couponCheck = validateAndComputeCouponDiscount(
+          coupon as Record<string, unknown>,
+          couponLineItems,
+          serverSubtotal,
+          String(orderLocationRow?.shipping_state || ""),
+          String(orderLocationRow?.shipping_zip || ""),
+        );
+        if (couponCheck.error) return jsonRes({ error: couponCheck.error }, 400, corsHeaders);
+        validatedDiscount = couponCheck.discount;
+        if (Math.abs(validatedDiscount - Number(discount_amount || 0)) > 0.1) {
+          return jsonRes({ error: "Valor do desconto divergente. Recarregue a página." }, 400, corsHeaders);
         }
       }
 
