@@ -2,13 +2,20 @@
  * Fase 5: Super Admin — dashboard de saúde e catálogo de APIs.
  * Acesso restrito a super_admin e owner.
  */
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CheckCircle, ExternalLink, Loader2, RefreshCw, Shield } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertTriangle, CheckCircle, ExternalLink, Loader2, RefreshCw, Shield, Plus, LogIn, Search } from 'lucide-react';
 import { useRequireSuperAdmin } from '@/hooks/useRequireSuperAdmin';
+import { useToast } from '@/hooks/use-toast';
+import { clearImpersonatedTenantId, setImpersonatedTenantId } from '@/lib/tenant';
 
 const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') + '/functions/v1';
 
@@ -19,8 +26,27 @@ const API_CATALOG = [
   { name: 'Bling (ERP)', docs: 'https://developer.bling.com.br', purpose: 'Estoque e pedidos', functions: ['bling-webhook', 'bling-oauth', 'bling-sync', 'bling-sync-single-stock'] },
 ];
 
+const slugify = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
 export default function SuperAdmin() {
   const { isSuperAdmin, isLoading: authLoading } = useRequireSuperAdmin();
+  const { toast } = useToast();
+
+  const [search, setSearch] = useState('');
+  const [openNewTenant, setOpenNewTenant] = useState(false);
+  const [savingTenant, setSavingTenant] = useState(false);
+  const [newTenant, setNewTenant] = useState({
+    name: '',
+    slug: '',
+    plan: 'enterprise',
+    status: 'active',
+  });
 
   const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['commerce-health'],
@@ -30,6 +56,19 @@ export default function SuperAdmin() {
       return d as unknown as { ok?: boolean; error?: string; checks?: Record<string, unknown> };
     },
     staleTime: 60 * 1000,
+  });
+
+  const { data: tenants = [], isLoading: tenantsLoading, refetch: refetchTenants } = useQuery({
+    queryKey: ['super-admin-tenants'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, name, slug, active, created_at')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30 * 1000,
   });
 
   const { data: failedWebhooks, isLoading: webhooksLoading } = useQuery({
@@ -62,19 +101,129 @@ export default function SuperAdmin() {
     );
   }
 
+  const createTenant = async () => {
+    const name = newTenant.name.trim();
+    const slug = slugify(newTenant.slug || newTenant.name);
+
+    if (!name || !slug) {
+      toast({ title: 'Informe nome e slug válidos.', variant: 'destructive' });
+      return;
+    }
+
+    const slugExists = tenants.some((t) => String(t.slug).toLowerCase() === slug.toLowerCase());
+    if (slugExists) {
+      toast({ title: 'Slug já existe. Use um slug diferente.', variant: 'destructive' });
+      return;
+    }
+
+    setSavingTenant(true);
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .insert({
+          name,
+          slug,
+          active: newTenant.status === 'active',
+        });
+
+      if (error) {
+        if (error.message?.toLowerCase().includes('slug') || error.code === '23505') {
+          throw new Error('Slug já existe. Use um slug diferente.');
+        }
+        throw error;
+      }
+
+      setOpenNewTenant(false);
+      setNewTenant({ name: '', slug: '', plan: 'enterprise', status: 'active' });
+      refetchTenants();
+      toast({ title: 'Clínica criada com sucesso!' });
+    } catch (err: unknown) {
+      toast({
+        title: 'Erro ao salvar clínica.',
+        description: err instanceof Error ? err.message : 'Falha inesperada',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingTenant(false);
+    }
+  };
+
+  const filteredTenants = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return tenants;
+    return tenants.filter((t) => String(t.name).toLowerCase().includes(q) || String(t.slug).toLowerCase().includes(q));
+  }, [search, tenants]);
+
   const healthOk = health?.ok === true;
   const failedCount = failedWebhooks?.length ?? 0;
   const healthLoadingState = healthLoading || webhooksLoading;
 
   return (
-    <div className="p-6 max-w-4xl space-y-6 animate-content-in">
+    <div className="p-6 max-w-5xl space-y-6 animate-content-in">
       <div className="flex items-center gap-2">
         <Shield className="h-8 w-8 text-violet-600" />
         <div>
           <h1 className="text-2xl font-bold">Super Admin</h1>
-          <p className="text-sm text-muted-foreground">Visão de saúde e catálogo de APIs da plataforma.</p>
+          <p className="text-sm text-muted-foreground">Visão de saúde e gestão de clínicas da plataforma.</p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center justify-between">
+            <span>Clínicas</span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearImpersonatedTenantId();
+                  window.location.href = '/admin';
+                }}
+              >
+                Voltar p/ padrão
+              </Button>
+              <Button size="sm" onClick={() => setOpenNewTenant(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Nova clínica
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="relative max-w-sm">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Buscar clínica..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+
+          {tenantsLoading ? (
+            <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Carregando clínicas...</div>
+          ) : filteredTenants.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Nenhuma clínica encontrada.</div>
+          ) : (
+            <div className="space-y-2">
+              {filteredTenants.map((tenant) => (
+                <div key={tenant.id} className="border rounded-md p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{tenant.name}</p>
+                    <p className="text-xs text-muted-foreground">/{tenant.slug} · {tenant.active ? 'Ativa' : 'Inativa'}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setImpersonatedTenantId(String(tenant.id));
+                      toast({ title: `Impersonando ${tenant.name}`, description: 'Abrindo admin da clínica selecionada.' });
+                      window.location.href = '/admin';
+                    }}
+                  >
+                    <LogIn className="h-4 w-4 mr-1" /> Impersonar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Dashboard de saúde */}
       <Card className={healthOk && failedCount === 0 ? 'border-green-500/50' : 'border-amber-500/50'}>
@@ -168,6 +317,62 @@ export default function SuperAdmin() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={openNewTenant} onOpenChange={setOpenNewTenant}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova Clínica</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>Nome *</Label>
+              <Input
+                value={newTenant.name}
+                onChange={(e) => setNewTenant((p) => ({
+                  ...p,
+                  name: e.target.value,
+                  slug: p.slug ? p.slug : slugify(e.target.value),
+                }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Slug *</Label>
+              <Input
+                value={newTenant.slug}
+                onChange={(e) => setNewTenant((p) => ({ ...p, slug: slugify(e.target.value) }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Plano</Label>
+                <Select value={newTenant.plan} onValueChange={(v) => setNewTenant((p) => ({ ...p, plan: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="starter">Starter</SelectItem>
+                    <SelectItem value="pro">Pro</SelectItem>
+                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select value={newTenant.status} onValueChange={(v) => setNewTenant((p) => ({ ...p, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={createTenant} disabled={savingTenant} className="w-full">
+              {savingTenant ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

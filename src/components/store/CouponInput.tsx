@@ -7,14 +7,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useHaptics } from '@/hooks/useHaptics';
 import { supabase } from '@/integrations/supabase/client';
 import { Coupon } from '@/types/database';
-import { hasEligibleItems } from '@/lib/couponDiscount';
  
  interface CouponInputProps {
    compact?: boolean;
  }
  
  export function CouponInput({ compact = false }: CouponInputProps) {
-    const { appliedCoupon, applyCoupon, removeCoupon, subtotal, items } = useCart();
+    const { appliedCoupon, applyCoupon, removeCoupon, subtotal, items, selectedShipping, setServerQuote } = useCart();
     const { toast } = useToast();
     const haptics = useHaptics();
     const [code, setCode] = useState('');
@@ -35,77 +34,57 @@ import { hasEligibleItems } from '@/lib/couponDiscount';
      setIsLoading(true);
      
      try {
-       const { data, error } = await supabase
-         .from('coupons')
-         .select('*')
-         .eq('code', code.toUpperCase())
-         .eq('is_active', true)
-         .single();
- 
-       if (error || !data) {
-          setShakeError(true); haptics.error();
-          setTimeout(() => setShakeError(false), 500);
-          toast({
-            title: 'Cupom inválido',
-            description: 'O código inserido não existe ou está inativo.',
-            variant: 'destructive',
-          });
-          return;
-        }
- 
-       const coupon = data as Coupon;
- 
-       // Check expiry
-       if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
+       const payloadItems = items.map((item) => ({
+         product_id: item.product.id,
+         category_id: item.product.category_id,
+         brand: item.product.brand,
+         line_total: ((item.variant.sale_price ?? item.variant.base_price ?? item.product.sale_price ?? item.product.base_price) || 0) * item.quantity,
+         is_promotional: !!item.variant.sale_price || !!item.product.sale_price,
+       }));
+
+       const { data: validation, error } = await supabase.functions.invoke('checkout-validate-coupon', {
+         body: {
+           coupon_code: code.toUpperCase(),
+           subtotal,
+           items: payloadItems,
+         },
+       });
+
+       if (error || !validation?.valid) {
+         setShakeError(true); haptics.error();
+         setTimeout(() => setShakeError(false), 500);
          toast({
-           title: 'Cupom expirado',
-           description: 'Este cupom já não está mais válido.',
-           variant: 'destructive',
-         });
-         return;
-       }
- 
-       // Check max uses
-       if (coupon.max_uses && coupon.uses_count >= coupon.max_uses) {
-         toast({
-           title: 'Cupom esgotado',
-           description: 'Este cupom atingiu o limite máximo de uso.',
-           variant: 'destructive',
-         });
-         return;
-       }
- 
-       // Check minimum purchase
-       if (coupon.min_purchase_amount && subtotal < coupon.min_purchase_amount) {
-         toast({
-           title: 'Valor mínimo não atingido',
-           description: `Este cupom requer compras acima de ${formatPrice(coupon.min_purchase_amount)}.`,
+           title: 'Cupom não aplicado',
+           description: validation?.error_message || 'O cupom informado é inválido para este carrinho.',
            variant: 'destructive',
          });
          return;
        }
 
-       // Check category/product restriction: cart must have at least one eligible item
-       if (!hasEligibleItems(coupon, items)) {
-         setShakeError(true);
-         haptics.error();
-         setTimeout(() => setShakeError(false), 500);
-         toast({
-           title: 'Cupom não aplicável',
-           description: 'Este cupom não se aplica aos produtos do seu carrinho.',
-           variant: 'destructive',
-         });
+       const { data: coupon, error: couponError } = await supabase
+         .from('coupons')
+         .select('*')
+         .eq('code', code.toUpperCase())
+         .single();
+
+       if (couponError || !coupon) {
+         toast({ title: 'Cupom inválido', description: 'Não foi possível carregar o cupom.', variant: 'destructive' });
          return;
        }
- 
+
        haptics.success();
-       applyCoupon(coupon);
+       applyCoupon(coupon as Coupon);
+       setServerQuote({
+         subtotal,
+         discount: Number(validation.discount_amount || 0),
+         shipping: Number(selectedShipping?.price || 0),
+         total: Math.max(0, subtotal - Number(validation.discount_amount || 0) + Number(selectedShipping?.price || 0)),
+         couponCode: coupon.code,
+       });
        setCode('');
        toast({
          title: 'Cupom aplicado!',
-         description: coupon.discount_type === 'percentage' 
-           ? `Desconto de ${coupon.discount_value}% aplicado.`
-           : `Desconto de ${formatPrice(coupon.discount_value)} aplicado.`,
+         description: `Economia de ${formatPrice(Number(validation.discount_amount || 0))}.`,
        });
      } finally {
        setIsLoading(false);

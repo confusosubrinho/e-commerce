@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+export const SUPERADMIN_IMPERSONATE_TENANT_ID_KEY = 'superadmin_impersonate_tenant_id';
 
 /** Domínio considerado "principal" (sem customização); nesses casos usa tenant padrão. */
 export const MAIN_DOMAIN_ALIASES = ['localhost', '127.0.0.1'];
@@ -16,6 +17,21 @@ export const MAIN_DOMAIN_ALIASES = ['localhost', '127.0.0.1'];
  */
 export function resolveTenantId(): string {
   return DEFAULT_TENANT_ID;
+}
+
+export function setImpersonatedTenantId(tenantId: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SUPERADMIN_IMPERSONATE_TENANT_ID_KEY, tenantId);
+}
+
+export function clearImpersonatedTenantId() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(SUPERADMIN_IMPERSONATE_TENANT_ID_KEY);
+}
+
+function getImpersonatedTenantId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(SUPERADMIN_IMPERSONATE_TENANT_ID_KEY);
 }
 
 /**
@@ -69,6 +85,19 @@ export function getSlugFromPath(pathname: string): string | null {
  */
 export async function resolveTenantIdAsync(supabase: SupabaseClient): Promise<string> {
   if (typeof window === 'undefined') return DEFAULT_TENANT_ID;
+
+  // Super Admin impersonation (somente conveniência de navegação no admin)
+  const impersonatedTenantId = getImpersonatedTenantId();
+  if (impersonatedTenantId) {
+    const { data } = await supabase
+      .from('tenants')
+      .select('id, active')
+      .eq('id', impersonatedTenantId)
+      .eq('active', true)
+      .maybeSingle();
+    if (data?.id) return data.id as string;
+    clearImpersonatedTenantId();
+  }
 
   const hostname = window.location.hostname;
   const pathname = window.location.pathname;

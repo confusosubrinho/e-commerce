@@ -41,34 +41,67 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify(log), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Y45: Use fetchWithTimeout with 15s timeout for better UX
-      const res = await fetchWithTimeout(`https://api.dooki.com.br/v2/${alias}/catalog/products?limit=1`, {
+      // 1) Validação canônica de credenciais (docs Yampi): POST /auth/me
+      const authRes = await fetchWithTimeout(`https://api.dooki.com.br/v2/${alias}/auth/me`, {
+        method: "POST",
         headers: {
           "User-Token": userToken,
           "User-Secret-Key": userSecretKey,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      }, 15_000);
+
+      const authData = await authRes.json().catch(() => null);
+      if (!authRes.ok) {
+        const log = {
+          provider: "yampi",
+          status: "error",
+          message: `Auth Yampi falhou em /auth/me (${authRes.status})`,
+          payload_preview: { status: authRes.status, body: authData },
+        };
+        await supabase.from("integrations_checkout_test_logs").insert(log);
+        return new Response(JSON.stringify(log), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 2) Smoke de permissão de catálogo (opcional, melhora diagnóstico)
+      const catalogRes = await fetchWithTimeout(`https://api.dooki.com.br/v2/${alias}/catalog/products?limit=1`, {
+        headers: {
+          "User-Token": userToken,
+          "User-Secret-Key": userSecretKey,
+          Accept: "application/json",
         },
       }, 15_000);
 
-      const data = await res.json();
+      const catalogData = await catalogRes.json().catch(() => null);
 
-      if (res.ok) {
+      if (catalogRes.ok) {
         const log = {
           provider: "yampi",
           status: "success",
-          message: `Conexão OK. ${data?.data?.length || 0} produto(s) encontrado(s).`,
-          payload_preview: { status: res.status, products_count: data?.data?.length || 0 },
+          message: `Conexão OK (/auth/me + catálogo). ${catalogData?.data?.length || 0} produto(s) encontrado(s).`,
+          payload_preview: {
+            auth_me_status: authRes.status,
+            catalog_status: catalogRes.status,
+            products_count: catalogData?.data?.length || 0,
+          },
         };
         await supabase.from("integrations_checkout_test_logs").insert(log);
         return new Response(JSON.stringify(log), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       } else {
         const log = {
           provider: "yampi",
-          status: "error",
-          message: `Yampi retornou ${res.status}: ${data?.message || JSON.stringify(data)}`,
-          payload_preview: { status: res.status, body: data },
+          status: "partial",
+          message: `Credenciais válidas em /auth/me, mas catálogo retornou ${catalogRes.status}`,
+          payload_preview: {
+            auth_me_status: authRes.status,
+            catalog_status: catalogRes.status,
+            catalog_body: catalogData,
+          },
         };
         await supabase.from("integrations_checkout_test_logs").insert(log);
-        return new Response(JSON.stringify(log), { status: res.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify(log), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 

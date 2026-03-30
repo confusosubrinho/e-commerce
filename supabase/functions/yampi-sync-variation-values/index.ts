@@ -27,6 +27,49 @@ async function yampiRequest(
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function getYampiPagination(data: Record<string, unknown> | null | undefined): Record<string, unknown> | undefined {
+  const meta = data?.meta as Record<string, unknown> | undefined;
+  const direct = meta?.pagination as Record<string, unknown> | undefined;
+  const nested = (meta?.meta as Record<string, unknown> | undefined)?.pagination as Record<string, unknown> | undefined;
+  return direct ?? nested;
+}
+
+async function yampiFetchAllPaginated(
+  yampiBase: string,
+  yampiHeaders: Record<string, string>,
+  path: string,
+  label: string,
+  limit = 50,
+): Promise<Array<Record<string, unknown>>> {
+  const all: Array<Record<string, unknown>> = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const separator = path.includes("?") ? "&" : "?";
+    const pagePath = `${path}${separator}limit=${limit}&page=${page}`;
+    const res = await yampiRequest(yampiBase, yampiHeaders, pagePath, "GET");
+    if (!res.ok) break;
+
+    const pageData = Array.isArray(res.data?.data)
+      ? (res.data.data as Array<Record<string, unknown>>)
+      : [];
+    all.push(...pageData);
+
+    const pagination = getYampiPagination(res.data);
+    const currentPage = Number(pagination?.current_page ?? page);
+    const perPage = Number(pagination?.per_page ?? limit);
+    const total = Number(pagination?.total ?? all.length);
+    const totalPagesRaw = Number(pagination?.total_pages ?? 0);
+    const totalPages = totalPagesRaw > 0 ? totalPagesRaw : Math.max(1, Math.ceil(total / Math.max(1, perPage)));
+    hasMore = currentPage < totalPages;
+    page = currentPage + 1;
+  }
+
+  console.log(`[YAMPI-VAR] ${label}: fetched ${all.length} items`);
+  return all;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -72,12 +115,10 @@ Deno.serve(async (req) => {
     // ─── Step 1: Fetch/Create variation groups (Tamanho, Cor) ───
     const groupMap: Record<string, number> = {};
 
-    const groupsRes = await yampiRequest(yampiBase, yampiHeaders, "/catalog/variations?limit=50", "GET");
-    if (groupsRes.ok && groupsRes.data?.data) {
-      for (const g of groupsRes.data.data as Array<Record<string, unknown>>) {
-        const name = (g.name as string || "").trim();
-        groupMap[name.toLowerCase()] = g.id as number;
-      }
+    const variationGroups = await yampiFetchAllPaginated(yampiBase, yampiHeaders, "/catalog/variations", "variation-groups");
+    for (const g of variationGroups) {
+      const name = (g.name as string || "").trim();
+      groupMap[name.toLowerCase()] = g.id as number;
     }
 
     // Ensure "Tamanho" exists
@@ -119,12 +160,14 @@ Deno.serve(async (req) => {
             const val = (v.name as string || v.value as string || "").trim().toLowerCase();
             if (val) existingValues[groupName][val] = v.id as number;
           }
-          const meta = res.data.meta as Record<string, unknown>;
-          const pagination = meta?.pagination as Record<string, unknown>;
-          const currentPage = pagination?.current_page as number || page;
-          const totalPages = Math.ceil((pagination?.total as number || 0) / (pagination?.per_page as number || 50));
+          const pagination = getYampiPagination(res.data);
+          const currentPage = Number(pagination?.current_page ?? page);
+          const totalPagesRaw = Number(pagination?.total_pages ?? 0);
+          const totalPages = totalPagesRaw > 0
+            ? totalPagesRaw
+            : Math.ceil((Number(pagination?.total) || 0) / (Number(pagination?.per_page) || 50));
           hasMore = currentPage < totalPages;
-          page++;
+          page = currentPage + 1;
         } else {
           hasMore = false;
         }

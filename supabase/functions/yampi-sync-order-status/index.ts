@@ -18,6 +18,39 @@ function jsonRes(body: Record<string, unknown>, status = 200) {
   });
 }
 
+async function fetchYampiOrdersPaginated(
+  baseUrl: string,
+  includeQuery: string,
+  headers: Record<string, string>,
+  queryParam: string,
+  queryValue: string,
+  limit = 50,
+  maxPages = 10,
+): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  let page = 1;
+
+  while (page <= maxPages) {
+    const url = `${baseUrl}/orders?${includeQuery}&${queryParam}=${encodeURIComponent(queryValue)}&limit=${limit}&page=${page}`;
+    const res = await fetchWithTimeout(url, { headers });
+    if (!res.ok) return all;
+
+    const json = await res.json();
+    const pageData = Array.isArray(json?.data) ? (json.data as Record<string, unknown>[]) : [];
+    all.push(...pageData);
+
+    const pagination = (json?.meta as Record<string, unknown> | undefined)?.pagination as Record<string, unknown> | undefined;
+    const currentPage = Number(pagination?.current_page ?? page);
+    const perPage = Number(pagination?.per_page ?? limit);
+    const total = Number(pagination?.total ?? all.length);
+    const totalPages = Math.max(1, Math.ceil(total / Math.max(1, perPage)));
+    if (currentPage >= totalPages) break;
+    page = currentPage + 1;
+  }
+
+  return all;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonRes({ ok: false, error: "Method not allowed" }, 405);
@@ -107,14 +140,9 @@ Deno.serve(async (req) => {
   }
 
   async function fetchByNumber(num: string): Promise<Record<string, unknown> | null> {
-    const url = `${baseUrl}/orders?${includeQuery}&number=${encodeURIComponent(num)}&limit=1`;
-    console.log(`[yampi-sync] GET ${url}`);
     try {
-      const res = await fetchWithTimeout(url, { headers });
-      console.log(`[yampi-sync] GET /orders?number=${num} → ${res.status}`);
-      if (!res.ok) return null;
-      const json = await res.json();
-      return (json?.data?.[0] as Record<string, unknown>) || null;
+      const orders = await fetchYampiOrdersPaginated(baseUrl, includeQuery, headers, "number", num);
+      return orders.find((o) => String(o.number) === num || String(o.id) === num) || orders[0] || null;
     } catch (e) {
       console.error(`[yampi-sync] fetchByNumber(${num}) error:`, e);
       return null;
@@ -122,13 +150,8 @@ Deno.serve(async (req) => {
   }
 
   async function fetchBySearch(q: string): Promise<Record<string, unknown> | null> {
-    const url = `${baseUrl}/orders?${includeQuery}&q=${encodeURIComponent(q)}&limit=5`;
-    console.log(`[yampi-sync] GET ${url}`);
     try {
-      const res = await fetchWithTimeout(url, { headers });
-      if (!res.ok) return null;
-      const json = await res.json();
-      const orders = json?.data || [];
+      const orders = await fetchYampiOrdersPaginated(baseUrl, includeQuery, headers, "q", q);
       return orders.find((o: Record<string, unknown>) =>
         String(o.id) === q || String(o.number) === q
       ) || orders[0] || null;
