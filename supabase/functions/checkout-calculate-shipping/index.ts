@@ -27,17 +27,22 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const rateIdentifier = `shipping:${clientIP}`;
-    const { data: allowed, error: rlErr } = await supabase.rpc("rate_limit_check_and_log", {
-      p_identifier: rateIdentifier,
-      p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
-      p_max: RATE_LIMIT_MAX,
-    });
+    try {
+      const { data: allowed, error: rlErr } = await supabase.rpc("rate_limit_check_and_log", {
+        p_identifier: rateIdentifier,
+        p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+        p_max: RATE_LIMIT_MAX,
+      });
 
-    if (rlErr || allowed === false) {
-      return new Response(
-        JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (!rlErr && allowed === false) {
+        return new Response(
+          JSON.stringify({ error: "Muitas requisições. Tente novamente em instantes." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (rlErr) console.warn("rate_limit_check_and_log fail-open:", rlErr.message);
+    } catch (e: any) {
+      console.warn("Rate limit fail-open:", e.message);
     }
 
     // Get Melhor Envio token from store_settings
