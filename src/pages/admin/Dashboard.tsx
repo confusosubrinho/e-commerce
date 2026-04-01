@@ -300,7 +300,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="p-3 md:p-6 pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              Notificações {(unreadCount ?? 0) > 0 && <Badge variant="destructive" className="text-[10px]">{unreadCount}</Badge>}
+              Notificações {((unreadCount as number) ?? 0) > 0 && <Badge variant="destructive" className="text-[10px]">{unreadCount as number}</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
