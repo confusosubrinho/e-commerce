@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
       let serverSubtotalFull = 0;
       let serverSubtotalSale = 0;
       const priceErrors: string[] = [];
-      const lineItems: { product_id: string; category_id: string | null; lineTotal: number }[] = [];
+      const lineItems: { product_id: string; category_id: string | null; lineTotal: number; isSale: boolean }[] = [];
 
       // Batch fetch variants to prevent N+1 queries
       const variantIds = products.map((p: any) => p.variant_id).filter(Boolean);
