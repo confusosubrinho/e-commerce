@@ -266,6 +266,8 @@ Deno.serve(async (req) => {
 
         if (couponError || !coupon) return errorResponse("Cupom inválido ou inativo", 400);
         if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) return errorResponse("Cupom expirado", 400);
+        if (coupon.start_date && new Date(coupon.start_date) > new Date()) return errorResponse("Este cupom ainda não está disponível", 400);
+        if (coupon.max_uses != null && (coupon.uses_count ?? 0) >= coupon.max_uses) return errorResponse("Cupom esgotado", 400);
         couponRow = coupon as Record<string, unknown>;
       }
 
