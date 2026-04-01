@@ -26,7 +26,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
-  const { data: errorCount24h } = useQuery({
+  const { data: errorCount24h } = useQuery<number>({
     queryKey: ['health-errors-24h'],
     queryFn: async () => {
       const since = new Date(Date.now() - 86400000).toISOString();
