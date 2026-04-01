@@ -337,6 +337,7 @@ Deno.serve(async (req) => {
           product_id: productData.id,
           category_id: productData.category_id ?? null,
           lineTotal,
+          isSale: false,
         });
 
         const isSale =
