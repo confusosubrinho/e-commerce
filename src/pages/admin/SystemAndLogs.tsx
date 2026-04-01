@@ -249,7 +249,7 @@ function AppLogsSection() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching } = useQuery<{ logs: any[]; total: number }>({
     queryKey: ['app-logs', scopeFilter, levelFilter, searchQuery, page],
     queryFn: async () => {
       let q = supabase.from('app_logs').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);

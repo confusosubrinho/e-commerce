@@ -44,7 +44,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
-  const { data: productStats } = useQuery({
+  const { data: productStats } = useQuery<{ active: number; total: number; pending: number }>({
     queryKey: ['health-product-stats'],
     queryFn: async () => {
       const [a, t, p] = await Promise.all([
