@@ -350,7 +350,7 @@ Deno.serve(async (req) => {
         return errorResponse(priceErrors.join("; "), 400);
       }
 
-      // ── Full coupon validation (category/product/location + discount amount) ──
+      // ── Full coupon validation (category/product/location/sale + discount amount) ──
       if (couponRow && coupon_code) {
         const coupon = couponRow as {
           id: string;
@@ -361,61 +361,74 @@ Deno.serve(async (req) => {
           applicable_product_ids?: string[] | null;
           applicable_states?: string[] | null;
           applicable_zip_prefixes?: string[] | null;
+          exclude_sale_products?: boolean;
+          per_user_limit?: number | null;
+          type?: string | null;
         };
 
-        if (coupon.min_purchase_amount && serverSubtotal < coupon.min_purchase_amount) {
-          return errorResponse(`Valor mínimo para este cupom: R$ ${coupon.min_purchase_amount}`, 400);
-        }
-
-        const productIds = coupon.applicable_product_ids?.filter(Boolean) ?? [];
-        const categoryId = coupon.applicable_category_id ?? null;
-
-        let applicableSubtotal = 0;
-        if (productIds.length > 0) {
-          const set = new Set(productIds);
-          for (const item of lineItems) {
-            if (set.has(item.product_id)) applicableSubtotal += item.lineTotal;
-          }
-        } else if (categoryId) {
-          for (const item of lineItems) {
-            if (item.category_id === categoryId) applicableSubtotal += item.lineTotal;
-          }
+        // Free shipping coupons don't produce a monetary discount
+        if (coupon.type === 'free_shipping') {
+          validatedDiscount = 0;
+          validatedCouponId = coupon.id;
         } else {
-          applicableSubtotal = serverSubtotal;
-        }
-
-        if (applicableSubtotal <= 0) {
-          return errorResponse("Este cupom não se aplica aos produtos do pedido", 400);
-        }
-
-        const states = coupon.applicable_states?.filter(Boolean) ?? [];
-        const zipPrefixes = coupon.applicable_zip_prefixes?.filter(Boolean) ?? [];
-        if (states.length > 0) {
-          const stateNorm = (shipping_state || "").trim().toUpperCase().slice(0, 2);
-          if (!stateNorm || !states.some((s: string) => s.trim().toUpperCase().slice(0, 2) === stateNorm)) {
-            return errorResponse("Este cupom não é válido para o estado informado", 400);
+          if (coupon.min_purchase_amount && serverSubtotal < coupon.min_purchase_amount) {
+            return errorResponse(`Valor mínimo para este cupom: R$ ${coupon.min_purchase_amount}`, 400);
           }
-        }
-        if (zipPrefixes.length > 0) {
-          const zipDigits = (shipping_zip || "").replace(/\D/g, "");
-          const zipMatches = zipDigits && zipPrefixes.some((p: string) => {
-            const prefixDigits = (p || "").replace(/\D/g, "");
-            return prefixDigits && zipDigits.startsWith(prefixDigits);
-          });
-          if (!zipMatches) {
-            return errorResponse("Este cupom não é válido para o CEP informado", 400);
+
+          const productIds = coupon.applicable_product_ids?.filter(Boolean) ?? [];
+          const categoryId = coupon.applicable_category_id ?? null;
+          const excludeSale = coupon.exclude_sale_products === true;
+
+          let applicableSubtotal = 0;
+
+          for (const item of lineItems) {
+            // Skip sale items if exclude_sale_products is true
+            if (excludeSale && item.isSale) continue;
+
+            if (productIds.length > 0) {
+              if (!new Set(productIds).has(item.product_id)) continue;
+            } else if (categoryId) {
+              if (item.category_id !== categoryId) continue;
+            }
+            applicableSubtotal += item.lineTotal;
           }
-        }
 
-        validatedDiscount = coupon.discount_type === "percentage"
-          ? (applicableSubtotal * coupon.discount_value) / 100
-          : coupon.discount_value;
-        validatedDiscount = Math.min(applicableSubtotal, Math.max(0, validatedDiscount));
+          if (applicableSubtotal <= 0) {
+            const msg = excludeSale
+              ? "Este cupom não pode ser usado com itens em promoção"
+              : "Este cupom não se aplica aos produtos do pedido";
+            return errorResponse(msg, 400);
+          }
 
-        if (Math.abs(validatedDiscount - discount_amount) > 0.1) {
-          return errorResponse("Valor do desconto divergente. Recarregue a página.", 400);
+          const states = coupon.applicable_states?.filter(Boolean) ?? [];
+          const zipPrefixes = coupon.applicable_zip_prefixes?.filter(Boolean) ?? [];
+          if (states.length > 0) {
+            const stateNorm = (shipping_state || "").trim().toUpperCase().slice(0, 2);
+            if (!stateNorm || !states.some((s: string) => s.trim().toUpperCase().slice(0, 2) === stateNorm)) {
+              return errorResponse("Este cupom não é válido para o estado informado", 400);
+            }
+          }
+          if (zipPrefixes.length > 0) {
+            const zipDigits = (shipping_zip || "").replace(/\D/g, "");
+            const zipMatches = zipDigits && zipPrefixes.some((p: string) => {
+              const prefixDigits = (p || "").replace(/\D/g, "");
+              return prefixDigits && zipDigits.startsWith(prefixDigits);
+            });
+            if (!zipMatches) {
+              return errorResponse("Este cupom não é válido para o CEP informado", 400);
+            }
+          }
+
+          validatedDiscount = coupon.discount_type === "percentage"
+            ? (applicableSubtotal * coupon.discount_value) / 100
+            : coupon.discount_value;
+          validatedDiscount = Math.round(Math.min(applicableSubtotal, Math.max(0, validatedDiscount)) * 100) / 100;
+
+          if (Math.abs(validatedDiscount - discount_amount) > 0.1) {
+            return errorResponse("Valor do desconto divergente. Recarregue a página.", 400);
+          }
+          validatedCouponId = coupon.id;
         }
-        validatedCouponId = coupon.id;
       }
 
       const { data: orderRow } = await supabase
