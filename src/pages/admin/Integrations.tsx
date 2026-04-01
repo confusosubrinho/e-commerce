@@ -1384,7 +1384,7 @@ function BlingMonitoringPanel() {
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.blingMonitor),
   });
 
-  const { data: syncRuns } = useQuery({
+  const { data: syncRuns } = useQuery<any[]>({
     queryKey: ['bling-sync-runs'],
     queryFn: async () => {
       const { data, error } = await supabase
