@@ -35,7 +35,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
-  const { data: appLogErrors } = useQuery({
+  const { data: appLogErrors } = useQuery<number>({
     queryKey: ['health-app-log-errors'],
     queryFn: async () => {
       const since = new Date(Date.now() - 86400000).toISOString();
