@@ -46,7 +46,7 @@ export function useTenantPlan() {
         `
         )
         .eq('id', tenantId)
-        .maybeSingle() as any);
+        .maybeSingle();
 
       if (err) throw err;
       return data as unknown as TenantWithBilling | null;
