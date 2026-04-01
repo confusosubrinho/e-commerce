@@ -1370,7 +1370,7 @@ function BlingMonitoringPanel() {
   const { toast } = useToast();
   const [testingWebhook, setTestingWebhook] = useState(false);
 
-  const { data: webhookLogs, isLoading: logsLoading } = useQuery({
+  const { data: webhookLogs, isLoading: logsLoading } = useQuery<any[]>({
     queryKey: ['bling-webhook-logs'],
     queryFn: async () => {
       const { data, error } = await supabase
