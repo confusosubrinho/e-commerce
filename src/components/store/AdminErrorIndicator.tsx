@@ -28,7 +28,7 @@ export function AdminErrorIndicator() {
     checkAdmin();
   }, []);
 
-  const { data: errors } = useQuery({
+  const { data: errors } = useQuery<ErrorLog[]>({
     queryKey: ['admin-errors-indicator'],
     queryFn: async () => {
       const { data, error } = await supabase

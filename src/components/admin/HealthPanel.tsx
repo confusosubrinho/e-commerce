@@ -10,7 +10,7 @@ import { ptBR } from 'date-fns/locale';
 const SLA_MINUTES = { bling_webhook: 60, bling_cron: 15, errors_threshold: 10 };
 
 export function HealthPanel() {
-  const { data: lastWebhook } = useQuery({
+  const { data: lastWebhook } = useQuery<{ received_at?: string; result?: string } | null>({
     queryKey: ['health-last-webhook'],
     queryFn: async () => {
       const { data } = await supabase.from('bling_webhook_logs').select('received_at, result').order('received_at', { ascending: false }).limit(1).maybeSingle();
@@ -18,7 +18,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
-  const { data: lastCron } = useQuery({
+  const { data: lastCron } = useQuery<{ started_at?: string; errors_count?: number; trigger_type?: string } | null>({
     queryKey: ['health-last-cron'],
     queryFn: async () => {
       const { data } = await supabase.from('bling_sync_runs').select('started_at, finished_at, errors_count, trigger_type').order('started_at', { ascending: false }).limit(1).maybeSingle();
@@ -26,7 +26,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
-  const { data: errorCount24h } = useQuery({
+  const { data: errorCount24h } = useQuery<number>({
     queryKey: ['health-errors-24h'],
     queryFn: async () => {
       const since = new Date(Date.now() - 86400000).toISOString();
@@ -35,7 +35,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
-  const { data: appLogErrors } = useQuery({
+  const { data: appLogErrors } = useQuery<number>({
     queryKey: ['health-app-log-errors'],
     queryFn: async () => {
       const since = new Date(Date.now() - 86400000).toISOString();
@@ -44,7 +44,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthAggregate),
   });
-  const { data: productStats } = useQuery({
+  const { data: productStats } = useQuery<{ active: number; total: number; pending: number }>({
     queryKey: ['health-product-stats'],
     queryFn: async () => {
       const [a, t, p] = await Promise.all([

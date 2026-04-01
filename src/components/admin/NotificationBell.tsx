@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { Bell, ShoppingCart, PackageX, Star, UserPlus, CreditCard, Info, MessageCircle, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '@/hooks/useNotifications';
+import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead, type AdminNotification } from '@/hooks/useNotifications';
 import { useBrowserNotificationPermission } from '@/hooks/useBrowserNotificationPermission';
 import { showBrowserNotification } from '@/lib/browserNotifications';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -23,8 +23,8 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 
 export function NotificationBell() {
   const navigate = useNavigate();
-  const { data: notifications } = useNotifications(10);
-  const { data: unreadCount } = useUnreadCount();
+  const { data: notifications } = useNotifications(10) as { data: AdminNotification[] | undefined };
+  const { data: unreadCount } = useUnreadCount() as { data: number | undefined };
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const { supported: browserNotifySupported, permission: browserPermission, requestPermission, isRequesting } = useBrowserNotificationPermission();
@@ -52,7 +52,7 @@ export function NotificationBell() {
     });
   }, [unreadCount, notifications, browserPermission]);
 
-  const handleClick = (n: typeof notifications extends (infer T)[] ? T : never) => {
+  const handleClick = (n: AdminNotification) => {
     if (!n.is_read) markAsRead.mutate(n.id);
     if (n.link) navigate(n.link);
   };

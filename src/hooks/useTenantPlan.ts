@@ -18,7 +18,7 @@ export function useTenantPlan() {
   } = useQuery({
     queryKey: ['tenant-plan', tenantId],
     queryFn: async (): Promise<TenantWithBilling | null> => {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await (supabase as any)
         .from('tenants')
         .select(
           `

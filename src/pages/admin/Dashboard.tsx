@@ -300,13 +300,13 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="p-3 md:p-6 pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              Notificações {(unreadCount ?? 0) > 0 && <Badge variant="destructive" className="text-[10px]">{unreadCount}</Badge>}
+              Notificações {((unreadCount as number) ?? 0) > 0 && <Badge variant="destructive" className="text-[10px]">{unreadCount as number}</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-3 md:p-6 pt-0">
-            {notifications?.length ? (
+            {(notifications as any[])?.length ? (
               <div className="space-y-2">
-                {notifications.filter(n => !n.is_read).slice(0, 5).map(n => (
+                {(notifications as any[]).filter(n => !n.is_read).slice(0, 5).map(n => (
                   <button key={n.id} onClick={() => n.link && navigate(n.link)} className="w-full text-left flex gap-2 p-1.5 rounded hover:bg-muted/50 transition-colors">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium truncate">{n.title}</p>
@@ -314,7 +314,7 @@ export default function Dashboard() {
                     </div>
                   </button>
                 ))}
-                {notifications.filter(n => !n.is_read).length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Tudo em dia! 🎉</p>}
+                {(notifications as any[]).filter(n => !n.is_read).length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Tudo em dia! 🎉</p>}
               </div>
             ) : <p className="text-xs text-muted-foreground text-center py-6">Nenhuma notificação</p>}
           </CardContent>

@@ -54,8 +54,8 @@ export async function invokeCheckoutFunction<T = unknown>(
   requestId?: string | null,
   timeoutMs: number = DEFAULT_CHECKOUT_TIMEOUT_MS
 ): Promise<{ data: T; error: Error | null }> {
-  const supabaseUrl = typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL;
-  if (!supabaseUrl || supabaseUrl === "https://placeholder.supabase.co") {
+  const supabaseUrl = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) || "https://sojrvsbqkrbxoymlwtii.supabase.co";
+  if (supabaseUrl === "https://placeholder.supabase.co") {
     return {
       data: null as T,
       error: new Error(

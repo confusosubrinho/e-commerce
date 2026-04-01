@@ -1370,7 +1370,7 @@ function BlingMonitoringPanel() {
   const { toast } = useToast();
   const [testingWebhook, setTestingWebhook] = useState(false);
 
-  const { data: webhookLogs, isLoading: logsLoading } = useQuery({
+  const { data: webhookLogs, isLoading: logsLoading } = useQuery<any[]>({
     queryKey: ['bling-webhook-logs'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1384,7 +1384,7 @@ function BlingMonitoringPanel() {
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.blingMonitor),
   });
 
-  const { data: syncRuns } = useQuery({
+  const { data: syncRuns } = useQuery<any[]>({
     queryKey: ['bling-sync-runs'],
     queryFn: async () => {
       const { data, error } = await supabase
