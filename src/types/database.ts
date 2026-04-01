@@ -108,12 +108,16 @@ export interface Banner {
    max_uses: number | null;
    uses_count: number;
    expiry_date: string | null;
+   start_date: string | null;
    is_active: boolean;
    type?: 'standard' | 'free_shipping' | 'first_purchase' | null;
    applicable_category_id?: string | null;
    applicable_product_ids?: string[] | null;
    applicable_states?: string[] | null;
    applicable_zip_prefixes?: string[] | null;
+   exclude_sale_products?: boolean;
+   per_user_limit?: number | null;
+   tenant_id?: string;
    created_at: string;
    updated_at: string;
  }
