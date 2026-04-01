@@ -125,8 +125,12 @@ Deno.serve(async (req) => {
         p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
         p_max: RATE_LIMIT_MAX,
       });
-      if (rlErr || allowed === false) {
+      // Fail open: se a RPC não existir ou falhar, não bloquear checkout
+      if (!rlErr && allowed === false) {
         return jsonRes({ success: false, error: "Muitas requisições. Tente novamente em alguns minutos." }, 429, corsHeaders);
+      }
+      if (rlErr) {
+        console.warn("checkout-router: rate_limit_check_and_log falhou (fail-open):", rlErr.message);
       }
     } catch (e) {
       // Fail open: se o DB de rate limit falhar, não bloquear checkout.
