@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { Bell, ShoppingCart, PackageX, Star, UserPlus, CreditCard, Info, MessageCircle, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } from '@/hooks/useNotifications';
+import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead, type AdminNotification } from '@/hooks/useNotifications';
 import { useBrowserNotificationPermission } from '@/hooks/useBrowserNotificationPermission';
 import { showBrowserNotification } from '@/lib/browserNotifications';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
