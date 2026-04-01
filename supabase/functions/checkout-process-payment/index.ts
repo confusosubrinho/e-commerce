@@ -742,21 +742,26 @@ Deno.serve(async (req) => {
       }
 
       if (validatedCouponId) {
-        const { data: usedOk, error: useErr } = await supabase.rpc("use_coupon_atomic", {
+        const userEmail = (customer_email || "").toLowerCase();
+        const { data: usedOk, error: useErr } = await supabase.rpc("use_coupon_atomic_per_user", {
           p_coupon_id: validatedCouponId,
+          p_user_email: userEmail || "guest@checkout",
+          p_user_id: null,
+          p_order_id: order_id || null,
+          p_tenant_id: tenantIdForMovements,
         });
         if (useErr) throw useErr;
 
         if (!usedOk) {
-          // Falhou por concorrência: cancela pedido e retorna estoque.
+          // Failed due to concurrency or per-user limit: cancel order and return stock.
           if (order_id) {
             try {
               await supabase.rpc("cancel_order_return_stock", { p_order_id: order_id });
             } catch (_) {
-              // best-effort: se cancelar falhar, o TTL de reservas ajuda.
+              // best-effort
             }
           }
-          return errorResponse("Cupom esgotado", 400);
+          return errorResponse("Cupom esgotado ou limite de uso por usuário atingido", 400);
         }
       }
 
