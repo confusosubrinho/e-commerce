@@ -1359,6 +1359,58 @@ export type Database = {
           },
         ]
       }
+      coupon_uses: {
+        Row: {
+          coupon_id: string
+          created_at: string
+          id: string
+          order_id: string | null
+          tenant_id: string
+          user_email: string
+          user_id: string | null
+        }
+        Insert: {
+          coupon_id: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          tenant_id?: string
+          user_email: string
+          user_id?: string | null
+        }
+        Update: {
+          coupon_id?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          tenant_id?: string
+          user_email?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_uses_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_uses_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_uses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coupons: {
         Row: {
           applicable_category_id: string | null
@@ -1371,12 +1423,15 @@ export type Database = {
           created_at: string
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
+          exclude_sale_products: boolean | null
           expiry_date: string | null
           id: string
           is_active: boolean | null
           is_bulk: boolean | null
           max_uses: number | null
           min_purchase_amount: number | null
+          per_user_limit: number | null
+          start_date: string | null
           tenant_id: string
           type: string | null
           updated_at: string
@@ -1393,12 +1448,15 @@ export type Database = {
           created_at?: string
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
+          exclude_sale_products?: boolean | null
           expiry_date?: string | null
           id?: string
           is_active?: boolean | null
           is_bulk?: boolean | null
           max_uses?: number | null
           min_purchase_amount?: number | null
+          per_user_limit?: number | null
+          start_date?: string | null
           tenant_id?: string
           type?: string | null
           updated_at?: string
@@ -1415,12 +1473,15 @@ export type Database = {
           created_at?: string
           discount_type?: Database["public"]["Enums"]["discount_type"]
           discount_value?: number
+          exclude_sale_products?: boolean | null
           expiry_date?: string | null
           id?: string
           is_active?: boolean | null
           is_bulk?: boolean | null
           max_uses?: number | null
           min_purchase_amount?: number | null
+          per_user_limit?: number | null
+          start_date?: string | null
           tenant_id?: string
           type?: string | null
           updated_at?: string
@@ -4318,6 +4379,17 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      use_coupon_atomic: { Args: { p_coupon_id: string }; Returns: boolean }
+      use_coupon_atomic_per_user: {
+        Args: {
+          p_coupon_id: string
+          p_order_id?: string
+          p_tenant_id?: string
+          p_user_email: string
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "user"
