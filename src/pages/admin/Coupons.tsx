@@ -298,9 +298,17 @@ export default function Coupons() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Compra Mínima</Label><Input type="number" step="0.01" value={formData.min_purchase_amount} onChange={e => setFormData({ ...formData, min_purchase_amount: e.target.value })} placeholder="0.00" /></div>
-                <div><Label>Limite de Usos</Label><Input type="number" value={formData.max_uses} onChange={e => setFormData({ ...formData, max_uses: e.target.value })} placeholder="Ilimitado" /></div>
+                <div><Label>Limite Total de Usos</Label><Input type="number" value={formData.max_uses} onChange={e => setFormData({ ...formData, max_uses: e.target.value })} placeholder="Ilimitado" /></div>
               </div>
-              <div><Label>Data de Expiração</Label><Input type="date" value={formData.expiry_date} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} /></div>
+              <div><Label>Limite por Usuário</Label><Input type="number" value={formData.per_user_limit} onChange={e => setFormData({ ...formData, per_user_limit: e.target.value })} placeholder="Ilimitado" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Data de Início</Label><Input type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} /></div>
+                <div><Label>Data de Expiração</Label><Input type="date" value={formData.expiry_date} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} /></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={formData.exclude_sale_products} onCheckedChange={c => setFormData({ ...formData, exclude_sale_products: c })} />
+                <Label>Não combinar com produtos em promoção</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={formData.is_active} onCheckedChange={c => setFormData({ ...formData, is_active: c })} />
                 <Label>Ativo</Label>
