@@ -18,7 +18,7 @@ export function HealthPanel() {
     },
     refetchInterval: refetchIntervalWhenVisible(REFETCH_MS.adminHealthRecent),
   });
-  const { data: lastCron } = useQuery({
+  const { data: lastCron } = useQuery<{ started_at?: string; errors_count?: number; trigger_type?: string } | null>({
     queryKey: ['health-last-cron'],
     queryFn: async () => {
       const { data } = await supabase.from('bling_sync_runs').select('started_at, finished_at, errors_count, trigger_type').order('started_at', { ascending: false }).limit(1).maybeSingle();
