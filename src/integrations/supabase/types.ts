@@ -4123,18 +4123,24 @@ export type Database = {
     Views: {
       checkout_providers_public: {
         Row: {
+          checkout_mode: string | null
           is_active: boolean | null
           provider: string | null
+          publishable_key: string | null
           tenant_id: string | null
         }
         Insert: {
+          checkout_mode?: never
           is_active?: boolean | null
           provider?: string | null
+          publishable_key?: never
           tenant_id?: string | null
         }
         Update: {
+          checkout_mode?: never
           is_active?: boolean | null
           provider?: string | null
+          publishable_key?: never
           tenant_id?: string | null
         }
         Relationships: [
