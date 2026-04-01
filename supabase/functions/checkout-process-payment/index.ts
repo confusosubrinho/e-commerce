@@ -333,16 +333,17 @@ Deno.serve(async (req) => {
 
         const lineTotal = realUnitPrice * (product.quantity || 1);
         serverSubtotal += lineTotal;
+        const isSale =
+          (variantData.sale_price != null && variantData.base_price != null && Number(variantData.sale_price) < Number(variantData.base_price)) ||
+          (productData.sale_price != null && productData.base_price != null && Number(productData.sale_price) < Number(productData.base_price));
+
         lineItems.push({
           product_id: productData.id,
           category_id: productData.category_id ?? null,
           lineTotal,
-          isSale: false,
+          isSale,
         });
 
-        const isSale =
-          (variantData.sale_price != null && variantData.base_price != null && Number(variantData.sale_price) < Number(variantData.base_price)) ||
-          (productData.sale_price != null && productData.base_price != null && Number(productData.sale_price) < Number(productData.base_price));
         if (isSale) serverSubtotalSale += lineTotal;
         else serverSubtotalFull += lineTotal;
       }
