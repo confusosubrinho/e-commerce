@@ -183,6 +183,37 @@ serve(async (req) => {
         }
         const retryJson = await retryRes.json();
         var detail = retryJson?.data;
+      } else if (detailRes.status === 404) {
+        // Product no longer exists in Bling — clear the invalid ID and try SKU search
+        console.warn(`[bling-sync-single-stock] Product ${blingProductId} not found in Bling (404), clearing bling_product_id and searching by SKU`);
+        await supabase.from("products").update({ bling_product_id: null }).eq("id", product_id);
+        
+        // Try to find by SKU
+        if (searchSku) {
+          const skuSearchRes = await fetchWithTimeout(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
+          if (skuSearchRes.ok) {
+            const skuSearchJson = await skuSearchRes.json();
+            const found = skuSearchJson?.data?.[0];
+            if (found) {
+              blingProductId = found.id;
+              await supabase.from("products").update({ bling_product_id: blingProductId }).eq("id", product_id);
+              // Re-fetch detail with new ID
+              const reDetailRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
+              if (reDetailRes.ok) {
+                const reDetailJson = await reDetailRes.json();
+                var detail = reDetailJson?.data;
+              }
+            }
+          }
+        }
+        
+        if (!detail) {
+          await supabase.from("products").update({
+            bling_sync_status: "error",
+            bling_last_error: `Produto ID ${blingProductId} não existe mais no Bling e SKU "${searchSku}" não encontrado`,
+          }).eq("id", product_id);
+          throw new Error(`Produto não encontrado no Bling (404) e busca por SKU "${searchSku}" falhou`);
+        }
       } else {
         await supabase.from("products").update({
           bling_sync_status: "error",
