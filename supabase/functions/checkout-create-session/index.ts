@@ -157,11 +157,14 @@ Deno.serve(async (req) => {
 
     const productMap = new Map((products || []).map((p) => [p.id, p]));
 
-    // 4. Validate stock
-    for (const item of items) {
-      const variant = variants.find((v) => v.id === item.variant_id);
-      if (!variant || variant.stock_quantity < item.quantity) {
-        return jsonRes({ error: `Estoque insuficiente para variante ${item.variant_id}` }, 400);
+    // 4. Validate stock (skip if caller already reserved stock)
+    const skipStockCheck = body?.skip_stock_check === true;
+    if (!skipStockCheck) {
+      for (const item of items) {
+        const variant = variants.find((v) => v.id === item.variant_id);
+        if (!variant || variant.stock_quantity < item.quantity) {
+          return jsonRes({ error: `Estoque insuficiente para variante ${item.variant_id}` }, 400);
+        }
       }
     }
 
