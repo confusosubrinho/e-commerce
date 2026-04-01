@@ -23,8 +23,8 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 
 export function NotificationBell() {
   const navigate = useNavigate();
-  const { data: notifications } = useNotifications(10);
-  const { data: unreadCount } = useUnreadCount();
+  const { data: notifications } = useNotifications(10) as { data: AdminNotification[] | undefined };
+  const { data: unreadCount } = useUnreadCount() as { data: number | undefined };
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const { supported: browserNotifySupported, permission: browserPermission, requestPermission, isRequesting } = useBrowserNotificationPermission();
