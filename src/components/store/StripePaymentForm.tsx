@@ -198,19 +198,18 @@ export function useStripeConfig() {
   useEffect(() => {
     (async () => {
       try {
-        // Get provider config from DB directly for checkout_mode
+        // Use public view (no credentials exposed)
         const { data: providerData } = await supabase
-          .from('integrations_checkout_providers')
-          .select('is_active, config')
+          .from('checkout_providers_public' as any)
+          .select('is_active, publishable_key, checkout_mode')
           .eq('provider', 'stripe')
           .maybeSingle();
         
         if (providerData) {
-          const cfg = (providerData.config as Record<string, unknown>) || {};
           setConfig({
-            publishable_key: (cfg.publishable_key as string) || null,
-            is_active: providerData.is_active,
-            checkout_mode: (cfg.checkout_mode as string) || 'embedded',
+            publishable_key: (providerData as any).publishable_key || null,
+            is_active: (providerData as any).is_active,
+            checkout_mode: (providerData as any).checkout_mode || 'embedded',
           });
         } else {
           setConfig(null);

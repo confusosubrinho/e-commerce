@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Download, FileSpreadsheet, FileText, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 interface Product {
@@ -258,11 +258,21 @@ export function ProductExportDialog({ open, onOpenChange, products, selectedCoun
       const dateStr = new Date().toISOString().split('T')[0];
 
       if (format === 'xlsx') {
-        const wb = XLSX.utils.book_new();
+        const wb = new ExcelJS.Workbook();
+
+        // Helper to add a sheet from row objects
+        const addSheet = (name: string, rows: Record<string, any>[]) => {
+          if (rows.length === 0) return;
+          const ws = wb.addWorksheet(name);
+          const headers = Object.keys(rows[0]);
+          ws.addRow(headers);
+          for (const row of rows) {
+            ws.addRow(headers.map(h => row[h] ?? ''));
+          }
+        };
 
         // Main sheet
-        const ws = XLSX.utils.json_to_sheet(mainRows);
-        XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
+        addSheet('Produtos', mainRows);
 
         // Separate variants sheet if in "produto" mode but variants group selected
         if (exportMode === 'produto' && hasVariantCols) {
@@ -285,10 +295,7 @@ export function ProductExportDialog({ open, onOpenChange, products, selectedCoun
               });
             }
           }
-          if (variantRows.length > 0) {
-            const wsV = XLSX.utils.json_to_sheet(variantRows);
-            XLSX.utils.book_append_sheet(wb, wsV, 'Variantes');
-          }
+          addSheet('Variantes', variantRows);
         }
 
         // Images sheet
@@ -309,10 +316,7 @@ export function ProductExportDialog({ open, onOpenChange, products, selectedCoun
               });
             }
           }
-          if (imgRows.length > 0) {
-            const wsI = XLSX.utils.json_to_sheet(imgRows);
-            XLSX.utils.book_append_sheet(wb, wsI, 'Imagens');
-          }
+          addSheet('Imagens', imgRows);
         }
 
         // Bling sheet
@@ -329,13 +333,17 @@ export function ProductExportDialog({ open, onOpenChange, products, selectedCoun
               'Último Erro': p.bling_last_error || '',
             });
           }
-          if (blingRows.length > 0) {
-            const wsB = XLSX.utils.json_to_sheet(blingRows);
-            XLSX.utils.book_append_sheet(wb, wsB, 'Bling');
-          }
+          addSheet('Bling', blingRows);
         }
 
-        XLSX.writeFile(wb, `produtos-${dateStr}.xlsx`);
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `produtos-${dateStr}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
       } else {
         // CSV with ; separator
         if (mainRows.length === 0) return;
