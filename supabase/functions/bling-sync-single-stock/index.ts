@@ -151,9 +151,81 @@ serve(async (req) => {
 
     // 5. Fetch product detail from Bling to get variations
     const detailRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
-    const detailJson = await detailRes.json();
-    const detail = detailJson?.data;
-    if (!detail) throw new Error("Não foi possível obter detalhes do produto no Bling");
+    if (!detailRes.ok) {
+      const errBody = await detailRes.text();
+      console.error(`[bling-sync-single-stock] Bling API returned ${detailRes.status} for product ${blingProductId}: ${errBody}`);
+      // If 401, token may be expired — try refresh once
+      if (detailRes.status === 401) {
+        // Force token refresh and retry once
+        const newToken = await getValidToken(supabase);
+        const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+        const retryRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers: retryHeaders });
+        if (!retryRes.ok) {
+          const retryBody = await retryRes.text();
+          await supabase.from("products").update({
+            bling_sync_status: "error",
+            bling_last_error: `Bling API erro ${retryRes.status}: ${retryBody.substring(0, 500)}`,
+          }).eq("id", product_id);
+          throw new Error(`Bling API erro ${retryRes.status} após retry: ${retryBody.substring(0, 200)}`);
+        }
+        const retryJson = await retryRes.json();
+        var detail = retryJson?.data;
+      } else if (detailRes.status === 429) {
+        // Rate limited — wait and retry once
+        await new Promise(r => setTimeout(r, 2000));
+        const retryRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
+        if (!retryRes.ok) {
+          await supabase.from("products").update({
+            bling_sync_status: "error",
+            bling_last_error: `Bling API rate-limited (429) persistente`,
+          }).eq("id", product_id);
+          throw new Error("Bling API rate-limited (429) após retry");
+        }
+        const retryJson = await retryRes.json();
+        var detail = retryJson?.data;
+      } else if (detailRes.status === 404) {
+        // Product no longer exists in Bling — clear the invalid ID and try SKU search
+        console.warn(`[bling-sync-single-stock] Product ${blingProductId} not found in Bling (404), clearing bling_product_id and searching by SKU`);
+        await supabase.from("products").update({ bling_product_id: null }).eq("id", product_id);
+        
+        // Try to find by SKU
+        if (searchSku) {
+          const skuSearchRes = await fetchWithTimeout(`${BLING_API_URL}/produtos?codigo=${encodeURIComponent(searchSku)}`, { headers });
+          if (skuSearchRes.ok) {
+            const skuSearchJson = await skuSearchRes.json();
+            const found = skuSearchJson?.data?.[0];
+            if (found) {
+              blingProductId = found.id;
+              await supabase.from("products").update({ bling_product_id: blingProductId }).eq("id", product_id);
+              // Re-fetch detail with new ID
+              const reDetailRes = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers });
+              if (reDetailRes.ok) {
+                const reDetailJson = await reDetailRes.json();
+                var detail = reDetailJson?.data;
+              }
+            }
+          }
+        }
+        
+        if (!detail) {
+          await supabase.from("products").update({
+            bling_sync_status: "error",
+            bling_last_error: `Produto ID ${blingProductId} não existe mais no Bling e SKU "${searchSku}" não encontrado`,
+          }).eq("id", product_id);
+          throw new Error(`Produto não encontrado no Bling (404) e busca por SKU "${searchSku}" falhou`);
+        }
+      } else {
+        await supabase.from("products").update({
+          bling_sync_status: "error",
+          bling_last_error: `Bling API erro ${detailRes.status}: ${errBody.substring(0, 500)}`,
+        }).eq("id", product_id);
+        throw new Error(`Bling API erro ${detailRes.status}: ${errBody.substring(0, 200)}`);
+      }
+    } else {
+      const detailJson = await detailRes.json();
+      var detail = detailJson?.data;
+    }
+    if (!detail) throw new Error("Não foi possível obter detalhes do produto no Bling (resposta vazia)");
 
     // 6. Fetch stock from Bling
     const { data: localVariants } = await supabase
