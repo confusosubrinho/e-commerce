@@ -10,7 +10,7 @@ import { ptBR } from 'date-fns/locale';
 const SLA_MINUTES = { bling_webhook: 60, bling_cron: 15, errors_threshold: 10 };
 
 export function HealthPanel() {
-  const { data: lastWebhook } = useQuery({
+  const { data: lastWebhook } = useQuery<{ received_at?: string; result?: string } | null>({
     queryKey: ['health-last-webhook'],
     queryFn: async () => {
       const { data } = await supabase.from('bling_webhook_logs').select('received_at, result').order('received_at', { ascending: false }).limit(1).maybeSingle();
