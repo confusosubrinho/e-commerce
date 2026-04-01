@@ -52,7 +52,7 @@ export function NotificationBell() {
     });
   }, [unreadCount, notifications, browserPermission]);
 
-  const handleClick = (n: typeof notifications extends (infer T)[] ? T : never) => {
+  const handleClick = (n: AdminNotification) => {
     if (!n.is_read) markAsRead.mutate(n.id);
     if (n.link) navigate(n.link);
   };

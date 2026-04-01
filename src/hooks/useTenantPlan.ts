@@ -18,7 +18,7 @@ export function useTenantPlan() {
   } = useQuery({
     queryKey: ['tenant-plan', tenantId],
     queryFn: async (): Promise<TenantWithBilling | null> => {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await (supabase
         .from('tenants')
         .select(
           `
@@ -46,7 +46,7 @@ export function useTenantPlan() {
         `
         )
         .eq('id', tenantId)
-        .maybeSingle();
+        .maybeSingle() as any);
 
       if (err) throw err;
       return data as unknown as TenantWithBilling | null;
