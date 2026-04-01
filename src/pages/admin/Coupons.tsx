@@ -139,7 +139,8 @@ export default function Coupons() {
   const resetForm = () => {
     setFormData({
       code: '', discount_type: 'percentage', discount_value: '', min_purchase_amount: '',
-      max_uses: '', expiry_date: '', is_active: true, type: 'standard', applicable_category_id: '',
+      max_uses: '', per_user_limit: '', start_date: '', expiry_date: '', is_active: true,
+      exclude_sale_products: false, type: 'standard', applicable_category_id: '',
       applicable_states: '', applicable_zip_prefixes: '', applicable_product_ids_raw: '',
     });
     setEditingCoupon(null);
@@ -147,19 +148,22 @@ export default function Coupons() {
 
   const handleEdit = (coupon: Coupon) => {
     setEditingCoupon(coupon);
-    const states = (coupon as { applicable_states?: string[] }).applicable_states;
-    const zips = (coupon as { applicable_zip_prefixes?: string[] }).applicable_zip_prefixes;
-    const productIds = (coupon as { applicable_product_ids?: string[] }).applicable_product_ids;
+    const states = coupon.applicable_states;
+    const zips = coupon.applicable_zip_prefixes;
+    const productIds = coupon.applicable_product_ids;
     setFormData({
       code: coupon.code,
       discount_type: coupon.discount_type,
       discount_value: String(coupon.discount_value),
       min_purchase_amount: coupon.min_purchase_amount ? String(coupon.min_purchase_amount) : '',
       max_uses: coupon.max_uses ? String(coupon.max_uses) : '',
+      per_user_limit: coupon.per_user_limit ? String(coupon.per_user_limit) : '',
+      start_date: coupon.start_date ? coupon.start_date.split('T')[0] : '',
       expiry_date: coupon.expiry_date ? coupon.expiry_date.split('T')[0] : '',
       is_active: coupon.is_active,
-      type: ((coupon as any).type || 'standard') as 'standard' | 'free_shipping' | 'first_purchase',
-      applicable_category_id: (coupon as { applicable_category_id?: string }).applicable_category_id || '',
+      exclude_sale_products: coupon.exclude_sale_products ?? false,
+      type: (coupon.type || 'standard') as 'standard' | 'free_shipping' | 'first_purchase',
+      applicable_category_id: coupon.applicable_category_id || '',
       applicable_states: Array.isArray(states) ? states.join(', ') : '',
       applicable_zip_prefixes: Array.isArray(zips) ? zips.join(', ') : '',
       applicable_product_ids_raw: Array.isArray(productIds) ? productIds.join(', ') : '',
