@@ -374,6 +374,7 @@ Deno.serve(async (req) => {
             attribution,
             request_id: requestId,
             tenant_id: tenantId,
+            skip_stock_check: true,
           }),
         },
         22_000
