@@ -49,13 +49,16 @@ export default function Coupons() {
     discount_value: '',
     min_purchase_amount: '',
     max_uses: '',
+    per_user_limit: '',
+    start_date: '',
     expiry_date: '',
     is_active: true,
+    exclude_sale_products: false,
     type: 'standard' as 'standard' | 'free_shipping' | 'first_purchase',
     applicable_category_id: '' as string,
-    applicable_states: '', // UFs separadas por vírgula, ex: SP, RJ
-    applicable_zip_prefixes: '', // CEP prefixos 5 dígitos separados por vírgula
-    applicable_product_ids_raw: '', // UUIDs separados por vírgula
+    applicable_states: '',
+    applicable_zip_prefixes: '',
+    applicable_product_ids_raw: '',
   });
 
   const { data: coupons, isLoading } = useQuery({
