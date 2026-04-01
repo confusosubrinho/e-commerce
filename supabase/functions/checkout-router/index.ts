@@ -381,24 +381,44 @@ Deno.serve(async (req) => {
       );
       const yampiData = yampiRes.ok ? (await yampiRes.json().catch(() => ({}))) as Record<string, unknown> : {};
       const redirectUrl = yampiData.redirect_url as string | undefined;
+      const isFallback = yampiData.fallback === true;
       const errMsg = yampiData.error as string | undefined;
+
+      // If Yampi returned a fallback (e.g. missing yampi_sku_id), render native checkout
+      if (isFallback || (redirectUrl && redirectUrl === "/checkout")) {
+        console.log(JSON.stringify({ scope: "checkout-router", request_id: requestId, route: "start", provider, channel, fallback: true, reason: yampiData.fallback_reason || errMsg || "yampi_fallback", duration_ms: Date.now() - t0 }));
+        return jsonRes(
+          {
+            success: true,
+            provider,
+            channel,
+            experience,
+            action: "render",
+            redirect_url: "/checkout",
+            order_id: orderId,
+            order_access_token: guestToken,
+            fallback: true,
+            fallback_reason: yampiData.fallback_reason || errMsg || "Yampi não disponível para estes itens",
+          },
+          200,
+          corsHeaders
+        );
+      }
+
       if (errMsg && !redirectUrl) {
         return jsonRes({ success: false, provider, channel, experience, action: "redirect", error: errMsg }, 400, corsHeaders);
       }
       const yampiSessionId = yampiData.session_id as string | undefined;
       const yampiLinkId = yampiData.yampi_link_id as string | undefined;
       if (orderId && yampiSessionId) {
-        // Fix #2: Save external_reference with Yampi link ID for pre-linking (prevents duplicate orders)
         const orderUpdate: Record<string, unknown> = { checkout_session_id: yampiSessionId };
         if (yampiLinkId) orderUpdate.external_reference = String(yampiLinkId);
         await supabase.from("orders").update(orderUpdate).eq("id", orderId);
       }
-      // Bug fix: Replace Stripe placeholder {CHECKOUT_SESSION_ID} with actual session ID for Yampi
       let finalSuccessUrl = successUrl;
       if (yampiSessionId && finalSuccessUrl) {
         finalSuccessUrl = finalSuccessUrl.replace("{CHECKOUT_SESSION_ID}", yampiSessionId);
       }
-      // If redirect_url from Yampi is empty, redirect to success page with session
       const fallbackRedirect = finalSuccessUrl || `${origin}/checkout/obrigado?session_id=${yampiSessionId || ""}`;
       console.log(JSON.stringify({ scope: "checkout-router", request_id: requestId, route: "start", provider, channel, duration_ms: Date.now() - t0 }));
       return jsonRes(
