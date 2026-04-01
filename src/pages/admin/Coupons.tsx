@@ -49,13 +49,16 @@ export default function Coupons() {
     discount_value: '',
     min_purchase_amount: '',
     max_uses: '',
+    per_user_limit: '',
+    start_date: '',
     expiry_date: '',
     is_active: true,
+    exclude_sale_products: false,
     type: 'standard' as 'standard' | 'free_shipping' | 'first_purchase',
     applicable_category_id: '' as string,
-    applicable_states: '', // UFs separadas por vírgula, ex: SP, RJ
-    applicable_zip_prefixes: '', // CEP prefixos 5 dígitos separados por vírgula
-    applicable_product_ids_raw: '', // UUIDs separados por vírgula
+    applicable_states: '',
+    applicable_zip_prefixes: '',
+    applicable_product_ids_raw: '',
   });
 
   const { data: coupons, isLoading } = useQuery({
@@ -88,8 +91,11 @@ export default function Coupons() {
         discount_value: data.type === 'free_shipping' ? 0 : parseFloat(data.discount_value),
         min_purchase_amount: data.min_purchase_amount ? parseFloat(data.min_purchase_amount) : 0,
         max_uses: data.max_uses ? parseInt(data.max_uses) : null,
+        per_user_limit: data.per_user_limit ? parseInt(data.per_user_limit) : null,
+        start_date: data.start_date || null,
         expiry_date: data.expiry_date || null,
         is_active: data.is_active,
+        exclude_sale_products: data.exclude_sale_products,
         type: data.type,
         applicable_category_id: data.applicable_category_id || null,
         applicable_states: parseList(data.applicable_states).length > 0 ? parseList(data.applicable_states).map((s) => s.toUpperCase().slice(0, 2)) : null,
@@ -133,7 +139,8 @@ export default function Coupons() {
   const resetForm = () => {
     setFormData({
       code: '', discount_type: 'percentage', discount_value: '', min_purchase_amount: '',
-      max_uses: '', expiry_date: '', is_active: true, type: 'standard', applicable_category_id: '',
+      max_uses: '', per_user_limit: '', start_date: '', expiry_date: '', is_active: true,
+      exclude_sale_products: false, type: 'standard', applicable_category_id: '',
       applicable_states: '', applicable_zip_prefixes: '', applicable_product_ids_raw: '',
     });
     setEditingCoupon(null);
@@ -141,19 +148,22 @@ export default function Coupons() {
 
   const handleEdit = (coupon: Coupon) => {
     setEditingCoupon(coupon);
-    const states = (coupon as { applicable_states?: string[] }).applicable_states;
-    const zips = (coupon as { applicable_zip_prefixes?: string[] }).applicable_zip_prefixes;
-    const productIds = (coupon as { applicable_product_ids?: string[] }).applicable_product_ids;
+    const states = coupon.applicable_states;
+    const zips = coupon.applicable_zip_prefixes;
+    const productIds = coupon.applicable_product_ids;
     setFormData({
       code: coupon.code,
       discount_type: coupon.discount_type,
       discount_value: String(coupon.discount_value),
       min_purchase_amount: coupon.min_purchase_amount ? String(coupon.min_purchase_amount) : '',
       max_uses: coupon.max_uses ? String(coupon.max_uses) : '',
+      per_user_limit: coupon.per_user_limit ? String(coupon.per_user_limit) : '',
+      start_date: coupon.start_date ? coupon.start_date.split('T')[0] : '',
       expiry_date: coupon.expiry_date ? coupon.expiry_date.split('T')[0] : '',
       is_active: coupon.is_active,
-      type: ((coupon as any).type || 'standard') as 'standard' | 'free_shipping' | 'first_purchase',
-      applicable_category_id: (coupon as { applicable_category_id?: string }).applicable_category_id || '',
+      exclude_sale_products: coupon.exclude_sale_products ?? false,
+      type: (coupon.type || 'standard') as 'standard' | 'free_shipping' | 'first_purchase',
+      applicable_category_id: coupon.applicable_category_id || '',
       applicable_states: Array.isArray(states) ? states.join(', ') : '',
       applicable_zip_prefixes: Array.isArray(zips) ? zips.join(', ') : '',
       applicable_product_ids_raw: Array.isArray(productIds) ? productIds.join(', ') : '',
@@ -288,9 +298,17 @@ export default function Coupons() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>Compra Mínima</Label><Input type="number" step="0.01" value={formData.min_purchase_amount} onChange={e => setFormData({ ...formData, min_purchase_amount: e.target.value })} placeholder="0.00" /></div>
-                <div><Label>Limite de Usos</Label><Input type="number" value={formData.max_uses} onChange={e => setFormData({ ...formData, max_uses: e.target.value })} placeholder="Ilimitado" /></div>
+                <div><Label>Limite Total de Usos</Label><Input type="number" value={formData.max_uses} onChange={e => setFormData({ ...formData, max_uses: e.target.value })} placeholder="Ilimitado" /></div>
               </div>
-              <div><Label>Data de Expiração</Label><Input type="date" value={formData.expiry_date} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} /></div>
+              <div><Label>Limite por Usuário</Label><Input type="number" value={formData.per_user_limit} onChange={e => setFormData({ ...formData, per_user_limit: e.target.value })} placeholder="Ilimitado" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>Data de Início</Label><Input type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} /></div>
+                <div><Label>Data de Expiração</Label><Input type="date" value={formData.expiry_date} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} /></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={formData.exclude_sale_products} onCheckedChange={c => setFormData({ ...formData, exclude_sale_products: c })} />
+                <Label>Não combinar com produtos em promoção</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={formData.is_active} onCheckedChange={c => setFormData({ ...formData, is_active: c })} />
                 <Label>Ativo</Label>
