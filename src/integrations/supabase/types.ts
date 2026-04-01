@@ -4121,6 +4121,32 @@ export type Database = {
       }
     }
     Views: {
+      checkout_providers_public: {
+        Row: {
+          is_active: boolean | null
+          provider: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          is_active?: boolean | null
+          provider?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          is_active?: boolean | null
+          provider?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_checkout_providers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_settings_public: {
         Row: {
           address: string | null
