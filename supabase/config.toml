@@ -81,6 +81,9 @@ verify_jwt = false
 [functions.checkout-release-expired-reservations]
 verify_jwt = false
 
+[functions.checkout-expire-sessions]
+verify_jwt = false
+
 [functions.admin-commerce-action]
 verify_jwt = false
 

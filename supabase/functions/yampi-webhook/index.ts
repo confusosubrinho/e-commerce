@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { errorResponse } from "../_shared/response.ts";
 import { logError, logInfo } from "../_shared/log.ts";
+import { validateCheckoutAmount } from "../_shared/yampiCheckoutPricing.ts";
 
 const SCOPE = "yampi-webhook";
 
@@ -228,6 +229,89 @@ Deno.serve(async (req) => {
             await storeApprovedEventHash(existingBySession.id);
             return jsonOk({ ok: true, order_id: existingBySession.id, duplicate: true, status: existingBySession.status });
           }
+
+          // ─── Validação do amount pago contra a checkout_session congelada ──────────
+          // Busca a checkout_session para comparar o total esperado com o que a Yampi cobrou.
+          if (reconciledSessionId) {
+            const { data: frozenSession } = await supabase
+              .from("checkout_sessions")
+              .select("id, total_amount, status")
+              .eq("id", reconciledSessionId)
+              .maybeSingle();
+
+            if (frozenSession && frozenSession.total_amount != null) {
+              const amountCheck = validateCheckoutAmount(
+                Number(frozenSession.total_amount),
+                Number(totalAmount),
+              );
+
+              if (!amountCheck.consistent) {
+                // Amount diverge do esperado — não confirmar como pago
+                const inconsistencyReason = amountCheck.reason ?? "unknown_mismatch";
+
+                console.warn(
+                  JSON.stringify({
+                    level: "warn",
+                    message: "Yampi payment amount inconsistency detected",
+                    context: "yampi-webhook.approved",
+                    order_id: existingBySession.id,
+                    checkout_session_id: frozenSession.id,
+                    expected_total: frozenSession.total_amount,
+                    paid_total: totalAmount,
+                    difference_brl: amountCheck.difference_brl,
+                    reason: inconsistencyReason,
+                    correlation_id: correlationId,
+                  }),
+                );
+
+                // Marca a sessão como inconsistente
+                await supabase
+                  .from("checkout_sessions")
+                  .update({
+                    status: "payment_inconsistent",
+                    payment_inconsistency_reason: inconsistencyReason,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", frozenSession.id);
+
+                // Marca o pedido com payment_status inconsistente (não altera orders.status)
+                await supabase
+                  .from("orders")
+                  .update({ payment_status: "inconsistent" })
+                  .eq("id", existingBySession.id);
+
+                // Registra evento auditável
+                await supabase.from("order_events").insert({
+                  order_id: existingBySession.id,
+                  event_type: "payment_inconsistency_detected",
+                  event_hash: `inconsistency-${yampiOrderId || reconciledSessionId}-${correlationId}`,
+                  payload: {
+                    expected_total: frozenSession.total_amount,
+                    paid_total: totalAmount,
+                    difference_brl: amountCheck.difference_brl,
+                    reason: inconsistencyReason,
+                    yampi_order_id: yampiOrderId,
+                  },
+                }).catch(() => {});
+
+                // Retorna 200 para Yampi não retransmitir, mas não confirma o pedido
+                return jsonOk({
+                  ok: true,
+                  order_id: existingBySession.id,
+                  action: "payment_inconsistency_detected",
+                  reason: inconsistencyReason,
+                });
+              }
+
+              // Amount consistente: marcar sessão como paga
+              await supabase
+                .from("checkout_sessions")
+                .update({ status: "paid", updated_at: new Date().toISOString() })
+                .eq("id", frozenSession.id);
+            }
+          }
+          // ─── Fim da validação de amount ───────────────────────────────────────────
+
           // Bug fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
           const rawCustomer = resourceData?.customer || resourceData?.buyer || {};
           const customer = rawCustomer?.data || rawCustomer;

@@ -8,6 +8,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { getTenantIdFromRequest } from "../_shared/tenant.ts";
+import {
+  validateCouponAndComputeDiscount,
+  type CouponRow,
+  type CheckoutItem,
+} from "../_shared/yampiCheckoutPricing.ts";
 
 const SINGLETON_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -37,6 +42,12 @@ const startStartSchema = z.object({
   route: z.literal("start"),
   cart_id: z.string().min(1),
   items: z.array(startStartItemSchema).min(1),
+  /**
+   * @deprecated Aceito mas IGNORADO pelo servidor para o path Yampi.
+   * O desconto é recalculado server-side a partir do coupon_code (DB).
+   * Para Stripe, o checkout-stripe-create-intent re-valida independentemente.
+   * Mantido no schema apenas para compatibilidade retroativa com o frontend.
+   */
   discount_amount: z.number().min(0).optional().default(0),
   shipping_cost: z.number().min(0).optional().default(0),
   success_url: z.union([z.string().url(), z.literal("")]).optional().default(""),
@@ -183,7 +194,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const items: Array<{ variant_id: string; quantity: number; unit_price: number; product_name: string }> = [];
+    const items: Array<CheckoutItem> = [];
     let subtotal = 0;
     for (const i of itemsInput) {
       const meta = variantMap.get(i.variant_id);
@@ -191,16 +202,90 @@ Deno.serve(async (req) => {
         return jsonRes({ success: false, error: `Variante inválida: ${i.variant_id}` }, 400, corsHeaders);
       }
       const unitPrice = meta.unit_price;
-      const lineTotal = unitPrice * i.quantity;
-      subtotal += lineTotal;
+      subtotal += unitPrice * i.quantity;
       items.push({
         variant_id: i.variant_id,
         quantity: i.quantity,
         unit_price: unitPrice,
         product_name: meta.name,
+        product_id: meta.product_id,
       });
     }
-    const totalAmount = Math.max(0, subtotal - discountAmount + shippingCost);
+    subtotal = Math.round(subtotal * 100) / 100;
+
+    // ─── Validação server-side do cupom ────────────────────────────────────────
+    // O discount_amount do frontend é IGNORADO; o backend recalcula a partir do DB.
+    let discountAmount = 0;
+    let validatedCouponId: string | null = null;
+    let isFreeShippingCoupon = false;
+
+    if (couponCode) {
+      const { data: couponRow } = await supabase
+        .from("coupons")
+        .select(
+          "id, code, type, discount_type, discount_value, min_purchase_amount, applicable_product_ids, applicable_category_id, exclude_sale_products, max_uses, current_uses, expiry_date, start_date, is_active",
+        )
+        .eq("code", couponCode.toUpperCase())
+        .maybeSingle();
+
+      if (couponRow) {
+        // Para restrição por categoria: resolve category_id de cada produto
+        const categoryMap = new Map<string, string | null>();
+        if (couponRow.applicable_category_id) {
+          const prodIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))] as string[];
+          if (prodIds.length > 0) {
+            const { data: prodRows } = await supabase
+              .from("products")
+              .select("id, category_id")
+              .in("id", prodIds);
+            for (const p of prodRows ?? []) {
+              categoryMap.set(p.id, p.category_id ?? null);
+            }
+          }
+        }
+
+        const couponResult = validateCouponAndComputeDiscount(
+          couponRow as CouponRow,
+          items,
+          subtotal,
+          categoryMap,
+        );
+        discountAmount = couponResult.discount_amount;
+        validatedCouponId = couponResult.coupon_id;
+        isFreeShippingCoupon = couponResult.is_free_shipping;
+
+        if (couponResult.rejection_reason) {
+          console.warn(
+            JSON.stringify({
+              level: "warn",
+              message: "Coupon rejected server-side",
+              context: "checkout-router.start",
+              coupon_code: couponCode,
+              reason: couponResult.rejection_reason,
+              request_id: requestId,
+            }),
+          );
+        }
+      } else {
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            message: "Coupon not found or inactive",
+            context: "checkout-router.start",
+            coupon_code: couponCode,
+            request_id: requestId,
+          }),
+        );
+      }
+    }
+
+    // Frete: valor vindo do frontend (cotado previamente via calculate-shipping).
+    // Para frete grátis por cupom, zerado aqui; caso contrário, aceito como informado.
+    const shippingFinal = isFreeShippingCoupon ? 0 : Math.max(0, shippingCost);
+    const totalAmount = Math.max(
+      0,
+      Math.round((subtotal - discountAmount + shippingFinal) * 100) / 100,
+    );
 
     let provider: "stripe" | "yampi" | "appmax" = "stripe";
     let channel: "internal" | "external" = "internal";
@@ -272,7 +357,7 @@ Deno.serve(async (req) => {
           user_id: userId,
           cart_id: cartId,
           subtotal,
-          shipping_cost: shippingCost,
+          shipping_cost: shippingFinal,
           discount_amount: discountAmount,
           total_amount: totalAmount,
           status: "pending",
@@ -359,6 +444,62 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ─── Criar checkout_session congelada antes de chamar a Yampi ─────────────
+      // Esta sessão é a fonte de verdade do preço. O webhook valida o amount pago
+      // contra checkout_sessions.total_amount antes de confirmar o pedido.
+      let checkoutSessionId: string | null = null;
+      const { data: sessionRecord, error: sessionErr } = await supabase
+        .from("checkout_sessions")
+        .insert({
+          tenant_id: tenantId,
+          order_id: orderId,
+          items: items.map((i) => ({
+            variant_id: i.variant_id,
+            quantity: i.quantity,
+            unit_price: i.unit_price,
+            product_name: i.product_name,
+            product_id: i.product_id,
+          })),
+          subtotal,
+          discount_amount: discountAmount,
+          coupon_code: couponCode ?? null,
+          coupon_id: validatedCouponId,
+          shipping_amount: shippingFinal,
+          total_amount: totalAmount,
+          status: "pending",
+          correlation_id: requestId ?? null,
+          expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (sessionErr || !sessionRecord?.id) {
+        console.error(
+          JSON.stringify({
+            level: "error",
+            message: "Falha ao criar checkout_session — abortando checkout Yampi",
+            context: "checkout-router.start.yampi",
+            request_id: requestId,
+            error: sessionErr?.message,
+          }),
+        );
+        return jsonRes(
+          { success: false, error: "Erro ao inicializar sessão de checkout. Tente novamente." },
+          500,
+          corsHeaders,
+        );
+      }
+
+      checkoutSessionId = sessionRecord.id as string;
+
+      // Grava checkout_session_id no pedido imediatamente (fonte de verdade)
+      if (orderId) {
+        await supabase
+          .from("orders")
+          .update({ checkout_session_id: checkoutSessionId })
+          .eq("id", orderId);
+      }
+
       const targetUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/checkout-create-session`;
       const yampiRes = await fetchWithTimeout(
         targetUrl,
@@ -375,18 +516,23 @@ Deno.serve(async (req) => {
             request_id: requestId,
             tenant_id: tenantId,
             skip_stock_check: true,
+            // Passa o ID da sessão congelada para que checkout-create-session
+            // use como metadata.session_id no link Yampi (em vez de gerar um novo UUID)
+            checkout_session_id: checkoutSessionId,
           }),
         },
-        22_000
+        22_000,
       );
       const yampiData = yampiRes.ok ? (await yampiRes.json().catch(() => ({}))) as Record<string, unknown> : {};
       const redirectUrl = yampiData.redirect_url as string | undefined;
       const isFallback = yampiData.fallback === true;
       const errMsg = yampiData.error as string | undefined;
 
-      // If Yampi returned a fallback (e.g. missing yampi_sku_id), render native checkout
+      // Se Yampi retornou fallback (e.g. yampi_sku_id faltando), renderizar checkout nativo
       if (isFallback || (redirectUrl && redirectUrl === "/checkout")) {
         console.log(JSON.stringify({ scope: "checkout-router", request_id: requestId, route: "start", provider, channel, fallback: true, reason: yampiData.fallback_reason || errMsg || "yampi_fallback", duration_ms: Date.now() - t0 }));
+        // Cancela a checkout_session criada (não haverá link Yampi)
+        await supabase.from("checkout_sessions").update({ status: "cancelled" }).eq("id", checkoutSessionId);
         return jsonRes(
           {
             success: true,
@@ -401,26 +547,42 @@ Deno.serve(async (req) => {
             fallback_reason: yampiData.fallback_reason || errMsg || "Yampi não disponível para estes itens",
           },
           200,
-          corsHeaders
+          corsHeaders,
         );
       }
 
       if (errMsg && !redirectUrl) {
+        await supabase.from("checkout_sessions").update({ status: "cancelled" }).eq("id", checkoutSessionId);
         return jsonRes({ success: false, provider, channel, experience, action: "redirect", error: errMsg }, 400, corsHeaders);
       }
-      const yampiSessionId = yampiData.session_id as string | undefined;
+
+      // O session_id retornado deve ser o mesmo que passamos (checkout_session_id)
+      const yampiSessionId = (yampiData.session_id as string | undefined) ?? checkoutSessionId;
       const yampiLinkId = yampiData.yampi_link_id as string | undefined;
+
       if (orderId && yampiSessionId) {
         const orderUpdate: Record<string, unknown> = { checkout_session_id: yampiSessionId };
         if (yampiLinkId) orderUpdate.external_reference = String(yampiLinkId);
         await supabase.from("orders").update(orderUpdate).eq("id", orderId);
       }
+
       let finalSuccessUrl = successUrl;
       if (yampiSessionId && finalSuccessUrl) {
         finalSuccessUrl = finalSuccessUrl.replace("{CHECKOUT_SESSION_ID}", yampiSessionId);
       }
       const fallbackRedirect = finalSuccessUrl || `${origin}/checkout/obrigado?session_id=${yampiSessionId || ""}`;
-      console.log(JSON.stringify({ scope: "checkout-router", request_id: requestId, route: "start", provider, channel, duration_ms: Date.now() - t0 }));
+      console.log(JSON.stringify({
+        scope: "checkout-router",
+        request_id: requestId,
+        route: "start",
+        provider,
+        channel,
+        checkout_session_id: checkoutSessionId,
+        total_amount: totalAmount,
+        discount_amount: discountAmount,
+        coupon_code: couponCode ?? null,
+        duration_ms: Date.now() - t0,
+      }));
       return jsonRes(
         {
           success: true,
@@ -431,7 +593,7 @@ Deno.serve(async (req) => {
           redirect_url: redirectUrl || fallbackRedirect,
         },
         200,
-        corsHeaders
+        corsHeaders,
       );
     }
 

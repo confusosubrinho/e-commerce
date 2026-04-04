@@ -86,6 +86,7 @@ const Notifications = lazy(() => lazyRetry(() => import("./pages/admin/Notificat
 const Reviews = lazy(() => lazyRetry(() => import("./pages/admin/Reviews")));
 const Team = lazy(() => lazyRetry(() => import("./pages/admin/Team")));
 const CheckoutSettings = lazy(() => lazyRetry(() => import("./pages/admin/CheckoutSettings")));
+const PaymentInconsistencies = lazy(() => lazyRetry(() => import("./pages/admin/PaymentInconsistencies")));
 const CommerceHealth = lazy(() => lazyRetry(() => import("./pages/admin/CommerceHealth")));
 const SuperAdmin = lazy(() => lazyRetry(() => import("./pages/admin/SuperAdmin")));
 const BlogAdmin = lazy(() => lazyRetry(() => import("./pages/admin/BlogAdmin")));
@@ -277,6 +278,7 @@ const App = () => {
                 <Route path="avaliacoes" element={<Reviews />} />
                 <Route path="equipe" element={<Team />} />
                 <Route path="checkout-transparente" element={<CheckoutSettings />} />
+                <Route path="inconsistencias-pagamento" element={<PaymentInconsistencies />} />
                 <Route path="commerce-health" element={<CommerceHealth />} />
                 <Route path="super" element={<SuperAdmin />} />
                 <Route path="blog" element={<BlogAdmin />} />

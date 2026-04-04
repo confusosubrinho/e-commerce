@@ -205,8 +205,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 7. Register abandoned cart
-    const sessionId = crypto.randomUUID();
+    // 7. Session ID: usa o checkout_session_id passado pelo checkout-router (preferido)
+    // ou gera novo UUID como fallback (fluxo legado sem checkout_session).
+    const passedCheckoutSessionId = body?.checkout_session_id as string | undefined;
+    const sessionId = passedCheckoutSessionId || crypto.randomUUID();
 
     await supabase.from("abandoned_carts").insert({
       session_id: sessionId,
@@ -254,33 +256,87 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         };
 
-        // Y22 + Y25: Sync SKUs if enabled — with correct price_cost and try/catch per SKU
-        if (config.sync_enabled) {
+        // ─── Desconto de cupão embutido no preço do SKU Yampi ─────────────────────
+        // Se a checkout_session congelada tem discount_amount > 0, calculamos o preço
+        // efetivo por item (proporcional ao peso de cada item no subtotal) e sincronizamos
+        // com a Yampi ANTES de criar o link, garantindo que o usuário veja o preço correto.
+        //
+        // NOTA: isso altera temporariamente o price_sale no catálogo Yampi para esses SKUs.
+        // A sincronização regular (yampi-catalog-sync) irá restaurar os preços originais.
+        const effectivePriceMap = new Map<string, number>(); // variant_id → effective price_sale
+
+        if (passedCheckoutSessionId) {
+          const { data: frozenSession } = await supabase
+            .from("checkout_sessions")
+            .select("discount_amount, subtotal, items")
+            .eq("id", passedCheckoutSessionId)
+            .maybeSingle();
+
+          if (
+            frozenSession &&
+            Number(frozenSession.subtotal) > 0 &&
+            Number(frozenSession.discount_amount) > 0
+          ) {
+            const discountRatio = Number(frozenSession.discount_amount) / Number(frozenSession.subtotal);
+            const sessionItems = (frozenSession.items ?? []) as Array<{
+              variant_id: string;
+              unit_price: number;
+            }>;
+            for (const si of sessionItems) {
+              const effective = Math.max(
+                0,
+                Math.round(Number(si.unit_price) * (1 - discountRatio) * 100) / 100,
+              );
+              effectivePriceMap.set(si.variant_id, effective);
+            }
+            console.log(
+              JSON.stringify({
+                level: "info",
+                message: "Coupon discount baked into Yampi SKU prices",
+                context: "checkout-create-session.yampi.discount_sync",
+                checkout_session_id: passedCheckoutSessionId,
+                discount_ratio: discountRatio.toFixed(4),
+                affected_variants: sessionItems.length,
+              }),
+            );
+          }
+        }
+
+        // Y22 + Y25: Sync SKUs sempre que: (a) sync_enabled OR (b) há desconto para embutir
+        const shouldForceSyncForDiscount = effectivePriceMap.size > 0;
+        if (config.sync_enabled || shouldForceSyncForDiscount) {
           for (const item of items) {
             const variant = variants.find((v) => v.id === item.variant_id)!;
             const product = productMap.get(variant.product_id)!;
 
             if (variant.yampi_sku_id) {
-              const salePrice = variant.sale_price ?? variant.base_price ?? product.sale_price ?? product.base_price;
+              const catalogSalePrice = variant.sale_price ?? variant.base_price ?? product.sale_price ?? product.base_price;
+              // Usa o preço efetivo com desconto quando disponível, senão o preço do catálogo
+              const effectiveSalePrice = effectivePriceMap.get(variant.id) ?? catalogSalePrice;
               const costPrice = variant.base_price ?? product.base_price;
               const yampiProductId = (product as Record<string, unknown>).yampi_product_id;
               const skuUpdateBody: Record<string, unknown> = {
                 price_cost: costPrice,
-                price_sale: salePrice,
+                price_sale: effectiveSalePrice,
                 quantity: variant.stock_quantity,
                 quantity_managed: true,
               };
               if (yampiProductId) skuUpdateBody.product_id = yampiProductId;
 
               try {
-                const syncRes = await fetchWithTimeout(`${yampiBase}/catalog/skus/${variant.yampi_sku_id}`, {
-                  method: "PUT",
-                  headers: yampiHeaders,
-                  body: JSON.stringify(skuUpdateBody),
-                });
+                const syncRes = await fetchWithTimeout(
+                  `${yampiBase}/catalog/skus/${variant.yampi_sku_id}`,
+                  {
+                    method: "PUT",
+                    headers: yampiHeaders,
+                    body: JSON.stringify(skuUpdateBody),
+                  },
+                );
                 if (!syncRes.ok) {
                   const errBody = await syncRes.text().catch(() => "");
-                  console.warn(`[checkout-create-session] Fast sync SKU ${variant.yampi_sku_id} failed (${syncRes.status}): ${errBody}`);
+                  console.warn(
+                    `[checkout-create-session] Fast sync SKU ${variant.yampi_sku_id} failed (${syncRes.status}): ${errBody.substring(0, 200)}`,
+                  );
                 }
               } catch (syncErr: unknown) {
                 const msg = syncErr instanceof Error ? syncErr.message : "unknown";
@@ -360,6 +416,22 @@ Deno.serve(async (req) => {
 
         // Fix #1: Extract Yampi payment link ID to enable pre-linking
         const yampiLinkId = linkDataInner?.id || linkData?.id || null;
+
+        // Atualiza status da checkout_session para payment_link_created
+        // (apenas quando o ID foi passado pelo checkout-router — sessão já existe no DB)
+        if (passedCheckoutSessionId) {
+          await supabase
+            .from("checkout_sessions")
+            .update({
+              status: "payment_link_created",
+              yampi_link_id: yampiLinkId != null ? String(yampiLinkId) : null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", passedCheckoutSessionId)
+            .catch((err: unknown) => {
+              console.warn("[checkout-create-session] Falha ao atualizar checkout_session status:", err);
+            });
+        }
 
         return jsonRes({ session_id: sessionId, redirect_url: redirectUrl, yampi_link_id: yampiLinkId });
       } catch (yampiErr: unknown) {
