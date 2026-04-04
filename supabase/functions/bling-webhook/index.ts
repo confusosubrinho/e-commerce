@@ -4,6 +4,21 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { fetchWithRateLimit } from "../_shared/blingFetchWithRateLimit.ts";
 import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 import { hasRecentLocalMovements } from "../_shared/blingStockPush.ts";
+import {
+  auditBlingSaldosBatch,
+  blingIdMissingExplicitInAudit,
+  blingVariantSyncDecisionColumns,
+  BlingStockCircuitBreaker,
+  evaluateSkuRelinkOnProduct,
+  explicitSaldoFromBlingStockRow,
+  explicitSaldoFromLegacyEstoque,
+  explicitSaldoFromWebhookPayload,
+  logBlingSaldosBatchAudit,
+  logBlingStockEvent,
+  parseBlingStockCircuitConfig,
+  resolveSafeStockUpdate,
+  type BlingStockMatchType,
+} from "../_shared/blingStockSafe.ts";
 import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
 
 const corsHeaders = {
@@ -89,15 +104,19 @@ function classifyEvent(event: string): "stock" | "product" | "order" | "invoice"
   return "unknown";
 }
 
-// ─── Find variant by bling_variant_id OR by SKU (used by syncStockOnly) ───
-async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?: string): Promise<{ variantId: string; productId: string } | null> {
+// ─── Find variant by bling_variant_id OR by SKU (SKU único normalizado no produto pai) ───
+async function findVariantByBlingIdOrSku(
+  supabase: any,
+  blingId: number,
+  token?: string,
+): Promise<{ variantId: string; productId: string; matchType: BlingStockMatchType } | null> {
   const { data: variant } = await supabase.from("product_variants").select("id, product_id").eq("bling_variant_id", blingId).maybeSingle();
-  if (variant) return { variantId: variant.id, productId: variant.product_id };
+  if (variant) return { variantId: variant.id, productId: variant.product_id, matchType: "bling_variant_id" };
 
   const { data: product } = await supabase.from("products").select("id").eq("bling_product_id", blingId).maybeSingle();
   if (product) {
     const { data: defaultVar } = await supabase.from("product_variants").select("id").eq("product_id", product.id).limit(1).maybeSingle();
-    if (defaultVar) return { variantId: defaultVar.id, productId: product.id };
+    if (defaultVar) return { variantId: defaultVar.id, productId: product.id, matchType: "bling_product_id_parent" };
   }
 
   if (token) {
@@ -105,13 +124,24 @@ async function findVariantByBlingIdOrSku(supabase: any, blingId: number, token?:
       const res = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingId}`, { headers: blingHeaders(token) });
       if (res.ok) {
         const json = await res.json();
-        const sku = json?.data?.codigo;
-        if (sku) {
-          const { data: skuVariant } = await supabase.from("product_variants").select("id, product_id").eq("sku", sku).maybeSingle();
-          if (skuVariant) {
-            await supabase.from("product_variants").update({ bling_variant_id: blingId }).eq("id", skuVariant.id);
-            console.log(`[webhook] Linked variant ${skuVariant.id} to bling_id=${blingId} via SKU=${sku}`);
-            return { variantId: skuVariant.id, productId: skuVariant.product_id };
+        const data = json?.data;
+        const sku = data?.codigo;
+        const parentBlingId = data?.produtoPai?.id ?? data?.idProdutoPai ?? data?.id;
+        if (sku != null && String(sku).trim() !== "" && parentBlingId != null) {
+          const { data: parentProd } = await supabase.from("products").select("id").eq("bling_product_id", parentBlingId).maybeSingle();
+          if (parentProd) {
+            const { data: pvars } = await supabase.from("product_variants").select("id, sku").eq("product_id", parentProd.id);
+            const relink = evaluateSkuRelinkOnProduct(pvars || [], String(sku));
+            if (relink.ok) {
+              await supabase.from("product_variants").update({ bling_variant_id: blingId }).eq("id", relink.variantId);
+              console.log(`[webhook] Linked variant ${relink.variantId} to bling_id=${blingId} via SKU (produto ${parentProd.id})`);
+              return { variantId: relink.variantId, productId: parentProd.id, matchType: "sku_relink" };
+            }
+            logBlingStockEvent("SKU relink skipped: ambiguidade ou SKU vazio no produto", "webhook.findVariantByBlingIdOrSku", {
+              bling_id: blingId,
+              reason: relink.reason,
+              product_id: parentProd.id,
+            });
           }
         }
       }
@@ -135,31 +165,41 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
       return "skipped_inactive";
     }
     if (newStock !== undefined) {
-      // Check for recent local movements (sales/reserves in last 10 min)
       const hasRecent = await hasRecentLocalMovements(supabase, variantMatch.id, 10);
-      if (hasRecent) {
-        console.log(`[webhook] Skipping stock overwrite for variant ${variantMatch.id} (bling_id=${blingProductId}) — recent local movements detected`);
-        return "skipped_recent_movement";
-      }
-      // Get current stock for audit trail
       const { data: currentVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", variantMatch.id).maybeSingle();
       const oldStock = currentVar?.stock_quantity ?? 0;
-      await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", variantMatch.id);
-      // Record inventory movement for audit
-      if (newStock !== oldStock) {
-        const tenantId = await getTenantIdByProductId(supabase, variantMatch.product_id);
-        if (!tenantId) {
-          console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
-            product_id: variantMatch.product_id,
-            variant_id: variantMatch.id,
-          });
-        } else {
-          await supabase.from("inventory_movements").insert({
-            tenant_id: tenantId,
-            variant_id: variantMatch.id,
-            quantity: newStock - oldStock,
-            type: "bling_sync",
-          }).then(() => {}).catch(() => {});
+      const resolved = resolveSafeStockUpdate({
+        batchHttpOk: true,
+        explicitSaldo: newStock,
+        inPartialBatchMissingSaldo: false,
+        hasRecentLocalMovement: hasRecent,
+        matchType: "bling_variant_id",
+        oldStock,
+      });
+      const meta = blingVariantSyncDecisionColumns(resolved, "webhook.updateStockForBlingId");
+      if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+        await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", variantMatch.id);
+        if (resolved.new_stock !== oldStock) {
+          const tenantId = await getTenantIdByProductId(supabase, variantMatch.product_id);
+          if (!tenantId) {
+            console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
+              product_id: variantMatch.product_id,
+              variant_id: variantMatch.id,
+            });
+          } else {
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
+              variant_id: variantMatch.id,
+              quantity: resolved.new_stock - oldStock,
+              type: "bling_sync",
+            }).then(() => {}).catch(() => {});
+          }
+        }
+      } else {
+        await supabase.from("product_variants").update(meta).eq("id", variantMatch.id);
+        if (hasRecent) {
+          console.log(`[webhook] Skipping stock overwrite for variant ${variantMatch.id} (bling_id=${blingProductId}) — recent local movements detected`);
+          return "skipped_recent_movement";
         }
       }
       await supabase.from("products").update({
@@ -198,32 +238,42 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
       }
     }
     if (variantCount === 1 && newStock !== undefined) {
-      // Check for recent local movements
       const singleVariantId = variants[0].id;
       const hasRecent = await hasRecentLocalMovements(supabase, singleVariantId, 10);
-      if (hasRecent) {
-        console.log(`[webhook] Skipping stock overwrite for single-variant product (bling_id=${blingProductId}) — recent local movements detected`);
-        return "skipped_recent_movement";
-      }
-      // Get old stock for audit trail
       const { data: oldSingleVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", singleVariantId).maybeSingle();
       const oldSingleStock = oldSingleVar?.stock_quantity ?? 0;
-      await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("product_id", product.id);
-      // Record inventory movement
-      if (newStock !== oldSingleStock) {
-        const tenantId = await getTenantIdByProductId(supabase, product.id);
-        if (!tenantId) {
-          console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
-            product_id: product.id,
-            variant_id: singleVariantId,
-          });
-        } else {
-          await supabase.from("inventory_movements").insert({
-            tenant_id: tenantId,
-            variant_id: singleVariantId,
-            quantity: newStock - oldSingleStock,
-            type: "bling_sync",
-          }).then(() => {}).catch(() => {});
+      const resolvedSingle = resolveSafeStockUpdate({
+        batchHttpOk: true,
+        explicitSaldo: newStock,
+        inPartialBatchMissingSaldo: false,
+        hasRecentLocalMovement: hasRecent,
+        matchType: "bling_product_id_parent",
+        oldStock: oldSingleStock,
+      });
+      const metaSingle = blingVariantSyncDecisionColumns(resolvedSingle, "webhook.updateStockForBlingId.single");
+      if (resolvedSingle.shouldApplyStock && resolvedSingle.new_stock !== undefined) {
+        await supabase.from("product_variants").update({ stock_quantity: resolvedSingle.new_stock, ...metaSingle }).eq("id", singleVariantId);
+        if (resolvedSingle.new_stock !== oldSingleStock) {
+          const tenantId = await getTenantIdByProductId(supabase, product.id);
+          if (!tenantId) {
+            console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
+              product_id: product.id,
+              variant_id: singleVariantId,
+            });
+          } else {
+            await supabase.from("inventory_movements").insert({
+              tenant_id: tenantId,
+              variant_id: singleVariantId,
+              quantity: resolvedSingle.new_stock - oldSingleStock,
+              type: "bling_sync",
+            }).then(() => {}).catch(() => {});
+          }
+        }
+      } else {
+        await supabase.from("product_variants").update(metaSingle).eq("id", singleVariantId);
+        if (hasRecent) {
+          console.log(`[webhook] Skipping stock overwrite for single-variant product (bling_id=${blingProductId}) — recent local movements detected`);
+          return "skipped_recent_movement";
         }
       }
       await supabase.from("products").update({
@@ -236,33 +286,66 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
     }
   }
 
-  // SKU fallback
+  // SKU fallback (produto pai + SKU normalizado único)
   if (token) {
     try {
       const res = await fetchWithTimeout(`${BLING_API_URL}/produtos/${blingProductId}`, { headers: blingHeaders(token) });
       if (res.ok) {
         const json = await res.json();
-        const sku = json?.data?.codigo;
-        if (sku) {
-          const { data: skuVariant } = await supabase.from("product_variants").select("id, product_id").eq("sku", sku).maybeSingle();
-          if (skuVariant) {
-            await supabase.from("product_variants").update({ bling_variant_id: blingProductId }).eq("id", skuVariant.id);
-            if (newStock !== undefined) {
-              // Check for recent local movements before overwriting
-              const hasRecent = await hasRecentLocalMovements(supabase, skuVariant.id, 10);
-              if (hasRecent) {
-                console.log(`[webhook] Skipping SKU fallback stock overwrite for variant ${skuVariant.id} — recent local movements`);
-              } else {
-                await supabase.from("product_variants").update({ stock_quantity: newStock }).eq("id", skuVariant.id);
+        const data = json?.data;
+        const sku = data?.codigo;
+        const parentBlingId = data?.produtoPai?.id ?? data?.idProdutoPai ?? data?.id;
+        if (sku != null && String(sku).trim() !== "" && parentBlingId != null) {
+          const { data: parentProd } = await supabase.from("products").select("id").eq("bling_product_id", parentBlingId).maybeSingle();
+          if (parentProd) {
+            const { data: pvars } = await supabase.from("product_variants").select("id, sku").eq("product_id", parentProd.id);
+            const relink = evaluateSkuRelinkOnProduct(pvars || [], String(sku));
+            if (relink.ok) {
+              await supabase.from("product_variants").update({ bling_variant_id: blingProductId }).eq("id", relink.variantId);
+              if (newStock !== undefined) {
+                const hasRecent = await hasRecentLocalMovements(supabase, relink.variantId, 10);
+                const { data: curSku } = await supabase.from("product_variants").select("stock_quantity").eq("id", relink.variantId).maybeSingle();
+                const oldSkuStock = curSku?.stock_quantity ?? 0;
+                const resolvedSku = resolveSafeStockUpdate({
+                  batchHttpOk: true,
+                  explicitSaldo: newStock,
+                  inPartialBatchMissingSaldo: false,
+                  hasRecentLocalMovement: hasRecent,
+                  matchType: "sku_relink",
+                  oldStock: oldSkuStock,
+                });
+                const metaSku = blingVariantSyncDecisionColumns(resolvedSku, "webhook.updateStockForBlingId.sku_fallback");
+                if (resolvedSku.shouldApplyStock && resolvedSku.new_stock !== undefined) {
+                  await supabase.from("product_variants").update({ stock_quantity: resolvedSku.new_stock, ...metaSku }).eq("id", relink.variantId);
+                  if (resolvedSku.new_stock !== oldSkuStock) {
+                    const tenantId = await getTenantIdByProductId(supabase, parentProd.id);
+                    if (tenantId) {
+                      await supabase.from("inventory_movements").insert({
+                        tenant_id: tenantId,
+                        variant_id: relink.variantId,
+                        quantity: resolvedSku.new_stock - oldSkuStock,
+                        type: "bling_sync",
+                      }).then(() => {}).catch(() => {});
+                    }
+                  }
+                } else {
+                  await supabase.from("product_variants").update(metaSku).eq("id", relink.variantId);
+                  if (hasRecent) console.log(`[webhook] Skipping SKU fallback stock overwrite for variant ${relink.variantId} — recent local movements`);
+                }
+                await supabase.from("products").update({
+                  bling_sync_status: "synced",
+                  bling_last_synced_at: new Date().toISOString(),
+                  bling_last_error: null,
+                }).eq("id", parentProd.id);
               }
-              await supabase.from("products").update({
-                bling_sync_status: "synced",
-                bling_last_synced_at: new Date().toISOString(),
-                bling_last_error: null,
-              }).eq("id", skuVariant.product_id);
+              console.log(`[webhook] Linked and updated variant via SKU: bling_id=${blingProductId} → ${newStock}`);
+              return "updated";
             }
-            console.log(`[webhook] Linked and updated variant via SKU: bling_id=${blingProductId} → ${newStock}`);
-            return "updated";
+            logBlingStockEvent("SKU fallback relink skipped", "webhook.updateStockForBlingId", {
+              bling_product_id: blingProductId,
+              reason: relink.reason,
+              product_id: parentProd.id,
+            });
           }
         }
       }
@@ -278,11 +361,26 @@ async function updateStockForBlingId(supabase: any, blingProductId: number, newS
     }
     try {
       const res = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers: blingHeaders(token) });
+      if (!res.ok) {
+        const t = await res.text();
+        logBlingStockEvent("Bling stock fetch failed (HTTP), preserving local stock", "webhook.updateStockForBlingId.fetch", {
+          bling_product_id: blingProductId,
+          status: res.status,
+          body: t.substring(0, 200),
+        });
+        return "no_stock_data";
+      }
       const json = await res.json();
-      const stock = json?.data?.[0]?.saldoVirtualTotal ?? null;
-      if (stock !== null) {
+      const row = json?.data?.[0];
+      const stock = row != null && (row as { produto?: { id?: number } }).produto?.id === blingProductId
+        ? explicitSaldoFromBlingStockRow(row)
+        : undefined;
+      if (stock !== undefined) {
         return await updateStockForBlingId(supabase, blingProductId, stock, token, depth + 1);
       }
+      logBlingStockEvent("Bling stock skipped: no explicit saldo for requested product id", "webhook.updateStockForBlingId.fetch", {
+        bling_product_id: blingProductId,
+      });
     } catch (err) {
       console.error(`[webhook] Error fetching stock for ${blingProductId}:`, err);
     }
@@ -417,58 +515,121 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
     // Batch IDs in groups of 50 to avoid URL length limits (Error 414)
     const BATCH_SIZE = 50;
     const allStockData: any[] = [];
+    let anyVarBatchFailed = false;
     for (let i = 0; i < varIds.length; i += BATCH_SIZE) {
       const batch = varIds.slice(i, i + BATCH_SIZE);
       const idsParam = batch.map((id: number) => `idsProdutos[]=${id}`).join("&");
       await sleep(300);
       const stockRes = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?${idsParam}`, { headers });
+      if (!stockRes.ok) {
+        const t = await stockRes.text();
+        anyVarBatchFailed = true;
+        logBlingStockEvent("Bling batch stock request failed, no overwrite from this batch", "webhook.syncStockOnly.variacoes", {
+          product_id: productId,
+          bling_product_id: blingProductId,
+          status: stockRes.status,
+          body: t.substring(0, 200),
+        });
+        continue;
+      }
       const stockJson = await stockRes.json();
-      allStockData.push(...(stockJson?.data || []));
+      const dataRows = stockJson?.data || [];
+      const batchAudit = auditBlingSaldosBatch(batch, dataRows);
+      logBlingSaldosBatchAudit(batchAudit, "webhook.syncStockOnly.variacoes.batch", {
+        product_id: productId,
+        bling_product_id: blingProductId,
+        batch_offset: i,
+      });
+      allStockData.push(...dataRows);
     }
+    const saldoById = new Map<number, number>();
     for (const s of allStockData) {
-      const varBlingId = s.produto?.id;
-      const qty = s.saldoVirtualTotal ?? 0;
-      if (varBlingId) {
-        // Bug 5 Fix: Extract token from headers and pass to findVariantByBlingIdOrSku for SKU fallback
-        const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
-        const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
-        if (match) {
-          // Check for recent local movements before overwriting
-          const hasRecent = await hasRecentLocalMovements(supabase, match.variantId, 10);
-          if (hasRecent) {
-            console.log(`[webhook] Skipping stock overwrite in syncStockOnly for variant ${match.variantId} — recent local movements`);
-          } else {
-            // Get old stock for audit trail
-            const { data: oldVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", match.variantId).maybeSingle();
-            const oldQty = oldVar?.stock_quantity ?? 0;
-            await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", match.variantId);
-            stockUpdated = true;
-            // Record inventory movement
-            if (qty !== oldQty) {
-              const tenantId = await getTenantIdByProductId(supabase, match.productId);
-              if (!tenantId) {
-                console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
-                  product_id: match.productId,
-                  variant_id: match.variantId,
-                });
-              } else {
-                await supabase.from("inventory_movements").insert({
-                  tenant_id: tenantId,
-                  variant_id: match.variantId,
-                  quantity: qty - oldQty,
-                  type: "bling_sync",
-                }).then(() => {}).catch(() => {});
-              }
+      const pid = s?.produto?.id;
+      const q = explicitSaldoFromBlingStockRow(s);
+      if (pid != null && typeof pid === "number" && q !== undefined) saldoById.set(pid, q);
+    }
+    for (const vid of varIds) {
+      if (!saldoById.has(vid)) {
+        logBlingStockEvent("Bling stock partial: variation id without explicit saldo in merged response", "webhook.syncStockOnly", {
+          product_id: productId,
+          bling_variant_id: vid,
+        });
+      }
+    }
+    const tokenFromHeaders = (headers as any)?.Authorization?.replace("Bearer ", "") || undefined;
+    for (const [varBlingId, qty] of saldoById) {
+      const match = await findVariantByBlingIdOrSku(supabase, varBlingId, tokenFromHeaders);
+      if (match) {
+        const hasRecent = await hasRecentLocalMovements(supabase, match.variantId, 10);
+        const { data: oldVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", match.variantId).maybeSingle();
+        const oldQty = oldVar?.stock_quantity ?? 0;
+        const resolved = resolveSafeStockUpdate({
+          batchHttpOk: !anyVarBatchFailed,
+          explicitSaldo: qty,
+          inPartialBatchMissingSaldo: false,
+          hasRecentLocalMovement: hasRecent,
+          matchType: match.matchType,
+          oldStock: oldQty,
+        });
+        const meta = blingVariantSyncDecisionColumns(resolved, "webhook.syncStockOnly.variacoes");
+        if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+          await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", match.variantId);
+          stockUpdated = true;
+          if (resolved.new_stock !== oldQty) {
+            const tenantId = await getTenantIdByProductId(supabase, match.productId);
+            if (!tenantId) {
+              console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
+                product_id: match.productId,
+                variant_id: match.variantId,
+              });
+            } else {
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantId,
+                variant_id: match.variantId,
+                quantity: resolved.new_stock - oldQty,
+                type: "bling_sync",
+              }).then(() => {}).catch(() => {});
             }
           }
+        } else {
+          await supabase.from("product_variants").update(meta).eq("id", match.variantId);
+          if (hasRecent) {
+            console.log(`[webhook] Skipping stock overwrite in syncStockOnly for variant ${match.variantId} — recent local movements`);
+          }
         }
+      } else {
+        logBlingStockEvent("Bling variant not found by ID or SKU, preserving local stock", "webhook.syncStockOnly", {
+          product_id: productId,
+          bling_variant_id: varBlingId,
+        });
       }
     }
   } else {
     await sleep(300);
     const stockRes = await fetchWithTimeout(`${BLING_API_URL}/estoques/saldos?idsProdutos[]=${blingProductId}`, { headers });
+    if (!stockRes.ok) {
+      const t = await stockRes.text();
+      logBlingStockEvent("Bling stock request failed for simple product, preserving local stock", "webhook.syncStockOnly.simple", {
+        product_id: productId,
+        bling_product_id: blingProductId,
+        status: stockRes.status,
+        body: t.substring(0, 200),
+      });
+      return;
+    }
     const stockJson = await stockRes.json();
-    const qty = stockJson?.data?.[0]?.saldoVirtualTotal ?? 0;
+    const row0 = stockJson?.data?.[0];
+    const qty =
+      row0 != null && row0.produto?.id === blingProductId
+        ? explicitSaldoFromBlingStockRow(row0)
+        : undefined;
+    if (qty === undefined) {
+      logBlingStockEvent("Bling stock skipped: no explicit saldo for simple product", "webhook.syncStockOnly.simple", {
+        product_id: productId,
+        bling_product_id: blingProductId,
+      });
+      return;
+    }
     // Check recent local movements for all variants of this product
     const { data: prodVariants } = await supabase.from("product_variants").select("id").eq("product_id", productId);
     let skipAll = false;
@@ -478,29 +639,41 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
     if (skipAll) {
       console.log(`[webhook] Skipping stock overwrite in syncStockOnly no-variation for product ${productId} — recent local movements`);
     } else {
-      // Get old stocks for audit trail
       for (const pv of (prodVariants || [])) {
         const { data: oldVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", pv.id).maybeSingle();
         const oldQty = oldVar?.stock_quantity ?? 0;
-        if (qty !== oldQty) {
-          const tenantId = await getTenantIdByProductId(supabase, productId);
-          if (!tenantId) {
-            console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
-              product_id: productId,
-              variant_id: pv.id,
-            });
-          } else {
-            await supabase.from("inventory_movements").insert({
-              tenant_id: tenantId,
-              variant_id: pv.id,
-              quantity: qty - oldQty,
-              type: "bling_sync",
-            }).then(() => {}).catch(() => {});
+        const resolved = resolveSafeStockUpdate({
+          batchHttpOk: true,
+          explicitSaldo: qty,
+          inPartialBatchMissingSaldo: false,
+          hasRecentLocalMovement: false,
+          matchType: "bling_product_id_parent",
+          oldStock: oldQty,
+        });
+        const meta = blingVariantSyncDecisionColumns(resolved, "webhook.syncStockOnly.simple");
+        if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+          await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", pv.id);
+          stockUpdated = true;
+          if (resolved.new_stock !== oldQty) {
+            const tenantId = await getTenantIdByProductId(supabase, productId);
+            if (!tenantId) {
+              console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
+                product_id: productId,
+                variant_id: pv.id,
+              });
+            } else {
+              await supabase.from("inventory_movements").insert({
+                tenant_id: tenantId,
+                variant_id: pv.id,
+                quantity: resolved.new_stock - oldQty,
+                type: "bling_sync",
+              }).then(() => {}).catch(() => {});
+            }
           }
+        } else {
+          await supabase.from("product_variants").update(meta).eq("id", pv.id);
         }
       }
-      await supabase.from("product_variants").update({ stock_quantity: qty }).eq("product_id", productId);
-      stockUpdated = true;
     }
   }
 
@@ -516,6 +689,7 @@ async function syncStockOnly(supabase: any, headers: any, productId: string, bli
 // ─── Batch stock sync (cron) — only active products, updates sync status ───
 async function batchStockSync(supabase: any) {
   const runStarted = new Date().toISOString();
+  const correlationId = crypto.randomUUID();
   
   // Check if sync_stock is enabled
   const config = await getSyncConfig(supabase);
@@ -524,7 +698,7 @@ async function batchStockSync(supabase: any) {
     await supabase.from("bling_sync_runs").insert({
       started_at: runStarted, finished_at: new Date().toISOString(),
       trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 0,
-      error_details: [{ reason: "sync_stock disabled" }],
+      error_details: [{ correlation_id: correlationId, reason: "sync_stock disabled" }],
     });
     return { updated: 0, message: "sync_stock disabled" };
   }
@@ -535,7 +709,7 @@ async function batchStockSync(supabase: any) {
     await supabase.from("bling_sync_runs").insert({
       started_at: runStarted, finished_at: new Date().toISOString(),
       trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 1,
-      error_details: [{ reason: `Token error: ${err.message}` }],
+      error_details: [{ correlation_id: correlationId, reason: `Token error: ${err.message}` }],
     });
     return { error: err.message, updated: 0 };
   }
@@ -577,6 +751,7 @@ async function batchStockSync(supabase: any) {
     await supabase.from("bling_sync_runs").insert({
       started_at: runStarted, finished_at: new Date().toISOString(),
       trigger_type: "cron", processed_count: 0, updated_count: 0, errors_count: 0,
+      error_details: [{ correlation_id: correlationId, reason: "no bling ids to sync" }],
     });
     return { updated: 0 };
   }
@@ -588,8 +763,15 @@ async function batchStockSync(supabase: any) {
   const cronStartTime = Date.now();
   const TIMEOUT_SAFETY_MS = 50_000; // Stop at 50s to allow cleanup before edge function timeout
   let timedOut = false;
-  
-  for (let i = 0; i < allBlingIds.length; i += 50) {
+  const circuit = new BlingStockCircuitBreaker(parseBlingStockCircuitConfig({
+    BLING_STOCK_CIRCUIT_MISSING_SALDO_PERCENT: Deno.env.get("BLING_STOCK_CIRCUIT_MISSING_SALDO_PERCENT") ?? undefined,
+    BLING_STOCK_CIRCUIT_MAX_ZERO_UPDATES: Deno.env.get("BLING_STOCK_CIRCUIT_MAX_ZERO_UPDATES") ?? undefined,
+    BLING_STOCK_CIRCUIT_MIN_REQUESTED_FOR_PERCENT: Deno.env.get("BLING_STOCK_CIRCUIT_MIN_REQUESTED_FOR_PERCENT") ?? undefined,
+  }));
+  let circuitTripped = false;
+  let circuitTripReason: string | undefined;
+
+  outerCron: for (let i = 0; i < allBlingIds.length; i += 50) {
     // Timeout guard: stop if we're close to the edge function limit
     if (Date.now() - cronStartTime > TIMEOUT_SAFETY_MS) {
       timedOut = true;
@@ -607,29 +789,71 @@ async function batchStockSync(supabase: any) {
       if (!res.ok) {
         console.error(`[cron] Stock batch error:`, JSON.stringify(json));
         errorsCount++;
-        errorDetails.push({ batch_start: i, error: JSON.stringify(json).substring(0, 200) });
+        errorDetails.push({ batch_start: i, error: JSON.stringify(json).substring(0, 200), correlation_id: correlationId });
         continue;
       }
-      for (const stock of (json?.data || [])) {
+      const batchRows = json?.data || [];
+      const batchAudit = auditBlingSaldosBatch(batch, batchRows);
+      logBlingSaldosBatchAudit(batchAudit, "webhook.batchStockSync", {
+        correlation_id: correlationId,
+        batch_start_index: i,
+      });
+      circuit.recordBatchAudit(batchAudit);
+      const evBatch = circuit.evaluateAfterBatch();
+      if (evBatch.tripped) {
+        circuitTripped = true;
+        circuitTripReason = evBatch.reason;
+        errorDetails.push({ correlation_id: correlationId, circuit_breaker: evBatch.reason, batch_start: i });
+        console.warn(JSON.stringify({
+          level: "warn",
+          message: "webhook.batchStockSync circuit breaker tripped (missing saldo ratio)",
+          correlation_id: correlationId,
+          reason: evBatch.reason,
+          cumulative_requested: circuit.cumulativeRequested,
+          cumulative_missing_explicit: circuit.cumulativeMissingExplicit,
+        }));
+        break outerCron;
+      }
+      for (const stock of batchRows) {
         const blingId = stock.produto?.id;
-        const qty = stock.saldoVirtualTotal ?? 0;
-        if (!blingId) continue;
+        if (!blingId || typeof blingId !== "number") continue;
+        const qty = explicitSaldoFromBlingStockRow(stock);
         const variantIds = blingIdToVariants.get(blingId);
-        if (variantIds) {
-          const pid = blingIdToProductId.get(blingId);
-          const tenantId = pid ? await getTenantIdByProductId(supabase, pid) : null;
-          for (const vid of variantIds) {
-            const hasRecent = await hasRecentLocalMovements(supabase, vid, 10);
-            if (hasRecent) {
-              console.log(`[cron] Skipping stock overwrite for variant ${vid} (bling_id=${blingId}) — recent local movements`);
-              continue;
+        if (!variantIds) continue;
+        const missingPartial = blingIdMissingExplicitInAudit(batchAudit, blingId);
+        const pid = blingIdToProductId.get(blingId);
+        const tenantId = pid ? await getTenantIdByProductId(supabase, pid) : null;
+        for (const vid of variantIds) {
+          const hasRecent = await hasRecentLocalMovements(supabase, vid, 10);
+          const { data: currentVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", vid).maybeSingle();
+          const oldStock = currentVar?.stock_quantity ?? 0;
+          const resolved = resolveSafeStockUpdate({
+            batchHttpOk: true,
+            explicitSaldo: qty,
+            inPartialBatchMissingSaldo: missingPartial && qty === undefined,
+            hasRecentLocalMovement: hasRecent,
+            matchType: "bling_variant_id",
+            oldStock,
+          });
+          const meta = blingVariantSyncDecisionColumns(resolved, "webhook.batchStockSync");
+          if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+            await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", vid);
+            circuit.recordAppliedStockUpdate(oldStock, resolved.new_stock);
+            const evZero = circuit.evaluateAfterBatch();
+            if (evZero.tripped) {
+              circuitTripped = true;
+              circuitTripReason = evZero.reason;
+              errorDetails.push({ correlation_id: correlationId, circuit_breaker: evZero.reason, batch_start: i });
+              console.warn(JSON.stringify({
+                level: "warn",
+                message: "webhook.batchStockSync circuit breaker tripped (zero updates)",
+                correlation_id: correlationId,
+                reason: evZero.reason,
+                zero_stock_updates: circuit.zeroStockUpdates,
+              }));
+              break outerCron;
             }
-            // Get current stock for audit trail
-            const { data: currentVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", vid).maybeSingle();
-            const oldStock = currentVar?.stock_quantity ?? 0;
-            await supabase.from("product_variants").update({ stock_quantity: qty }).eq("id", vid);
-            // Record inventory movement for audit
-            if (qty !== oldStock) {
+            if (resolved.new_stock !== oldStock) {
               if (!tenantId) {
                 console.warn("[bling-webhook] Missing tenant_id for inventory_movements insert", {
                   product_id: pid,
@@ -639,20 +863,30 @@ async function batchStockSync(supabase: any) {
                 await supabase.from("inventory_movements").insert({
                   tenant_id: tenantId,
                   variant_id: vid,
-                  quantity: qty - oldStock,
+                  quantity: resolved.new_stock - oldStock,
                   type: "bling_sync",
                 }).then(() => {}).catch(() => {});
               }
             }
             updated++;
+          } else {
+            await supabase.from("product_variants").update(meta).eq("id", vid);
+            if (qty === undefined) {
+              logBlingStockEvent("Bling stock skipped: missing explicit saldoVirtualTotal in cron batch", "webhook.batchStockSync", {
+                bling_produto_id: blingId,
+                decision: resolved.decision,
+              });
+            } else if (hasRecent) {
+              console.log(`[cron] Skipping stock overwrite for variant ${vid} (bling_id=${blingId}) — recent local movements`);
+            }
           }
-          if (pid) updatedProductIds.add(pid);
         }
+        if (pid) updatedProductIds.add(pid);
       }
     } catch (err: any) {
       console.error(`[cron] Stock batch fetch error:`, err.message);
       errorsCount++;
-      errorDetails.push({ batch_start: i, error: err.message });
+      errorDetails.push({ batch_start: i, error: err.message, correlation_id: correlationId });
     }
   }
 
@@ -724,7 +958,12 @@ async function batchStockSync(supabase: any) {
     processed_count: allBlingIds.length,
     updated_count: updated,
     errors_count: errorsCount,
-    error_details: errorDetails,
+    error_details: [{
+      correlation_id: correlationId,
+      timed_out: timedOut,
+      circuit_tripped: circuitTripped,
+      circuit_trip_reason: circuitTripReason ?? null,
+    }, ...errorDetails],
   });
 
   console.log(`[cron] Stock sync complete: ${updated} updates, ${allBlingIds.length} Bling IDs checked, ${updatedProductIds.size} products marked synced (inactive skipped)`);
@@ -834,9 +1073,9 @@ Deno.serve(async (req) => {
         for (const estoque of estoques) {
           const est = estoque.estoque || estoque;
           const blingId = est.idProduto || est.produto?.id;
-          const saldo = est.saldoVirtualTotal ?? est.quantidade ?? est.saldo;
+          const saldo = explicitSaldoFromLegacyEstoque(est);
           if (blingId) {
-            const result = await updateStockForBlingId(supabase, blingId, saldo !== undefined ? saldo : undefined, token || undefined);
+            const result = await updateStockForBlingId(supabase, blingId, saldo, token || undefined);
             if (result === "updated") updatedCount++;
             else skippedCount++;
           }
@@ -928,10 +1167,10 @@ Deno.serve(async (req) => {
             break;
           }
           const stockBlingId = dados?.produto?.id || dados?.idProduto;
-          const saldoVirtual = dados?.saldoVirtualTotal;
+          const saldoExplicit = explicitSaldoFromWebhookPayload(dados?.saldoVirtualTotal);
           if (stockBlingId) {
-            console.log(`[webhook] Stock event for bling_id=${stockBlingId}, saldoVirtual=${saldoVirtual}`);
-            const result = await updateStockForBlingId(supabase, stockBlingId, saldoVirtual !== undefined ? saldoVirtual : undefined, token || undefined);
+            console.log(`[webhook] Stock event for bling_id=${stockBlingId}, saldoExplicit=${saldoExplicit ?? "absent"}`);
+            const result = await updateStockForBlingId(supabase, stockBlingId, saldoExplicit, token || undefined);
             webhookResult = result;
             webhookReason = `Stock ${result} for bling_id=${stockBlingId}`;
           } else {
