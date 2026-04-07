@@ -72,7 +72,7 @@ function InconsistencyRow({ order }: { order: InconsistentOrder }) {
     queryKey: ['checkout-session', order.checkout_session_id],
     queryFn: async () => {
       if (!order.checkout_session_id) return null;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('checkout_sessions')
         .select('*')
         .eq('id', order.checkout_session_id)
@@ -87,11 +87,11 @@ function InconsistencyRow({ order }: { order: InconsistentOrder }) {
     queryFn: async () => {
       const { data } = await supabase
         .from('order_events')
-        .select('id, event_type, payload, created_at')
+        .select('id, event_type, payload, received_at')
         .eq('order_id', order.id)
         .eq('event_type', 'payment_inconsistency_detected')
-        .order('created_at', { ascending: false });
-      return (data ?? []) as OrderEvent[];
+        .order('received_at', { ascending: false });
+      return (data ?? []).map((d: any) => ({ ...d, created_at: d.received_at })) as OrderEvent[];
     },
     enabled: expanded,
   });
@@ -105,7 +105,7 @@ function InconsistencyRow({ order }: { order: InconsistentOrder }) {
       if (error) throw error;
 
       if (order.checkout_session_id) {
-        await supabase
+        await (supabase as any)
           .from('checkout_sessions')
           .update({ status: 'paid' })
           .eq('id', order.checkout_session_id);

@@ -506,8 +506,9 @@ Deno.serve(async (req) => {
 });
 
 // ── Helper for batch import ──
+// deno-lint-ignore no-explicit-any
 async function importSingleOrder(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   yampiOrderId: string,
   alias: string,
   userToken: string,

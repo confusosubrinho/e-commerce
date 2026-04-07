@@ -1700,26 +1700,26 @@ serve(async (req) => {
                           variant_id: lv.id,
                         });
                       } else {
-                        const { data: prow } = await supabase
+                        const { data: prow2 } = await supabase
                           .from("products")
                           .select("tenant_id")
                           .eq("id", productId)
                           .eq("tenant_id", tenantId)
                           .maybeSingle();
 
-                        const tenantId = prow?.tenant_id;
-                        if (!tenantId) {
+                        const resolvedTenantId: string | undefined = prow2?.tenant_id;
+                        if (!resolvedTenantId) {
                           console.warn("[bling-sync] Missing tenant_id for inventory_movements insert", {
                             product_id: productId,
                             variant_id: lv.id,
                           });
                         } else {
                           await supabase.from("inventory_movements").insert({
-                            tenant_id: tenantId,
+                            tenant_id: resolvedTenantId,
                             variant_id: lv.id,
                             quantity: resolved.new_stock - oldQty,
                             type: "bling_sync",
-                          }).then(() => {}).catch(() => {});
+                          }).then(() => {}, () => {});
                         }
                       }
                     }

@@ -116,7 +116,7 @@ describe("blingStockSafe (política conservadora Bling)", () => {
       "X-1",
     );
     expect(bad.ok).toBe(false);
-    if (!bad.ok) expect(bad.reason).toContain("ambiguous");
+    if (!bad.ok) expect((bad as { ok: false; reason: string }).reason).toContain("ambiguous");
 
     const good = evaluateSkuRelinkOnProduct([{ id: "a", sku: "  Y  " }], "Y");
     expect(good.ok).toBe(true);

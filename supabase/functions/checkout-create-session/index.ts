@@ -428,7 +428,9 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString(),
             })
             .eq("id", passedCheckoutSessionId)
-            .catch((err: unknown) => {
+            .then(({ error: updErr }) => {
+              if (updErr) console.warn("[checkout-create-session] Falha ao atualizar checkout_session status:", updErr);
+            }, (err: unknown) => {
               console.warn("[checkout-create-session] Falha ao atualizar checkout_session status:", err);
             });
         }

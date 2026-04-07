@@ -772,7 +772,7 @@ export type Database = {
           received_at: string
           retries: number
           status: string
-          tenant_id: string | null
+          tenant_id: string
         }
         Insert: {
           bling_product_id?: number | null
@@ -786,7 +786,7 @@ export type Database = {
           received_at?: string
           retries?: number
           status?: string
-          tenant_id?: string | null
+          tenant_id?: string
         }
         Update: {
           bling_product_id?: number | null
@@ -800,7 +800,7 @@ export type Database = {
           received_at?: string
           retries?: number
           status?: string
-          tenant_id?: string | null
+          tenant_id?: string
         }
         Relationships: [
           {
@@ -1208,6 +1208,74 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkout_sessions: {
+        Row: {
+          correlation_id: string | null
+          coupon_code: string | null
+          coupon_id: string | null
+          created_at: string
+          discount_amount: number
+          expires_at: string
+          id: string
+          items: Json
+          order_id: string | null
+          payment_inconsistency_reason: string | null
+          shipping_amount: number
+          status: string
+          subtotal: number
+          tenant_id: string | null
+          total_amount: number
+          updated_at: string
+          yampi_link_id: string | null
+        }
+        Insert: {
+          correlation_id?: string | null
+          coupon_code?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          discount_amount?: number
+          expires_at?: string
+          id?: string
+          items?: Json
+          order_id?: string | null
+          payment_inconsistency_reason?: string | null
+          shipping_amount?: number
+          status?: string
+          subtotal?: number
+          tenant_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          yampi_link_id?: string | null
+        }
+        Update: {
+          correlation_id?: string | null
+          coupon_code?: string | null
+          coupon_id?: string | null
+          created_at?: string
+          discount_amount?: number
+          expires_at?: string
+          id?: string
+          items?: Json
+          order_id?: string | null
+          payment_inconsistency_reason?: string | null
+          shipping_amount?: number
+          status?: string
+          subtotal?: number
+          tenant_id?: string | null
+          total_amount?: number
+          updated_at?: string
+          yampi_link_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -3267,6 +3335,9 @@ export type Database = {
       product_variants: {
         Row: {
           base_price: number | null
+          bling_last_match_type: string | null
+          bling_last_sync_decision: string | null
+          bling_last_sync_source: string | null
           bling_variant_id: number | null
           color: string | null
           color_hex: string | null
@@ -3286,6 +3357,9 @@ export type Database = {
         }
         Insert: {
           base_price?: number | null
+          bling_last_match_type?: string | null
+          bling_last_sync_decision?: string | null
+          bling_last_sync_source?: string | null
           bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
@@ -3305,6 +3379,9 @@ export type Database = {
         }
         Update: {
           base_price?: number | null
+          bling_last_match_type?: string | null
+          bling_last_sync_decision?: string | null
+          bling_last_sync_source?: string | null
           bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
@@ -3510,6 +3587,24 @@ export type Database = {
           updated_at?: string
           user_id?: string
           zip_code?: string | null
+        }
+        Relationships: []
+      }
+      rate_limit_log: {
+        Row: {
+          created_at: string
+          id: string
+          identifier: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          identifier: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          identifier?: string
         }
         Relationships: []
       }
@@ -4360,6 +4455,7 @@ export type Database = {
         Args: { p_quantity: number; p_variant_id: string }
         Returns: Json
       }
+      expire_checkout_sessions: { Args: never; Returns: number }
       get_current_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -4379,6 +4475,10 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      rate_limit_check_and_log: {
+        Args: { p_identifier: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
+      }
       use_coupon_atomic: { Args: { p_coupon_id: string }; Returns: boolean }
       use_coupon_atomic_per_user: {
         Args: {
