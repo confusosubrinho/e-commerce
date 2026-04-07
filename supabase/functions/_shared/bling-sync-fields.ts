@@ -34,6 +34,10 @@ export const DEFAULT_SYNC_CONFIG: BlingSyncConfig = {
   first_import_done: false,
 };
 
+export interface BlingSyncConfigScope {
+  tenantId?: string | null;
+}
+
 /**
  * Build the update payload for EXISTING products based on sync config.
  * Only includes fields whose corresponding toggle is enabled.
@@ -120,9 +124,40 @@ export function getInsertOnlyFields(detail: any) {
  * Shared getSyncConfig — loads bling_sync_config from DB, with defaults.
  * Used by both bling-sync and bling-webhook to avoid duplication.
  */
-export async function getSyncConfig(supabase: any): Promise<BlingSyncConfig> {
-  const { data } = await supabase.from("bling_sync_config").select("*").limit(1).maybeSingle();
-  if (!data) return { ...DEFAULT_SYNC_CONFIG };
+export async function getSyncConfig(
+  supabase: any,
+  scope?: BlingSyncConfigScope,
+): Promise<BlingSyncConfig> {
+  const tenantId = scope?.tenantId ?? null;
+  if (tenantId) {
+    const { data } = await supabase
+      .from("bling_sync_config")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .limit(1)
+      .maybeSingle();
+    if (!data) return { ...DEFAULT_SYNC_CONFIG };
+    return {
+      sync_stock: data.sync_stock ?? true,
+      sync_titles: data.sync_titles ?? false,
+      sync_descriptions: data.sync_descriptions ?? false,
+      sync_images: data.sync_images ?? false,
+      sync_prices: data.sync_prices ?? false,
+      sync_dimensions: data.sync_dimensions ?? false,
+      sync_sku_gtin: data.sync_sku_gtin ?? false,
+      sync_variant_active: data.sync_variant_active ?? false,
+      import_new_products: data.import_new_products ?? true,
+      merge_by_sku: data.merge_by_sku ?? true,
+      first_import_done: data.first_import_done ?? false,
+    };
+  }
+
+  const { data: rows } = await supabase.from("bling_sync_config").select("*").limit(2);
+  if (!rows || rows.length === 0) return { ...DEFAULT_SYNC_CONFIG };
+  if (rows.length > 1) {
+    throw new Error("tenant_id é obrigatório para carregar bling_sync_config em ambiente multi-tenant");
+  }
+  const data = rows[0];
   return {
     sync_stock: data.sync_stock ?? true,
     sync_titles: data.sync_titles ?? false,

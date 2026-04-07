@@ -1,29 +1,29 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getFirstImportFields, getConfigAwareUpdateFields, DEFAULT_SYNC_CONFIG, getSyncConfig } from "../_shared/bling-sync-fields.ts";
+import { getFirstImportFields, getConfigAwareUpdateFields, getSyncConfig } from "../_shared/bling-sync-fields.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { fetchWithRateLimit } from "../_shared/blingFetchWithRateLimit.ts";
 import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 import { hasRecentLocalMovements } from "../_shared/blingStockPush.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { parseRequestedTenantId, resolveAdminTenantContext } from "../_shared/blingTenant.ts";
 import {
   auditBlingSaldosBatch,
   blingIdMissingExplicitInAudit,
   blingVariantSyncDecisionColumns,
   BlingStockCircuitBreaker,
+  canApplyParentStockFallback,
   evaluateSkuRelinkOnProduct,
   explicitSaldoFromBlingStockRow,
+  logBlingVariantSyncAction,
   logBlingSaldosBatchAudit,
   mergeExplicitSaldosIntoMap,
   normalizeBlingSku,
   parseBlingStockCircuitConfig,
   resolveSafeStockUpdate,
+  type BlingStockMatchType,
 } from "../_shared/blingStockSafe.ts";
 import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
 const BLING_RATE_LIMIT_MS = 340;
@@ -69,8 +69,8 @@ function createSupabase() {
 // getSyncConfig is now imported from _shared/bling-sync-fields.ts
 
 // getValidToken is now imported as getValidTokenSafe from _shared/blingTokenRefresh.ts
-async function getValidToken(supabase: any): Promise<string> {
-  return getValidTokenSafe(supabase);
+async function getValidToken(supabase: any, tenantId: string): Promise<string> {
+  return getValidTokenSafe(supabase, { tenantId });
 }
 
 function blingHeaders(token: string) {
@@ -187,12 +187,20 @@ function extractParentInfoFromName(name: string): { parentBlingId: number | null
   return { parentBlingId: null, baseName: name, attributes: "", hasAttributes: false };
 }
 
-async function findOrCreateCategory(supabase: any, categoryName: string): Promise<string | null> {
+async function findOrCreateCategory(supabase: any, categoryName: string, tenantId: string): Promise<string | null> {
   if (!categoryName) return null;
-  let { data: cat } = await supabase.from("categories").select("id").eq("name", categoryName).maybeSingle();
+  let { data: cat } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("name", categoryName)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (cat) return cat.id;
   const normalized = categoryName.toLowerCase().trim();
-  const { data: allCats } = await supabase.from("categories").select("id, name");
+  const { data: allCats } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("tenant_id", tenantId);
   if (allCats?.length) {
     const match = allCats.find((c: any) => { const n = c.name.toLowerCase().trim(); return n === normalized || n.includes(normalized) || normalized.includes(n); });
     if (match) return match.id;
@@ -207,9 +215,18 @@ async function findOrCreateCategory(supabase: any, categoryName: string): Promis
     if (bestMatch) return bestMatch.id;
   }
   const catSlug = slugify(categoryName);
-  const { data: existingSlug } = await supabase.from("categories").select("id").eq("slug", catSlug).maybeSingle();
+  const { data: existingSlug } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("slug", catSlug)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   const finalSlug = existingSlug ? `${catSlug}-${Date.now()}` : catSlug;
-  const { data: newCat } = await supabase.from("categories").insert({ name: categoryName, slug: finalSlug, is_active: true }).select("id").single();
+  const { data: newCat } = await supabase
+    .from("categories")
+    .insert({ name: categoryName, slug: finalSlug, is_active: true, tenant_id: tenantId })
+    .select("id")
+    .single();
   return newCat?.id || null;
 }
 
@@ -263,7 +280,8 @@ async function upsertParentWithVariants(
   variationItems: Array<{ blingId: number; name: string; attributes: string }>,
   getCategoryId: (name: string) => Promise<string | null>,
   resolveBlingCategory: (blingCatId: number | null) => Promise<string>,
-  config: BlingSyncConfig
+  config: BlingSyncConfig,
+  tenantId: string,
 ): Promise<{ imported: boolean; updated: boolean; linkedBySku: boolean; variantCount: number; error?: string }> {
   const slug = slugify(parentDetail.nome || `produto-${parentBlingId}`);
   const basePrice = parentDetail.preco || 0;
@@ -272,17 +290,38 @@ async function upsertParentWithVariants(
   const categoryId = await getCategoryId(categoryName);
 
   // Check if product exists by bling_product_id
-  let existing = await supabase.from("products").select("id, is_active").eq("bling_product_id", parentBlingId).maybeSingle().then((r: any) => r.data);
+  let existing = await supabase
+    .from("products")
+    .select("id, is_active")
+    .eq("bling_product_id", parentBlingId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle()
+    .then((r: any) => r.data);
 
   // SKU merge: try finding by SKU if not found by bling_id
   let linkedBySku = false;
   if (!existing && config.merge_by_sku && parentDetail.codigo) {
     // Try matching product by SKU via variants
-    const { data: skuVar } = await supabase.from("product_variants").select("id, product_id").eq("sku", parentDetail.codigo).maybeSingle();
+    const { data: skuVar } = await supabase
+      .from("product_variants")
+      .select("id, product_id")
+      .eq("sku", parentDetail.codigo)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
     if (skuVar) {
       // Link the product to this bling_product_id
-      await supabase.from("products").update({ bling_product_id: parentBlingId }).eq("id", skuVar.product_id);
-      existing = await supabase.from("products").select("id, is_active").eq("id", skuVar.product_id).maybeSingle().then((r: any) => r.data);
+      await supabase
+        .from("products")
+        .update({ bling_product_id: parentBlingId })
+        .eq("id", skuVar.product_id)
+        .eq("tenant_id", tenantId);
+      existing = await supabase
+        .from("products")
+        .select("id, is_active")
+        .eq("id", skuVar.product_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+        .then((r: any) => r.data);
       linkedBySku = true;
       console.log(`[sync] Linked product ${skuVar.product_id} to bling_id=${parentBlingId} via SKU=${parentDetail.codigo}`);
     }
@@ -303,7 +342,7 @@ async function upsertParentWithVariants(
     updateData.bling_product_id = parentBlingId;
     
     if (Object.keys(updateData).length > 1) { // more than just bling_product_id
-      await supabase.from("products").update(updateData).eq("id", existing.id);
+      await supabase.from("products").update(updateData).eq("id", existing.id).eq("tenant_id", tenantId);
     }
     productId = existing.id;
     updated = true;
@@ -320,8 +359,14 @@ async function upsertParentWithVariants(
       is_new: parentDetail.lancamento === true || parentDetail.lancamento === "S",
       category_id: categoryId,
     };
-    const { data: slugExists } = await supabase.from("products").select("id").eq("slug", slug).maybeSingle();
+    const { data: slugExists } = await supabase
+      .from("products")
+      .select("id")
+      .eq("slug", slug)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
     insertData.slug = slugExists ? `${slug}-${parentBlingId}` : slug;
+    insertData.tenant_id = tenantId;
     const { data: newProd, error: insertErr } = await supabase.from("products").insert(insertData).select("id").single();
     if (insertErr) return { imported: false, updated: false, linkedBySku: false, variantCount: 0, error: `Insert error: ${insertErr.message}` };
     productId = newProd.id;
@@ -332,13 +377,14 @@ async function upsertParentWithVariants(
   // IMPORTANT: Download from Bling and re-upload to Supabase Storage to avoid signed URL expiration
   if ((imported && parentDetail.midia?.imagens?.internas?.length) ||
       (updated && config.sync_images && parentDetail.midia?.imagens?.internas?.length)) {
-    await supabase.from("product_images").delete().eq("product_id", productId);
+    await supabase.from("product_images").delete().eq("product_id", productId).eq("tenant_id", tenantId);
     const images: any[] = [];
     for (let idx = 0; idx < parentDetail.midia.imagens.internas.length; idx++) {
       const img = parentDetail.midia.imagens.internas[idx];
       const publicUrl = await downloadAndReuploadImage(supabase, img.link, productId, idx);
       images.push({
         product_id: productId,
+        tenant_id: tenantId,
         url: publicUrl,
         is_primary: idx === 0,
         display_order: idx,
@@ -363,8 +409,16 @@ async function upsertParentWithVariants(
     if (parentDetail.gtin) characteristics.push({ name: "GTIN/EAN", value: parentDetail.gtin });
     if (parentDetail.unidade) characteristics.push({ name: "Unidade", value: parentDetail.unidade });
     if (characteristics.length > 0) {
-      await supabase.from("product_characteristics").delete().eq("product_id", productId);
-      await supabase.from("product_characteristics").insert(characteristics.map((c, idx) => ({ product_id: productId, name: c.name, value: c.value, display_order: idx })));
+      await supabase.from("product_characteristics").delete().eq("product_id", productId).eq("tenant_id", tenantId);
+      await supabase.from("product_characteristics").insert(
+        characteristics.map((c, idx) => ({
+          product_id: productId,
+          tenant_id: tenantId,
+          name: c.name,
+          value: c.value,
+          display_order: idx,
+        })),
+      );
     }
   }
 
@@ -416,16 +470,33 @@ async function upsertParentWithVariants(
       const priceModifier = varPrice - basePrice;
 
       // Check existing variant by bling_variant_id
-      let existingVar = await supabase.from("product_variants").select("id").eq("bling_variant_id", v.id).maybeSingle().then((r: any) => r.data);
+      let existingVar = await supabase
+        .from("product_variants")
+        .select("id, is_active")
+        .eq("bling_variant_id", v.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+        .then((r: any) => r.data);
 
       // SKU merge for variants (SKU normalizado único no produto)
       if (!existingVar && config.merge_by_sku && (extracted.sku || v.codigo)) {
         const skuRaw = extracted.sku || v.codigo;
-        const { data: prodVars } = await supabase.from("product_variants").select("id, sku").eq("product_id", productId);
-        const relink = evaluateSkuRelinkOnProduct(prodVars || [], skuRaw);
+        const { data: prodVars } = await supabase
+          .from("product_variants")
+          .select("id, sku, is_active")
+          .eq("product_id", productId)
+          .eq("tenant_id", tenantId);
+        const relinkPool = config.sync_variant_active
+          ? (prodVars || [])
+          : (prodVars || []).filter((pv: any) => pv.is_active !== false);
+        const relink = evaluateSkuRelinkOnProduct(relinkPool, skuRaw);
         if (relink.ok) {
-          await supabase.from("product_variants").update({ bling_variant_id: v.id }).eq("id", relink.variantId);
-          existingVar = { id: relink.variantId };
+          await supabase
+            .from("product_variants")
+            .update({ bling_variant_id: v.id })
+            .eq("id", relink.variantId)
+            .eq("tenant_id", tenantId);
+          existingVar = { id: relink.variantId, is_active: relinkPool.find((pv: any) => pv.id === relink.variantId)?.is_active };
           console.log(`[sync] Linked variant ${relink.variantId} to bling_variant_id=${v.id} via SKU=${skuRaw}`);
         } else {
           console.warn(JSON.stringify({
@@ -442,10 +513,15 @@ async function upsertParentWithVariants(
       if (existingVar) {
         // Update existing variant: stock sempre via resolveSafeStockUpdate se habilitado
         const varUpdate: any = {};
-        if (config.sync_stock || imported) {
-          const { data: curVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", existingVar.id).maybeSingle();
+        if ((config.sync_stock || imported) && (existingVar.is_active !== false || config.sync_variant_active)) {
+          const { data: curVar } = await supabase
+            .from("product_variants")
+            .select("stock_quantity")
+            .eq("id", existingVar.id)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
           const oldSq = curVar?.stock_quantity ?? 0;
-          const hasRecent = await hasRecentLocalMovements(supabase, existingVar.id, 10);
+          const hasRecent = await hasRecentLocalMovements(supabase, existingVar.id, 10, tenantId);
           const resolved = resolveSafeStockUpdate({
             batchHttpOk: stockFetchAllBatchesOkVar,
             explicitSaldo: varStock,
@@ -458,11 +534,21 @@ async function upsertParentWithVariants(
           if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
             varUpdate.stock_quantity = resolved.new_stock;
           }
+        } else if ((config.sync_stock || imported) && existingVar.is_active === false) {
+          logBlingVariantSyncAction({
+            action: "skipped",
+            context: "bling-sync.upsert.variacoes",
+            product_id: productId,
+            variant_id: existingVar.id,
+            local_sku: extracted.sku || v.codigo || null,
+            bling_variant_id: v.id,
+            reason: "inactive_variant_stock_not_synced_without_sync_variant_active",
+          });
         }
         if (config.sync_variant_active) varUpdate.is_active = v.situacao !== "I";
         // NEVER update is_active unless toggle is on
         if (Object.keys(varUpdate).length > 0) {
-          await supabase.from("product_variants").update(varUpdate).eq("id", existingVar.id);
+          await supabase.from("product_variants").update(varUpdate).eq("id", existingVar.id).eq("tenant_id", tenantId);
         }
         syncedVariantIds.add(existingVar.id);
       } else {
@@ -472,6 +558,7 @@ async function upsertParentWithVariants(
           sku: extracted.sku || v.codigo || null,
           is_active: v.situacao !== "I", bling_variant_id: v.id,
           price_modifier: priceModifier !== 0 ? priceModifier : 0,
+          tenant_id: tenantId,
         };
         if (varStock !== undefined) varData.stock_quantity = varStock;
         const { data: newVar } = await supabase.from("product_variants").insert(varData).select("id").single();
@@ -522,21 +609,32 @@ async function upsertParentWithVariants(
       : [];
 
     for (const vi of variationItems) {
-      const { data: alreadySynced } = await supabase.from("product_variants").select("id").eq("bling_variant_id", vi.blingId).maybeSingle();
+      const { data: alreadySynced } = await supabase
+        .from("product_variants")
+        .select("id, is_active")
+        .eq("bling_variant_id", vi.blingId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       if (alreadySynced && syncedVariantIds.has(alreadySynced.id)) continue;
       const extracted = parseVariationAttributes(vi.attributes || vi.name);
       const varStock = varStockMap.get(vi.blingId);
       const varData: any = {
         product_id: productId, size: extracted.size, color: extracted.color, color_hex: extracted.colorHex,
         sku: null, is_active: true, bling_variant_id: vi.blingId, price_modifier: 0,
+        tenant_id: tenantId,
       };
       if (varStock !== undefined) varData.stock_quantity = varStock;
       if (alreadySynced) {
         const varUpdate: any = {};
-        if (config.sync_stock || imported) {
-          const { data: curVi } = await supabase.from("product_variants").select("stock_quantity").eq("id", alreadySynced.id).maybeSingle();
+        if ((config.sync_stock || imported) && (alreadySynced.is_active !== false || config.sync_variant_active)) {
+          const { data: curVi } = await supabase
+            .from("product_variants")
+            .select("stock_quantity")
+            .eq("id", alreadySynced.id)
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
           const oldSqVi = curVi?.stock_quantity ?? 0;
-          const hasRecentVi = await hasRecentLocalMovements(supabase, alreadySynced.id, 10);
+          const hasRecentVi = await hasRecentLocalMovements(supabase, alreadySynced.id, 10, tenantId);
           const resolvedVi = resolveSafeStockUpdate({
             batchHttpOk: stockFetchAllBatchesOkVi,
             explicitSaldo: varStock,
@@ -549,8 +647,19 @@ async function upsertParentWithVariants(
           if (resolvedVi.shouldApplyStock && resolvedVi.new_stock !== undefined) {
             varUpdate.stock_quantity = resolvedVi.new_stock;
           }
+        } else if ((config.sync_stock || imported) && alreadySynced.is_active === false) {
+          logBlingVariantSyncAction({
+            action: "skipped",
+            context: "bling-sync.upsert.variationItems",
+            product_id: productId,
+            variant_id: alreadySynced.id,
+            bling_variant_id: vi.blingId,
+            reason: "inactive_variant_stock_not_synced_without_sync_variant_active",
+          });
         }
-        if (Object.keys(varUpdate).length > 0) await supabase.from("product_variants").update(varUpdate).eq("id", alreadySynced.id);
+        if (Object.keys(varUpdate).length > 0) {
+          await supabase.from("product_variants").update(varUpdate).eq("id", alreadySynced.id).eq("tenant_id", tenantId);
+        }
         syncedVariantIds.add(alreadySynced.id);
       } else {
         const { data: newVar } = await supabase.from("product_variants").insert(varData).select("id").single();
@@ -607,14 +716,15 @@ async function upsertParentWithVariants(
 
     const { data: existingDefault } = await supabase
       .from("product_variants")
-      .select("id, stock_quantity")
+      .select("id, stock_quantity, is_active")
       .eq("product_id", productId)
       .eq("size", "Único")
+      .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (existingDefault) {
-      if (config.sync_stock || imported) {
-        const hasRecent = await hasRecentLocalMovements(supabase, existingDefault.id, 10);
+      if ((config.sync_stock || imported) && (existingDefault.is_active !== false || config.sync_variant_active)) {
+        const hasRecent = await hasRecentLocalMovements(supabase, existingDefault.id, 10, tenantId);
         const oldSq = existingDefault.stock_quantity ?? 0;
         const resolved = resolveSafeStockUpdate({
           batchHttpOk: simpleBatchHttpOk,
@@ -629,12 +739,14 @@ async function upsertParentWithVariants(
           await supabase
             .from("product_variants")
             .update({ stock_quantity: resolved.new_stock, ...meta })
-            .eq("id", existingDefault.id);
+            .eq("id", existingDefault.id)
+            .eq("tenant_id", tenantId);
         } else {
           await supabase
             .from("product_variants")
             .update(meta)
-            .eq("id", existingDefault.id);
+            .eq("id", existingDefault.id)
+            .eq("tenant_id", tenantId);
           if (!resolved.shouldApplyStock) {
             console.warn(
               JSON.stringify({
@@ -647,9 +759,19 @@ async function upsertParentWithVariants(
             );
           }
         }
+      } else if ((config.sync_stock || imported) && existingDefault.is_active === false) {
+        logBlingVariantSyncAction({
+          action: "skipped",
+          context: "bling-sync.upsert.simpleProduct",
+          product_id: productId,
+          variant_id: existingDefault.id,
+          bling_variant_id: parentBlingId,
+          previous_stock: existingDefault.stock_quantity ?? 0,
+          reason: "inactive_variant_stock_not_synced_without_sync_variant_active",
+        });
       }
     } else {
-      const insertRow: Record<string, unknown> = { product_id: productId, size: "Único", is_active: true };
+      const insertRow: Record<string, unknown> = { product_id: productId, size: "Único", is_active: true, tenant_id: tenantId };
       if (simpleExplicitSaldo !== undefined && simpleBatchHttpOk && !simpleInPartialBatch) {
         insertRow.stock_quantity = simpleExplicitSaldo;
       }
@@ -659,17 +781,27 @@ async function upsertParentWithVariants(
   }
 
   // Clean up orphaned variants — deactivate instead of delete if referenced in order_items
-  const { data: allVars } = await supabase.from("product_variants").select("id").eq("product_id", productId).not("bling_variant_id", "is", null);
+  const { data: allVars } = await supabase
+    .from("product_variants")
+    .select("id")
+    .eq("product_id", productId)
+    .eq("tenant_id", tenantId)
+    .not("bling_variant_id", "is", null);
   for (const v of (allVars || [])) {
     if (!syncedVariantIds.has(v.id)) {
       // Check if variant is referenced in order_items before deleting
-      const { data: orderRef } = await supabase.from("order_items").select("id").eq("product_variant_id", v.id).limit(1);
+      const { data: orderRef } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("product_variant_id", v.id)
+        .eq("tenant_id", tenantId)
+        .limit(1);
       if (orderRef?.length) {
         // Deactivate instead of deleting to preserve order history
-        await supabase.from("product_variants").update({ is_active: false }).eq("id", v.id);
+        await supabase.from("product_variants").update({ is_active: false }).eq("id", v.id).eq("tenant_id", tenantId);
         console.log(`[sync] Deactivated orphaned variant ${v.id} (referenced in orders)`);
       } else {
-        await supabase.from("product_variants").delete().eq("id", v.id);
+        await supabase.from("product_variants").delete().eq("id", v.id).eq("tenant_id", tenantId);
       }
     }
   }
@@ -678,18 +810,32 @@ async function upsertParentWithVariants(
 }
 
 // ─── Main Sync Products ───
-async function syncProducts(supabase: any, token: string, config: BlingSyncConfig, batchLimit: number = 0, batchOffset: number = 0, isFirstImport: boolean = false, newOnly: boolean = false) {
+async function syncProducts(
+  supabase: any,
+  token: string,
+  config: BlingSyncConfig,
+  tenantId: string,
+  batchLimit: number = 0,
+  batchOffset: number = 0,
+  isFirstImport: boolean = false,
+  newOnly: boolean = false,
+) {
   const headers = blingHeaders(token);
   const syncLog: SyncLogEntry[] = [];
   let totalImported = 0, totalUpdated = 0, totalVariants = 0, totalSkipped = 0, totalErrors = 0, totalLinkedBySku = 0;
 
-  const { data: storeSettings } = await supabase.from("store_settings").select("bling_store_id").limit(1).maybeSingle();
+  const { data: storeSettings } = await supabase
+    .from("store_settings")
+    .select("bling_store_id")
+    .eq("tenant_id", tenantId)
+    .limit(1)
+    .maybeSingle();
   const blingStoreId = (storeSettings as any)?.bling_store_id || null;
 
   const categoryCache = new Map<string, string | null>();
   async function getCategoryId(name: string): Promise<string | null> {
     if (categoryCache.has(name)) return categoryCache.get(name)!;
-    const id = await findOrCreateCategory(supabase, name);
+    const id = await findOrCreateCategory(supabase, name, tenantId);
     categoryCache.set(name, id);
     return id;
   }
@@ -771,7 +917,11 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
   }
 
   // PHASE 3: Process groups
-  const { data: existingProducts } = await supabase.from("products").select("id, bling_product_id, is_active").not("bling_product_id", "is", null);
+  const { data: existingProducts } = await supabase
+    .from("products")
+    .select("id, bling_product_id, is_active")
+    .eq("tenant_id", tenantId)
+    .not("bling_product_id", "is", null);
   const existingBlingIds = new Set((existingProducts || []).map((p: any) => p.bling_product_id));
   // Build inactive set
   const inactiveBlingIds = new Set((existingProducts || []).filter((p: any) => p.is_active === false).map((p: any) => p.bling_product_id));
@@ -855,7 +1005,17 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
         syncLog.push({ bling_id: vi.blingId, name: `${vi.name} ${vi.attributes}`, status: 'grouped', message: `Agrupado sob pai ${parentBlingId}`, variants: 0 });
       }
 
-      const result = await upsertParentWithVariants(supabase, headers, parentDetail, parentDetail.id || parentBlingId, group.variationItems, getCategoryId, resolveBlingCategory, config);
+      const result = await upsertParentWithVariants(
+        supabase,
+        headers,
+        parentDetail,
+        parentDetail.id || parentBlingId,
+        group.variationItems,
+        getCategoryId,
+        resolveBlingCategory,
+        config,
+        tenantId,
+      );
 
       if (result.error) {
         if (result.error.includes("inativo")) {
@@ -887,7 +1047,11 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
   // PHASE 4: Clean up variations imported as standalone (skip when new_only — we didn't reclassify)
   let cleaned = 0;
   if (!newOnly) {
-    const { data: blingProducts } = await supabase.from("products").select("id, bling_product_id, name").not("bling_product_id", "is", null);
+    const { data: blingProducts } = await supabase
+      .from("products")
+      .select("id, bling_product_id, name")
+      .eq("tenant_id", tenantId)
+      .not("bling_product_id", "is", null);
     if (blingProducts?.length) {
       for (const prod of blingProducts) {
         if (variationBlingIds.has(prod.bling_product_id)) {
@@ -895,22 +1059,28 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
           const { data: variantsWithOrders } = await supabase
             .from("product_variants")
             .select("id")
-            .eq("product_id", prod.id);
+            .eq("product_id", prod.id)
+            .eq("tenant_id", tenantId);
           let hasOrderRefs = false;
           for (const v of (variantsWithOrders || [])) {
-            const { data: orderRef } = await supabase.from("order_items").select("id").eq("product_variant_id", v.id).limit(1);
+            const { data: orderRef } = await supabase
+              .from("order_items")
+              .select("id")
+              .eq("product_variant_id", v.id)
+              .eq("tenant_id", tenantId)
+              .limit(1);
             if (orderRef?.length) { hasOrderRefs = true; break; }
           }
           if (hasOrderRefs) {
             // Deactivate instead of deleting to preserve order history
-            await supabase.from("product_variants").update({ is_active: false }).eq("product_id", prod.id);
-            await supabase.from("products").update({ is_active: false }).eq("id", prod.id);
+            await supabase.from("product_variants").update({ is_active: false }).eq("product_id", prod.id).eq("tenant_id", tenantId);
+            await supabase.from("products").update({ is_active: false }).eq("id", prod.id).eq("tenant_id", tenantId);
             console.log(`[sync] Deactivated standalone variation product ${prod.id} (referenced in orders)`);
           } else {
-            await supabase.from("product_images").delete().eq("product_id", prod.id);
-            await supabase.from("product_variants").delete().eq("product_id", prod.id);
-            await supabase.from("product_characteristics").delete().eq("product_id", prod.id);
-            await supabase.from("products").delete().eq("id", prod.id);
+            await supabase.from("product_images").delete().eq("product_id", prod.id).eq("tenant_id", tenantId);
+            await supabase.from("product_variants").delete().eq("product_id", prod.id).eq("tenant_id", tenantId);
+            await supabase.from("product_characteristics").delete().eq("product_id", prod.id).eq("tenant_id", tenantId);
+            await supabase.from("products").delete().eq("id", prod.id).eq("tenant_id", tenantId);
           }
           cleaned++;
         }
@@ -925,7 +1095,7 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
       sync_titles: false, sync_descriptions: false, sync_images: false,
       sync_prices: false, sync_dimensions: false, sync_sku_gtin: false,
       sync_variant_active: false,
-    }).not("id", "is", null);
+    }).eq("tenant_id", tenantId);
     console.log("[sync] First import done — config reset to stock-only");
   }
 
@@ -943,13 +1113,17 @@ async function syncProducts(supabase: any, token: string, config: BlingSyncConfi
 }
 
 // ─── Sync Stock Only (for manual "sync stock" action — active products only) ───
-async function syncStock(supabase: any, token: string) {
+async function syncStock(supabase: any, token: string, tenantId: string) {
   const correlationId = crypto.randomUUID();
   const headers = blingHeaders(token);
-  const { data: allVariants } = await supabase.from("product_variants").select("id, bling_variant_id, product_id, sku");
+  const { data: allVariants } = await supabase
+    .from("product_variants")
+    .select("id, bling_variant_id, product_id, sku, is_active")
+    .eq("tenant_id", tenantId);
   const { data: products } = await supabase
     .from("products")
     .select("id, bling_product_id, is_active, tenant_id")
+    .eq("tenant_id", tenantId)
     .not("bling_product_id", "is", null);
   if (!products?.length && !allVariants?.length) return { updated: 0 };
 
@@ -964,17 +1138,47 @@ async function syncStock(supabase: any, token: string) {
     productTenantMap.set(p.id, (p.tenant_id as string | null) ?? null);
   }
 
+  const activeVariantsByProduct = new Map<string, Array<{ id: string; sku: string | null; bling_variant_id: number | null }>>();
+  for (const v of (allVariants || [])) {
+    if (v.is_active === false) continue;
+    if (!activeProductIds.has(v.product_id)) continue;
+    if (!activeVariantsByProduct.has(v.product_id)) activeVariantsByProduct.set(v.product_id, []);
+    activeVariantsByProduct.get(v.product_id)!.push(v);
+  }
+
   const blingIdToVariants = new Map<number, string[]>();
   const variantIdToProductId = new Map<string, string>();
+  const variantIdToSku = new Map<string, string | null>();
+  const variantMatchTypeById = new Map<string, BlingStockMatchType>();
   for (const v of (allVariants || [])) {
+    if (v.is_active === false) continue;
     if (v.product_id) variantIdToProductId.set(v.id, v.product_id);
+    variantIdToSku.set(v.id, v.sku ?? null);
     if (!activeProductIds.has(v.product_id)) continue;
     if (v.bling_variant_id) {
       if (!blingIdToVariants.has(v.bling_variant_id)) blingIdToVariants.set(v.bling_variant_id, []);
       blingIdToVariants.get(v.bling_variant_id)!.push(v.id);
+      variantMatchTypeById.set(v.id, "bling_variant_id");
     } else {
       const pbid = productBlingMap.get(v.product_id);
-      if (pbid) { if (!blingIdToVariants.has(pbid)) blingIdToVariants.set(pbid, []); blingIdToVariants.get(pbid)!.push(v.id); }
+      if (!pbid) continue;
+      const productActiveVariants = activeVariantsByProduct.get(v.product_id) || [];
+      if (canApplyParentStockFallback(productActiveVariants.length)) {
+        if (!blingIdToVariants.has(pbid)) blingIdToVariants.set(pbid, []);
+        blingIdToVariants.get(pbid)!.push(v.id);
+        variantMatchTypeById.set(v.id, "bling_product_id_parent");
+      } else {
+        logBlingVariantSyncAction({
+          action: "mismatch",
+          context: "bling-sync.syncStock.map",
+          correlation_id: correlationId,
+          product_id: v.product_id,
+          variant_id: v.id,
+          local_sku: v.sku ?? null,
+          bling_variant_id: pbid,
+          reason: "missing_bling_variant_id_on_multi_variant_product",
+        });
+      }
     }
   }
 
@@ -1041,20 +1245,43 @@ async function syncStock(supabase: any, token: string) {
       const missingPartial = blingIdMissingExplicitInAudit(batchAudit, blingId);
 
       for (const vid of variantIds) {
-        const hasRecent = await hasRecentLocalMovements(supabase, vid, 10);
-        const { data: currentVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", vid).maybeSingle();
+        const hasRecent = await hasRecentLocalMovements(supabase, vid, 10, tenantId);
+        const { data: currentVar } = await supabase
+          .from("product_variants")
+          .select("stock_quantity")
+          .eq("id", vid)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
         const oldStock = currentVar?.stock_quantity ?? 0;
+        const matchType = variantMatchTypeById.get(vid) ?? "bling_variant_id";
         const resolved = resolveSafeStockUpdate({
           batchHttpOk: true,
           explicitSaldo: qty,
           inPartialBatchMissingSaldo: missingPartial && qty === undefined,
           hasRecentLocalMovement: hasRecent,
-          matchType: "bling_variant_id",
+          matchType,
           oldStock,
         });
         const meta = blingVariantSyncDecisionColumns(resolved, "bling-sync.syncStock");
         if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
-          await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", vid);
+          await supabase
+            .from("product_variants")
+            .update({ stock_quantity: resolved.new_stock, ...meta })
+            .eq("id", vid)
+            .eq("tenant_id", tenantId);
+          logBlingVariantSyncAction({
+            action: "updated",
+            context: "bling-sync.syncStock.apply",
+            correlation_id: correlationId,
+            product_id: variantIdToProductId.get(vid),
+            variant_id: vid,
+            local_sku: variantIdToSku.get(vid) ?? null,
+            bling_variant_id: blingId,
+            previous_stock: oldStock,
+            new_stock: resolved.new_stock,
+            decision: resolved.decision,
+            match_type: resolved.match_type ?? null,
+          });
           circuit.recordAppliedStockUpdate(oldStock, resolved.new_stock);
           const evZero = circuit.evaluateAfterBatch();
           if (evZero.tripped) {
@@ -1089,7 +1316,21 @@ async function syncStock(supabase: any, token: string) {
           }
           updated++;
         } else {
-          await supabase.from("product_variants").update(meta).eq("id", vid);
+          await supabase.from("product_variants").update(meta).eq("id", vid).eq("tenant_id", tenantId);
+          logBlingVariantSyncAction({
+            action: "skipped",
+            context: "bling-sync.syncStock.apply",
+            correlation_id: correlationId,
+            product_id: variantIdToProductId.get(vid),
+            variant_id: vid,
+            local_sku: variantIdToSku.get(vid) ?? null,
+            bling_variant_id: blingId,
+            previous_stock: oldStock,
+            new_stock: resolved.new_stock,
+            reason: resolved.skip_reason,
+            decision: resolved.decision,
+            match_type: resolved.match_type ?? null,
+          });
           if (qty === undefined && blingId != null) {
             console.warn(JSON.stringify({
               level: "warn",
@@ -1111,9 +1352,14 @@ async function syncStock(supabase: any, token: string) {
 }
 
 // ─── Create Order in Bling ───
-async function createOrder(supabase: any, token: string, orderId: string) {
+async function createOrder(supabase: any, token: string, orderId: string, tenantId: string) {
   const headers = blingHeaders(token);
-  const { data: order, error: orderError } = await supabase.from("orders").select("*, order_items(*)").eq("id", orderId).maybeSingle();
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select("*, order_items(*)")
+    .eq("id", orderId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
   if (orderError || !order) throw new Error(`Pedido não encontrado: ${orderError?.message || orderId}`);
   // Use customer_cpf column as primary source, fallback to regex in notes
   const cpfRaw = order.customer_cpf || order.notes?.match(/CPF:\s*([\d.\-]+)/)?.[1] || "";
@@ -1123,10 +1369,31 @@ async function createOrder(supabase: any, token: string, orderId: string) {
     let codigo = item.product_id?.substring(0, 8) || "PROD";
     // Priority: variant SKU > product SKU > fallback
     if (item.product_variant_id) {
-      const { data: variant } = await supabase.from("product_variants").select("sku").eq("id", item.product_variant_id).maybeSingle();
+      const { data: variant } = await supabase
+        .from("product_variants")
+        .select("sku")
+        .eq("id", item.product_variant_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
       if (variant?.sku) codigo = variant.sku;
-      else if (item.product_id) { const { data: prod } = await supabase.from("products").select("sku").eq("id", item.product_id).maybeSingle(); if (prod?.sku) codigo = prod.sku; }
-    } else if (item.product_id) { const { data: prod } = await supabase.from("products").select("sku, bling_product_id").eq("id", item.product_id).maybeSingle(); if (prod?.sku) codigo = prod.sku; }
+      else if (item.product_id) {
+        const { data: prod } = await supabase
+          .from("products")
+          .select("sku")
+          .eq("id", item.product_id)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (prod?.sku) codigo = prod.sku;
+      }
+    } else if (item.product_id) {
+      const { data: prod } = await supabase
+        .from("products")
+        .select("sku, bling_product_id")
+        .eq("id", item.product_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (prod?.sku) codigo = prod.sku;
+    }
     itens.push({ descricao: item.product_name, quantidade: item.quantity, valor: item.unit_price, codigo });
   }
   const blingOrder = {
@@ -1159,6 +1426,7 @@ async function generateNfe(token: string, blingOrderId: number) {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -1180,6 +1448,12 @@ serve(async (req) => {
 
     const supabase = createSupabase();
 
+    const body = await req.json();
+    const { action, ...payload } = body;
+    const requestedTenantId = parseRequestedTenantId(req, body);
+    const tenantCtx = await resolveAdminTenantContext(supabase, user.id, requestedTenantId);
+    const tenantId = tenantCtx.tenantId;
+
     // Check admin role
     const { data: roleData } = await supabase
       .from("user_roles")
@@ -1193,6 +1467,8 @@ serve(async (req) => {
         .from("admin_members")
         .select("role, is_active")
         .eq("user_id", user.id)
+        .eq("tenant_id", tenantId)
+        .in("role", ["super_admin", "owner", "manager", "operator", "admin"])
         .eq("is_active", true)
         .maybeSingle();
       if (!memberData) {
@@ -1200,9 +1476,8 @@ serve(async (req) => {
       }
     }
 
-    const { action, ...payload } = await req.json();
-    const token = await getValidToken(supabase);
-    const config = await getSyncConfig(supabase);
+    const token = await getValidToken(supabase, tenantId);
+    const config = await getSyncConfig(supabase, { tenantId });
     let result: any;
 
     switch (action) {
@@ -1226,15 +1501,32 @@ serve(async (req) => {
       }
 
       case "sync_products":
-        result = await syncProducts(supabase, token, config, payload.limit || 0, payload.offset || 0, false, !!payload.new_only);
+        result = await syncProducts(
+          supabase,
+          token,
+          config,
+          tenantId,
+          payload.limit || 0,
+          payload.offset || 0,
+          false,
+          !!payload.new_only,
+        );
         break;
 
       case "first_import":
-        result = await syncProducts(supabase, token, { ...config, import_new_products: true, merge_by_sku: true }, payload.limit || 0, payload.offset || 0, true);
+        result = await syncProducts(
+          supabase,
+          token,
+          { ...config, import_new_products: true, merge_by_sku: true },
+          tenantId,
+          payload.limit || 0,
+          payload.offset || 0,
+          true,
+        );
         break;
 
       case "sync_stock":
-        result = await syncStock(supabase, token);
+        result = await syncStock(supabase, token, tenantId);
         break;
 
       case "get_sync_config":
@@ -1263,8 +1555,17 @@ serve(async (req) => {
       case "relink_variants": {
         const relinkLimit = payload.limit || 30;
         const relinkOffset = payload.offset || 0;
-        const { data: unlinkedVariants } = await supabase.from("product_variants").select("id, sku, product_id").is("bling_variant_id", null).not("sku", "is", null);
-        const { data: linkedProducts } = await supabase.from("products").select("id, bling_product_id, is_active").not("bling_product_id", "is", null);
+        const { data: unlinkedVariants } = await supabase
+          .from("product_variants")
+          .select("id, sku, product_id, is_active")
+          .eq("tenant_id", tenantId)
+          .is("bling_variant_id", null)
+          .not("sku", "is", null);
+        const { data: linkedProducts } = await supabase
+          .from("products")
+          .select("id, bling_product_id, is_active")
+          .eq("tenant_id", tenantId)
+          .not("bling_product_id", "is", null);
         const prodBlingMap = new Map<string, number>();
         const activeProductIds = new Set<string>();
         for (const p of (linkedProducts || [])) {
@@ -1278,6 +1579,7 @@ serve(async (req) => {
         const relinkLog: Array<{ sku: string; bling_variant_id: number | null; stock: number | null; status: string }> = [];
         const varsByProduct = new Map<string, Array<{ id: string; sku: string }>>();
         for (const v of (unlinkedVariants || [])) {
+          if (v.is_active === false) continue;
           if (!v.sku || !activeProductIds.has(v.product_id)) continue; // Skip inactive
           if (!varsByProduct.has(v.product_id)) varsByProduct.set(v.product_id, []);
           varsByProduct.get(v.product_id)!.push({ id: v.id, sku: v.sku });
@@ -1309,7 +1611,11 @@ serve(async (req) => {
               if (ev.variantId !== localVar.id) continue;
               const blingVarId = skuToBlingIdNorm.get(normalizeBlingSku(localVar.sku));
               if (blingVarId) {
-                await supabase.from("product_variants").update({ bling_variant_id: blingVarId }).eq("id", localVar.id);
+                await supabase
+                  .from("product_variants")
+                  .update({ bling_variant_id: blingVarId })
+                  .eq("id", localVar.id)
+                  .eq("tenant_id", tenantId);
                 linked++;
                 relinkLog.push({ sku: localVar.sku, bling_variant_id: blingVarId, stock: null, status: "linked" });
               } else relinkLog.push({ sku: localVar.sku, bling_variant_id: null, stock: null, status: "no_match" });
@@ -1335,10 +1641,33 @@ serve(async (req) => {
                 const bId = s.produto?.id;
                 const qty = explicitSaldoFromBlingStockRow(s);
                 if (!bId || typeof bId !== "number") continue;
-                const { data: lv } = await supabase.from("product_variants").select("id").eq("bling_variant_id", bId).maybeSingle();
+                const { data: lv } = await supabase
+                  .from("product_variants")
+                  .select("id, is_active, sku")
+                  .eq("bling_variant_id", bId)
+                  .eq("tenant_id", tenantId)
+                  .maybeSingle();
                 if (lv) {
-                  const hasRecent = await hasRecentLocalMovements(supabase, lv.id, 10);
-                  const { data: oldVar } = await supabase.from("product_variants").select("stock_quantity").eq("id", lv.id).maybeSingle();
+                  if (lv.is_active === false) {
+                    logBlingVariantSyncAction({
+                      action: "skipped",
+                      context: "bling-sync.relink_variants",
+                      correlation_id: correlationId,
+                      product_id: productId,
+                      variant_id: lv.id,
+                      local_sku: lv.sku ?? null,
+                      bling_variant_id: bId,
+                      reason: "matched_inactive_variant",
+                    });
+                    continue;
+                  }
+                  const hasRecent = await hasRecentLocalMovements(supabase, lv.id, 10, tenantId);
+                  const { data: oldVar } = await supabase
+                    .from("product_variants")
+                    .select("stock_quantity")
+                    .eq("id", lv.id)
+                    .eq("tenant_id", tenantId)
+                    .maybeSingle();
                   const oldQty = oldVar?.stock_quantity ?? 0;
                   const missingPartial = blingIdMissingExplicitInAudit(relinkAudit, bId);
                   const resolved = resolveSafeStockUpdate({
@@ -1351,13 +1680,18 @@ serve(async (req) => {
                   });
                   const meta = blingVariantSyncDecisionColumns(resolved, "bling-sync.relink_variants");
                   if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
-                    await supabase.from("product_variants").update({ stock_quantity: resolved.new_stock, ...meta }).eq("id", lv.id);
+                    await supabase
+                      .from("product_variants")
+                      .update({ stock_quantity: resolved.new_stock, ...meta })
+                      .eq("id", lv.id)
+                      .eq("tenant_id", tenantId);
                     stockUpdated++;
                     if (resolved.new_stock !== oldQty) {
                       const { data: pvRow } = await supabase
                         .from("product_variants")
                         .select("product_id")
                         .eq("id", lv.id)
+                        .eq("tenant_id", tenantId)
                         .maybeSingle();
 
                       const productId = pvRow?.product_id;
@@ -1370,6 +1704,7 @@ serve(async (req) => {
                           .from("products")
                           .select("tenant_id")
                           .eq("id", productId)
+                          .eq("tenant_id", tenantId)
                           .maybeSingle();
 
                         const tenantId = prow?.tenant_id;
@@ -1389,7 +1724,7 @@ serve(async (req) => {
                       }
                     }
                   } else {
-                    await supabase.from("product_variants").update(meta).eq("id", lv.id);
+                    await supabase.from("product_variants").update(meta).eq("id", lv.id).eq("tenant_id", tenantId);
                     if (hasRecent) console.log(`[relink] Skipping stock overwrite for variant ${lv.id} — recent local movements`);
                   }
                 }
@@ -1402,7 +1737,11 @@ serve(async (req) => {
       }
 
       case "cleanup_variations": {
-        const { data: variationProducts } = await supabase.from("products").select("id, name, bling_product_id").or("name.like.%Cor:%,name.like.%Tamanho:%");
+        const { data: variationProducts } = await supabase
+          .from("products")
+          .select("id, name, bling_product_id")
+          .eq("tenant_id", tenantId)
+          .or("name.like.%Cor:%,name.like.%Tamanho:%");
         let cleanedCount = 0;
 
         if (variationProducts && variationProducts.length > 0) {
@@ -1418,6 +1757,7 @@ serve(async (req) => {
               const { data: existingVariants } = await supabase
                 .from("product_variants")
                 .select("bling_variant_id")
+                .eq("tenant_id", tenantId)
                 .in("bling_variant_id", blingIds);
 
               const existingBlingIds = new Set((existingVariants || []).map((v: any) => v.bling_variant_id));
@@ -1444,7 +1784,8 @@ serve(async (req) => {
                 const { data: prodVariants } = await supabase
                   .from("product_variants")
                   .select("id")
-                  .eq("product_id", pid);
+                  .eq("product_id", pid)
+                  .eq("tenant_id", tenantId);
                 const varIds = (prodVariants || []).map((v: any) => v.id);
                 let hasOrderRef = false;
                 if (varIds.length > 0) {
@@ -1452,6 +1793,7 @@ serve(async (req) => {
                     .from("order_items")
                     .select("id")
                     .in("product_variant_id", varIds)
+                    .eq("tenant_id", tenantId)
                     .limit(1);
                   hasOrderRef = (orderRefs?.length || 0) > 0;
                 }
@@ -1463,19 +1805,23 @@ serve(async (req) => {
               }
               // Deactivate products with order references
               if (deactivateProductIds.length > 0) {
-                await supabase.from("product_variants").update({ is_active: false }).in("product_id", deactivateProductIds);
-                await supabase.from("products").update({ is_active: false }).in("id", deactivateProductIds);
+                await supabase.from("product_variants").update({ is_active: false }).eq("tenant_id", tenantId).in("product_id", deactivateProductIds);
+                await supabase.from("products").update({ is_active: false }).eq("tenant_id", tenantId).in("id", deactivateProductIds);
                 console.log(`[cleanup_variations] Deactivated ${deactivateProductIds.length} products (referenced in orders)`);
               }
               // Delete products without order references
               if (safeToDeleteProductIds.length > 0) {
                 await Promise.all([
-                  supabase.from("product_images").delete().in("product_id", safeToDeleteProductIds),
-                  supabase.from("product_variants").delete().in("product_id", safeToDeleteProductIds),
-                  supabase.from("product_characteristics").delete().in("product_id", safeToDeleteProductIds),
-                  supabase.from("buy_together_products").delete().or(`product_id.in.(${safeToDeleteProductIds.join(',')}),related_product_id.in.(${safeToDeleteProductIds.join(',')})`),
+                  supabase.from("product_images").delete().eq("tenant_id", tenantId).in("product_id", safeToDeleteProductIds),
+                  supabase.from("product_variants").delete().eq("tenant_id", tenantId).in("product_id", safeToDeleteProductIds),
+                  supabase.from("product_characteristics").delete().eq("tenant_id", tenantId).in("product_id", safeToDeleteProductIds),
+                  supabase
+                    .from("buy_together_products")
+                    .delete()
+                    .eq("tenant_id", tenantId)
+                    .or(`product_id.in.(${safeToDeleteProductIds.join(',')}),related_product_id.in.(${safeToDeleteProductIds.join(',')})`),
                 ]);
-                await supabase.from("products").delete().in("id", safeToDeleteProductIds);
+                await supabase.from("products").delete().eq("tenant_id", tenantId).in("id", safeToDeleteProductIds);
               }
 
               cleanedCount += chunkIds.length;
@@ -1493,17 +1839,18 @@ serve(async (req) => {
           .from("orders")
           .select("id, bling_order_id")
           .eq("id", payload.order_id)
+          .eq("tenant_id", tenantId)
           .maybeSingle();
 
         if (existingOrder?.bling_order_id) {
           result = { bling_order_id: existingOrder.bling_order_id, duplicate: true };
         } else {
-          const orderResult = await createOrder(supabase, token, payload.order_id);
+          const orderResult = await createOrder(supabase, token, payload.order_id, tenantId);
           // Save bling_order_id back to order (dedicated column)
           if (orderResult.bling_order_id) {
             await supabase.from("orders").update({
               bling_order_id: orderResult.bling_order_id,
-            }).eq("id", payload.order_id);
+            }).eq("id", payload.order_id).eq("tenant_id", tenantId);
           }
           result = orderResult;
         }
@@ -1516,16 +1863,17 @@ serve(async (req) => {
           .from("orders")
           .select("id, bling_order_id")
           .eq("id", payload.order_id)
+          .eq("tenant_id", tenantId)
           .maybeSingle();
         let orderResult;
         if (nfeOrder?.bling_order_id) {
           orderResult = { bling_order_id: nfeOrder.bling_order_id, duplicate: true };
         } else {
-          orderResult = await createOrder(supabase, token, payload.order_id);
+          orderResult = await createOrder(supabase, token, payload.order_id, tenantId);
           if (orderResult.bling_order_id) {
             await supabase.from("orders").update({
               bling_order_id: orderResult.bling_order_id,
-            }).eq("id", payload.order_id);
+            }).eq("id", payload.order_id).eq("tenant_id", tenantId);
           }
         }
         const nf = await generateNfe(token, orderResult.bling_order_id);

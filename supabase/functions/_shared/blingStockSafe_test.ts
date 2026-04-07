@@ -3,6 +3,7 @@
  */
 import { assertEquals } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import {
+  canApplyParentStockFallback,
   explicitSaldoFromBlingStockRow,
   explicitSaldoFromLegacyEstoque,
   explicitSaldoFromWebhookPayload,
@@ -28,4 +29,11 @@ Deno.test("explicitSaldoFromLegacyEstoque", () => {
   assertEquals(explicitSaldoFromLegacyEstoque({ saldoVirtualTotal: 3 }), 3);
   assertEquals(explicitSaldoFromLegacyEstoque({ quantidade: "2" }), 2);
   assertEquals(explicitSaldoFromLegacyEstoque({}), undefined);
+});
+
+Deno.test("canApplyParentStockFallback: só permite fallback com 1 variante ativa", () => {
+  assertEquals(canApplyParentStockFallback(1), true);
+  assertEquals(canApplyParentStockFallback(0), false);
+  assertEquals(canApplyParentStockFallback(2), false);
+  assertEquals(canApplyParentStockFallback(4), false);
 });

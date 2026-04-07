@@ -19,21 +19,10 @@ export async function autoPushOrderToBling(
   orderId: string
 ): Promise<{ success: boolean; bling_order_id?: number; error?: string; skipped?: boolean }> {
   try {
-    // Check if Bling is configured
-    const { data: settings } = await supabase
-      .from("store_settings")
-      .select("bling_access_token, bling_refresh_token")
-      .limit(1)
-      .maybeSingle();
-
-    if (!settings?.bling_access_token) {
-      return { success: false, skipped: true, error: "Bling não configurado" };
-    }
-
     // Check if order already has bling_order_id
     const { data: order } = await supabase
       .from("orders")
-      .select("id, notes, bling_order_id, order_number, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_cost, total_amount, created_at, customer_cpf")
+      .select("id, tenant_id, notes, bling_order_id, order_number, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_cost, total_amount, created_at, customer_cpf")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -48,7 +37,7 @@ export async function autoPushOrderToBling(
     // Get token
     let token: string;
     try {
-      token = await getValidTokenSafe(supabase);
+      token = await getValidTokenSafe(supabase, { tenantId: order.tenant_id });
     } catch (err: any) {
       console.warn(`[bling-auto] Token error for order ${orderId}: ${err.message}`);
       return { success: false, error: `Token error: ${err.message}` };
@@ -58,7 +47,8 @@ export async function autoPushOrderToBling(
     const { data: orderItems } = await supabase
       .from("order_items")
       .select("product_name, quantity, unit_price, product_id, product_variant_id")
-      .eq("order_id", orderId);
+      .eq("order_id", orderId)
+      .eq("tenant_id", order.tenant_id);
 
     const itens = [];
     for (const item of (orderItems || [])) {
@@ -69,14 +59,25 @@ export async function autoPushOrderToBling(
           .from("product_variants")
           .select("sku")
           .eq("id", item.product_variant_id)
+          .eq("tenant_id", order.tenant_id)
           .maybeSingle();
         if (variant?.sku) codigo = variant.sku;
         else if (item.product_id) {
-          const { data: prod } = await supabase.from("products").select("sku").eq("id", item.product_id).maybeSingle();
+          const { data: prod } = await supabase
+            .from("products")
+            .select("sku")
+            .eq("id", item.product_id)
+            .eq("tenant_id", order.tenant_id)
+            .maybeSingle();
           if (prod?.sku) codigo = prod.sku;
         }
       } else if (item.product_id) {
-        const { data: prod } = await supabase.from("products").select("sku").eq("id", item.product_id).maybeSingle();
+        const { data: prod } = await supabase
+          .from("products")
+          .select("sku")
+          .eq("id", item.product_id)
+          .eq("tenant_id", order.tenant_id)
+          .maybeSingle();
         if (prod?.sku) codigo = prod.sku;
       }
       itens.push({
@@ -149,7 +150,7 @@ export async function autoPushOrderToBling(
     if (blingOrderId) {
       await supabase.from("orders").update({
         bling_order_id: blingOrderId,
-      }).eq("id", orderId);
+      }).eq("id", orderId).eq("tenant_id", order.tenant_id);
       console.log(`[bling-auto] Order ${orderId} → Bling order ${blingOrderId} created successfully`);
     }
 
@@ -169,19 +170,9 @@ export async function cancelBlingOrder(
   orderId: string
 ): Promise<{ success: boolean; error?: string; skipped?: boolean }> {
   try {
-    const { data: settings } = await supabase
-      .from("store_settings")
-      .select("bling_access_token")
-      .limit(1)
-      .maybeSingle();
-
-    if (!settings?.bling_access_token) {
-      return { success: false, skipped: true, error: "Bling não configurado" };
-    }
-
     const { data: order } = await supabase
       .from("orders")
-      .select("id, bling_order_id")
+      .select("id, tenant_id, bling_order_id")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -195,7 +186,7 @@ export async function cancelBlingOrder(
 
     let token: string;
     try {
-      token = await getValidTokenSafe(supabase);
+      token = await getValidTokenSafe(supabase, { tenantId: order.tenant_id });
     } catch (err: any) {
       return { success: false, error: `Token error: ${err.message}` };
     }
@@ -224,22 +215,28 @@ export async function cancelBlingOrder(
 }
 
 /**
- * Verifica se há movimentações de estoque recentes (últimos N minutos) para um variant.
- * Usado para proteger contra sobrescrita de estoque local por sync do Bling.
+ * Verifica se há movimentações de estoque recentes (últimos N minutos) para uma variante.
+ * Filtro opcional por tenant mantém compatibilidade com chamadas legadas.
  */
 export async function hasRecentLocalMovements(
   supabase: any,
   variantId: string,
-  windowMinutes: number = 10
+  windowMinutes: number = 10,
+  tenantId?: string,
 ): Promise<boolean> {
   const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
-  const { data } = await supabase
+  let query = supabase
     .from("inventory_movements")
     .select("id")
     .eq("variant_id", variantId)
     .in("type", ["debit", "reserve", "refund"])
-    .gt("created_at", cutoff)
-    .limit(1);
+    .gt("created_at", cutoff);
 
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
+  }
+
+  const { data } = await query.limit(1);
   return (data?.length || 0) > 0;
 }
+

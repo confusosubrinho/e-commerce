@@ -79,6 +79,56 @@ export function logBlingStockEvent(
   console.warn(JSON.stringify({ level: "warn", message, context, ...meta }));
 }
 
+export type BlingVariantSyncAction = "updated" | "skipped" | "mismatch" | "failed";
+
+export interface BlingVariantSyncActionLogInput {
+  action: BlingVariantSyncAction;
+  context: string;
+  correlation_id?: string;
+  product_id?: string;
+  variant_id?: string;
+  local_sku?: string | null;
+  bling_variant_id?: number | null;
+  previous_stock?: number;
+  new_stock?: number;
+  reason?: string;
+  decision?: string;
+  match_type?: string | null;
+}
+
+/**
+ * Log estruturado por variante para auditoria de sync de estoque.
+ * Campos estáveis esperados:
+ * - product_id, variant_id, local_sku
+ * - bling_variant_id
+ * - previous_stock, new_stock
+ * - action: updated|skipped|mismatch|failed
+ */
+export function logBlingVariantSyncAction(input: BlingVariantSyncActionLogInput): void {
+  const level = input.action === "failed" ? "error" : input.action === "mismatch" ? "warn" : "info";
+  const payload = {
+    level,
+    message: "Bling variant stock sync action",
+    action: input.action,
+    context: input.context,
+    correlation_id: input.correlation_id,
+    product_id: input.product_id,
+    variant_id: input.variant_id,
+    local_sku: input.local_sku ?? null,
+    bling_variant_id: input.bling_variant_id ?? null,
+    previous_stock: input.previous_stock,
+    new_stock: input.new_stock,
+    reason: input.reason,
+    decision: input.decision,
+    match_type: input.match_type ?? null,
+  };
+  const cleaned = Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined));
+  const line = JSON.stringify(cleaned);
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.log(line);
+}
+
 /** Prioridade de match para reconciliação (documentação / telemetria). */
 export type BlingStockMatchType = "bling_variant_id" | "bling_product_id_parent" | "sku_relink" | "none";
 
@@ -165,6 +215,14 @@ export function normalizeBlingSku(raw: string | null | undefined): string {
 /** true se o id Bling estava no lote pedido e a auditoria indica falta de saldo explícito. */
 export function blingIdMissingExplicitInAudit(audit: BlingSaldosBatchAudit, blingProdutoId: number): boolean {
   return audit.requested_missing_explicit_saldo.includes(blingProdutoId);
+}
+
+/**
+ * Fallback por produto-pai é permitido apenas para produtos simples
+ * (exatamente uma variante ativa local).
+ */
+export function canApplyParentStockFallback(activeVariantCount: number): boolean {
+  return Number.isFinite(activeVariantCount) && activeVariantCount === 1;
 }
 
 // ─── Decisão centralizada de escrita de estoque ───
