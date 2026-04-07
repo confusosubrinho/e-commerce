@@ -415,7 +415,7 @@ serve(async (req) => {
                 variant_id: localVar.id,
                 quantity: resolved.new_stock - oldSq,
                 type: "bling_sync",
-              }).then(() => {}).catch(() => {});
+              }).then(() => {}, () => {});
             }
             updatedVariants++;
           } else {
@@ -539,7 +539,7 @@ serve(async (req) => {
                 variant_id: skuVar.id,
                 quantity: resolvedSku.new_stock - oldSku,
                 type: "bling_sync",
-              }).then(() => {}).catch(() => {});
+              }).then(() => {}, () => {});
             }
             updatedVariants++;
           } else {
@@ -628,7 +628,7 @@ serve(async (req) => {
                 variant_id: lv.id,
                 quantity: resolvedP.new_stock - oldLv,
                 type: "bling_sync",
-              }).then(() => {}).catch(() => {});
+              }).then(() => {}, () => {});
             }
             updatedVariants++;
           }
