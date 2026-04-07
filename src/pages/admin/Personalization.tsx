@@ -25,74 +25,6 @@ import { useToast } from '@/hooks/use-toast';
 import { compressImageToWebP } from '@/lib/imageCompressor';
 import { Plus, Pencil, Trash2, GripVertical, Upload, Monitor, Smartphone, Video, Image as ImageIcon } from 'lucide-react';
 
-// Browser-side video compression using canvas + MediaRecorder
-async function compressVideo(file: File): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.muted = true;
-    video.playsInline = true;
-    video.src = URL.createObjectURL(file);
-
-    video.onloadedmetadata = () => {
-      // Scale down resolution to reduce size
-      const scale = Math.min(1, 720 / Math.max(video.videoWidth, video.videoHeight));
-      const width = Math.round(video.videoWidth * scale);
-      const height = Math.round(video.videoHeight * scale);
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d')!;
-
-      const stream = canvas.captureStream(24); // 24fps
-      const chunks: Blob[] = [];
-
-      // Try webm first, fallback to mp4
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm')
-        ? 'video/webm'
-        : 'video/mp4';
-
-      const recorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: 1_500_000, // 1.5Mbps for good compression
-      });
-
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = () => {
-        URL.revokeObjectURL(video.src);
-        const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
-        if (blob.size > 30 * 1024 * 1024) {
-          reject(new Error('Still too large'));
-        } else {
-          resolve(blob);
-        }
-      };
-      recorder.onerror = () => reject(new Error('Recording failed'));
-
-      video.onplay = () => {
-        recorder.start();
-        const drawFrame = () => {
-          if (video.ended || video.paused) {
-            recorder.stop();
-            return;
-          }
-          ctx.drawImage(video, 0, 0, width, height);
-          requestAnimationFrame(drawFrame);
-        };
-        drawFrame();
-      };
-
-      video.onended = () => { if (recorder.state === 'recording') recorder.stop(); };
-      video.onerror = () => reject(new Error('Video load failed'));
-      video.play().catch(reject);
-    };
-
-    video.onerror = () => reject(new Error('Video load failed'));
-  });
-}
-
 // ─── Banners Section (reuse logic from Banners page) ───
 
 
@@ -351,6 +283,20 @@ function InstagramVideosSection() {
     }
   };
 
+  const isLikelyIncompatibleVideoUrl = (value: string): boolean => {
+    const normalized = normalizeMediaUrl(value).toLowerCase();
+    if (!normalized) return false;
+    return normalized.includes('.webm');
+  };
+
+  const isSupportedVideoUpload = (file: File): boolean => {
+    const lowerName = file.name.toLowerCase();
+    const mime = file.type.toLowerCase();
+    const byExt = lowerName.endsWith('.mp4') || lowerName.endsWith('.mov') || lowerName.endsWith('.m4v');
+    const byMime = mime === 'video/mp4' || mime === 'video/quicktime' || mime === 'video/x-m4v';
+    return byExt || byMime;
+  };
+
   const isValidHttpUrl = (value: string): boolean => {
     try {
       const u = new URL(value.trim());
@@ -412,6 +358,8 @@ function InstagramVideosSection() {
       nextErrors.video_url = 'Informe a URL do vídeo ou faça upload.';
     } else if (!isValidHttpUrl(videoUrl)) {
       nextErrors.video_url = 'A URL do vídeo deve começar com http:// ou https://.';
+    } else if (isLikelyIncompatibleVideoUrl(videoUrl)) {
+      nextErrors.video_url = 'Formato WebM pode falhar em alguns dispositivos. Use MP4 (H.264) para máxima compatibilidade.';
     } else {
       const videoOk = await probeMediaUrl('video', videoUrl);
       if (!videoOk) {
@@ -455,26 +403,26 @@ function InstagramVideosSection() {
   const handleVideoUpload = useCallback(async (file: File) => {
     setUploading(true);
     try {
-      const maxSize = 30 * 1024 * 1024; // 30MB limit
-      let fileToUpload: File | Blob = file;
-      let finalName = file.name;
-
-      if (file.size > maxSize) {
-        // Compress video using canvas + MediaRecorder for browser-side compression
-        toast({ title: 'Comprimindo vídeo...', description: 'Aguarde, otimizando o vídeo para upload.' });
-        try {
-          fileToUpload = await compressVideo(file);
-          finalName = 'compressed.webm';
-        } catch {
-          toast({ title: 'Vídeo muito grande', description: 'Não foi possível comprimir automaticamente. Reduza o vídeo para no máximo 30MB.', variant: 'destructive' });
-          setUploading(false);
-          return;
-        }
+      if (!isSupportedVideoUpload(file)) {
+        toast({
+          title: 'Formato não suportado',
+          description: 'Use vídeo em MP4/MOV (recomendado: MP4 H.264).',
+          variant: 'destructive',
+        });
+        return;
       }
-
-      const ext = finalName.split('.').pop() || 'mp4';
+      const maxSize = 30 * 1024 * 1024; // 30MB limit
+      if (file.size > maxSize) {
+        toast({
+          title: 'Vídeo muito grande',
+          description: 'Use um vídeo MP4/MOV de até 30MB para evitar incompatibilidade no site.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const ext = file.name.split('.').pop() || 'mp4';
       const fileName = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('product-media').upload(fileName, fileToUpload, { contentType: fileToUpload instanceof File ? fileToUpload.type : 'video/webm' });
+      const { error: uploadError } = await supabase.storage.from('product-media').upload(fileName, file, { contentType: file.type || 'video/mp4' });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('product-media').getPublicUrl(fileName);
       setFormData(prev => ({ ...prev, video_url: publicUrl }));
@@ -602,7 +550,7 @@ function InstagramVideosSection() {
                     aria-invalid={!!fieldErrors.video_url}
                   />
                   <label className="cursor-pointer">
-                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+                    <input type="file" accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v" className="hidden" onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     <Button type="button" variant="outline" asChild disabled={uploading}><span><Upload className="h-4 w-4 mr-1" />{uploading ? '...' : 'Upload'}</span></Button>
                   </label>
                 </div>
