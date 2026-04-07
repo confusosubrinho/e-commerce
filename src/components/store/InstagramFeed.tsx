@@ -25,6 +25,7 @@ function normalizeMediaUrl(raw: string | null | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
   if (!trimmed) return '';
+  if (trimmed === 'null' || trimmed === 'undefined') return '';
   try {
     const url = new URL(trimmed);
     // Handle Supabase signed URL -> public URL (bucket público)
@@ -43,6 +44,7 @@ export function InstagramFeed() {
   const [failedVideoIds, setFailedVideoIds] = useState<Record<string, boolean>>({});
   const [readyVideoIds, setReadyVideoIds] = useState<Record<string, boolean>>({});
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [failedImageKeys, setFailedImageKeys] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollRafRef = useRef<number | null>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -57,7 +59,8 @@ export function InstagramFeed() {
         .order('display_order', { ascending: true });
 
       if (error) throw error;
-      return (data as unknown as InstagramVideo[]) || [];
+      const rows = (data as unknown as InstagramVideo[]) || [];
+      return rows.filter((row) => normalizeMediaUrl(row.video_url).length > 0);
     },
   });
 
@@ -272,14 +275,18 @@ export function InstagramFeed() {
           aria-label="Lista de vídeos"
         >
           {videos.map((video, index) => {
+            const thumbKey = `thumb-${video.id}`;
+            const productImageKey = `product-${video.id}`;
             const isActive = index === activeIndex;
             const productImage = video.product?.images?.find(i => i.is_primary)?.url || video.product?.images?.[0]?.url;
             const normalizedThumbUrl = normalizeMediaUrl(video.thumbnail_url);
             const normalizedProductImage = normalizeMediaUrl(productImage);
-            const hasThumbnail = Boolean(normalizedThumbUrl);
+            const thumbAvailable = Boolean(normalizedThumbUrl) && !failedImageKeys[thumbKey];
+            const productImageAvailable = Boolean(normalizedProductImage) && !failedImageKeys[productImageKey];
+            const hasThumbnail = thumbAvailable;
             const hasFailed = !!failedVideoIds[video.id];
             const isReady = !!readyVideoIds[video.id];
-            const fallbackMedia = normalizedThumbUrl || normalizedProductImage || null;
+            const fallbackMedia = thumbAvailable ? normalizedThumbUrl : productImageAvailable ? normalizedProductImage : null;
             const normalizedVideoUrl = normalizeMediaUrl(video.video_url);
 
             return (
@@ -319,6 +326,9 @@ export function InstagramFeed() {
                       alt={video.username ? `@${video.username}` : 'Video'}
                       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(isActive && isReady) ? 'opacity-0' : 'opacity-100'}`}
                       loading="lazy"
+                      onError={() => {
+                        setFailedImageKeys((prev) => ({ ...prev, [thumbKey]: true }));
+                      }}
                     />
                   )}
                   {!hasFailed ? (
@@ -351,6 +361,13 @@ export function InstagramFeed() {
                           alt={video.username ? `@${video.username}` : 'Conteúdo'}
                           className="absolute inset-0 h-full w-full object-cover"
                           loading="lazy"
+                          onError={() => {
+                            setFailedImageKeys((prev) => ({
+                              ...prev,
+                              [thumbKey]: true,
+                              [productImageKey]: true,
+                            }));
+                          }}
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 via-zinc-800 to-zinc-900" />
@@ -384,11 +401,14 @@ export function InstagramFeed() {
                     onClick={(e) => e.stopPropagation()}
                     aria-label={`Ver produto ${video.product.name}`}
                   >
-                    {productImage && (
+                    {productImageAvailable && (
                       <img
                         src={normalizedProductImage}
                         alt={video.product.name}
                         className="w-10 h-10 rounded object-cover"
+                        onError={() => {
+                          setFailedImageKeys((prev) => ({ ...prev, [productImageKey]: true }));
+                        }}
                       />
                     )}
                     <span className="text-xs font-medium line-clamp-2 flex-1">

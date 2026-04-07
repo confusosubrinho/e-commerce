@@ -111,6 +111,10 @@ interface Banner {
 function BannersSection() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Erro inesperado';
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [uploading, setUploading] = useState<'desktop' | 'mobile' | null>(null);
@@ -137,8 +141,8 @@ function BannersSection() {
       if (type === 'desktop') setFormData(prev => ({ ...prev, image_url: publicUrl }));
       else setFormData(prev => ({ ...prev, mobile_image_url: publicUrl }));
       toast({ title: 'Imagem enviada!' });
-    } catch (error: any) {
-      toast({ title: 'Erro ao enviar', description: error.message, variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Erro ao enviar', description: getErrorMessage(error), variant: 'destructive' });
     } finally { setUploading(null); }
   }, [toast]);
 
@@ -163,7 +167,7 @@ function BannersSection() {
       setIsDialogOpen(false); resetForm();
       toast({ title: editingBanner ? 'Banner atualizado!' : 'Banner criado!' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -321,9 +325,114 @@ function InstagramVideosSection() {
   const [editingVideo, setEditingVideo] = useState<InstagramVideo | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [failedListThumbIds, setFailedListThumbIds] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<{ video_url?: string; thumbnail_url?: string }>({});
   const [formData, setFormData] = useState({
     video_url: '', thumbnail_url: '', username: '', product_id: '', is_active: true,
   });
+
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Erro inesperado';
+  };
+
+  const normalizeMediaUrl = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return '';
+    try {
+      const u = new URL(trimmed);
+      if (u.pathname.includes('/storage/v1/object/sign/')) {
+        u.pathname = u.pathname.replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
+        u.search = '';
+      }
+      return encodeURI(u.toString());
+    } catch {
+      return encodeURI(trimmed);
+    }
+  };
+
+  const isValidHttpUrl = (value: string): boolean => {
+    try {
+      const u = new URL(value.trim());
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  const probeMediaUrl = async (kind: 'video' | 'image', url: string, timeoutMs = 6000): Promise<boolean> => {
+    const normalized = normalizeMediaUrl(url);
+    if (!normalized) return false;
+    if (!isValidHttpUrl(normalized)) return false;
+
+    return await new Promise<boolean>((resolve) => {
+      let done = false;
+      const finish = (ok: boolean) => {
+        if (done) return;
+        done = true;
+        resolve(ok);
+      };
+      const timeout = window.setTimeout(() => finish(false), timeoutMs);
+
+      if (kind === 'video') {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        video.onloadedmetadata = () => {
+          window.clearTimeout(timeout);
+          finish(true);
+        };
+        video.onerror = () => {
+          window.clearTimeout(timeout);
+          finish(false);
+        };
+        video.src = normalized;
+      } else {
+        const img = new Image();
+        img.onload = () => {
+          window.clearTimeout(timeout);
+          finish(true);
+        };
+        img.onerror = () => {
+          window.clearTimeout(timeout);
+          finish(false);
+        };
+        img.src = normalized;
+      }
+    });
+  };
+
+  const validateFormData = async (): Promise<boolean> => {
+    const nextErrors: { video_url?: string; thumbnail_url?: string } = {};
+    const videoUrl = normalizeMediaUrl(formData.video_url);
+    const thumbnailUrl = normalizeMediaUrl(formData.thumbnail_url);
+
+    if (!videoUrl) {
+      nextErrors.video_url = 'Informe a URL do vídeo ou faça upload.';
+    } else if (!isValidHttpUrl(videoUrl)) {
+      nextErrors.video_url = 'A URL do vídeo deve começar com http:// ou https://.';
+    } else {
+      const videoOk = await probeMediaUrl('video', videoUrl);
+      if (!videoOk) {
+        nextErrors.video_url = 'Não foi possível carregar este vídeo. Verifique a URL no painel.';
+      }
+    }
+
+    if (thumbnailUrl) {
+      if (!isValidHttpUrl(thumbnailUrl)) {
+        nextErrors.thumbnail_url = 'A thumbnail deve começar com http:// ou https://.';
+      } else {
+        const thumbOk = await probeMediaUrl('image', thumbnailUrl);
+        if (!thumbOk) {
+          nextErrors.thumbnail_url = 'Não foi possível carregar esta thumbnail. Verifique a URL.';
+        }
+      }
+    }
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const { data: videos, isLoading } = useQuery({
     queryKey: ['admin-instagram-videos'],
@@ -369,9 +478,10 @@ function InstagramVideosSection() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('product-media').getPublicUrl(fileName);
       setFormData(prev => ({ ...prev, video_url: publicUrl }));
+      setFieldErrors((prev) => ({ ...prev, video_url: undefined }));
       toast({ title: 'Vídeo enviado!' });
-    } catch (error: any) {
-      toast({ title: 'Erro ao enviar', description: error.message, variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Erro ao enviar', description: getErrorMessage(error), variant: 'destructive' });
     } finally { setUploading(false); }
   }, [toast]);
 
@@ -383,17 +493,27 @@ function InstagramVideosSection() {
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('product-media').getPublicUrl(fileName);
       setFormData(prev => ({ ...prev, thumbnail_url: publicUrl }));
+      setFieldErrors((prev) => ({ ...prev, thumbnail_url: undefined }));
       toast({ title: 'Thumbnail enviada!' });
-    } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } catch (error: unknown) {
+      toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' });
     } finally { setUploadingThumb(false); }
   }, [toast]);
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const videoData: any = {
-        video_url: data.video_url,
-        thumbnail_url: data.thumbnail_url || null,
+      const normalizedVideoUrl = normalizeMediaUrl(data.video_url);
+      const normalizedThumbUrl = normalizeMediaUrl(data.thumbnail_url);
+      const videoData: {
+        video_url: string;
+        thumbnail_url: string | null;
+        username: string | null;
+        product_id: string | null;
+        is_active: boolean;
+        display_order: number | null;
+      } = {
+        video_url: normalizedVideoUrl,
+        thumbnail_url: normalizedThumbUrl || null,
         username: data.username || null,
         product_id: data.product_id || null,
         is_active: data.is_active,
@@ -413,7 +533,7 @@ function InstagramVideosSection() {
       setIsDialogOpen(false); resetForm();
       toast({ title: editingVideo ? 'Vídeo atualizado!' : 'Vídeo adicionado!' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -430,6 +550,7 @@ function InstagramVideosSection() {
 
   const resetForm = () => {
     setFormData({ video_url: '', thumbnail_url: '', username: '', product_id: '', is_active: true });
+    setFieldErrors({});
     setEditingVideo(null);
   };
 
@@ -455,29 +576,59 @@ function InstagramVideosSection() {
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>{editingVideo ? 'Editar Vídeo' : 'Novo Vídeo'}</DialogTitle></DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(formData); }} className="space-y-4">
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const valid = await validateFormData();
+                if (!valid) {
+                  toast({ title: 'URLs inválidas', description: 'Corrija os campos marcados antes de salvar.', variant: 'destructive' });
+                  return;
+                }
+                saveMutation.mutate(formData);
+              }}
+              className="space-y-4"
+            >
               <div>
                 <Label>Vídeo *</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input value={formData.video_url} onChange={(e) => setFormData({ ...formData, video_url: e.target.value })} placeholder="URL do vídeo ou upload" required />
+                  <Input
+                    value={formData.video_url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, video_url: e.target.value });
+                      setFieldErrors((prev) => ({ ...prev, video_url: undefined }));
+                    }}
+                    placeholder="URL do vídeo ou upload"
+                    required
+                    aria-invalid={!!fieldErrors.video_url}
+                  />
                   <label className="cursor-pointer">
                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     <Button type="button" variant="outline" asChild disabled={uploading}><span><Upload className="h-4 w-4 mr-1" />{uploading ? '...' : 'Upload'}</span></Button>
                   </label>
                 </div>
+                {fieldErrors.video_url && <p className="mt-1 text-xs text-destructive">{fieldErrors.video_url}</p>}
                 {formData.video_url && (
-                  <video src={formData.video_url} className="mt-2 w-full max-h-48 rounded object-cover" controls muted />
+                  <video src={normalizeMediaUrl(formData.video_url)} className="mt-2 w-full max-h-48 rounded object-cover" controls muted />
                 )}
               </div>
               <div>
                 <Label>Thumbnail (opcional)</Label>
                 <div className="flex gap-2 mt-1">
-                  <Input value={formData.thumbnail_url} onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })} placeholder="URL ou upload" />
+                  <Input
+                    value={formData.thumbnail_url}
+                    onChange={(e) => {
+                      setFormData({ ...formData, thumbnail_url: e.target.value });
+                      setFieldErrors((prev) => ({ ...prev, thumbnail_url: undefined }));
+                    }}
+                    placeholder="URL ou upload"
+                    aria-invalid={!!fieldErrors.thumbnail_url}
+                  />
                   <label className="cursor-pointer">
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleThumbUpload(e.target.files[0])} />
                     <Button type="button" variant="outline" asChild disabled={uploadingThumb}><span><Upload className="h-4 w-4 mr-1" />{uploadingThumb ? '...' : 'Upload'}</span></Button>
                   </label>
                 </div>
+                {fieldErrors.thumbnail_url && <p className="mt-1 text-xs text-destructive">{fieldErrors.thumbnail_url}</p>}
               </div>
               <div><Label>Username Instagram</Label><Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} placeholder="@usuario" className="mt-1" /></div>
               <div>
@@ -510,8 +661,13 @@ function InstagramVideosSection() {
                 <div className="flex items-center gap-3">
                   <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <div className="flex-shrink-0 w-16 h-20 bg-muted rounded overflow-hidden">
-                    {video.thumbnail_url ? (
-                      <img src={video.thumbnail_url} alt="Thumb" className="w-full h-full object-cover" />
+                    {video.thumbnail_url && !failedListThumbIds[video.id] ? (
+                      <img
+                        src={normalizeMediaUrl(video.thumbnail_url)}
+                        alt="Thumb"
+                        className="w-full h-full object-cover"
+                        onError={() => setFailedListThumbIds((prev) => ({ ...prev, [video.id]: true }))}
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center"><Video className="h-5 w-5 text-muted-foreground" /></div>
                     )}
@@ -553,6 +709,10 @@ function InstagramVideosSection() {
 function CategoriesOrderSection() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    return 'Erro inesperado';
+  };
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['admin-categories-order'],
@@ -584,16 +744,19 @@ function CategoriesOrderSection() {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: 'Ordem salva!' });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
   });
 
   const { getDragProps } = useDragReorder({
     items: rootCategories,
     onReorder: (reordered) => {
       // Update cache optimistically
-      queryClient.setQueryData(['admin-categories-order'], (old: any) => {
+      queryClient.setQueryData(['admin-categories-order'], (old: unknown) => {
         if (!old) return reordered;
-        const childCategories = old.filter((c: any) => c.parent_category_id);
+        const oldCategories = Array.isArray(old)
+          ? old as Array<{ parent_category_id: string | null }>
+          : [];
+        const childCategories = oldCategories.filter((c) => c.parent_category_id);
         return [...reordered, ...childCategories];
       });
       reorderMutation.mutate(reordered);
@@ -609,7 +772,7 @@ function CategoriesOrderSection() {
       queryClient.invalidateQueries({ queryKey: ['admin-categories-order'] });
       queryClient.invalidateQueries({ queryKey: ['categories'] });
     },
-    onError: (error: any) => toast({ title: 'Erro', description: error.message, variant: 'destructive' }),
+    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
   });
 
   if (isLoading) return <p className="text-sm text-muted-foreground py-4">Carregando...</p>;
