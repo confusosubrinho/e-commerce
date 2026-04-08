@@ -41,9 +41,7 @@ export function AdminAuthProvider({
         const response = await originalFetch(...args);
 
         if (response.status === 401 || response.status === 403) {
-          const url = typeof args[0] === 'string'
-            ? args[0]
-            : (args[0] instanceof Request ? args[0].url : '');
+          const url = args[0] instanceof Request ? args[0].url : String(args[0] || '');
 
           const isSupabaseRequest = url.includes('supabase.co') || url.includes(import.meta.env.VITE_SUPABASE_URL || 'supabase');
 
