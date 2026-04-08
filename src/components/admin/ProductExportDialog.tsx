@@ -50,7 +50,7 @@ interface Product {
   video_url?: string | null;
   category?: { id: string; name: string } | null;
   images?: { id: string; url: string; alt_text: string | null; display_order: number; is_primary: boolean; media_type?: string }[];
-  variants?: { id: string; size: string; color: string | null; color_hex: string | null; sku: string | null; stock_quantity: number; price_modifier: number | null; is_active: boolean; bling_variant_id: number | null; base_price?: number | null; sale_price?: number | null }[];
+  variants?: { id: string; size: string; color: string | null; color_hex: string | null; sku: string | null; stock_quantity: number; price_modifier: number | null; is_active: boolean; bling_variant_id?: number | null; base_price?: number | null; sale_price?: number | null }[];
 }
 
 interface ProductExportDialogProps {
