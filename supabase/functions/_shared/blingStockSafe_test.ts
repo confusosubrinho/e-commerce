@@ -13,6 +13,10 @@ Deno.test("explicitSaldoFromBlingStockRow: zero explícito é válido", () => {
   assertEquals(explicitSaldoFromBlingStockRow({ saldoVirtualTotal: 0, produto: { id: 1 } }), 0);
 });
 
+Deno.test("explicitSaldoFromBlingStockRow: usa saldo positivo disponível entre campos conhecidos", () => {
+  assertEquals(explicitSaldoFromBlingStockRow({ saldoVirtualTotal: 0, saldoFisicoTotal: 6, produto: { id: 1 } }), 6);
+});
+
 Deno.test("explicitSaldoFromBlingStockRow: null/undefined não confirma saldo", () => {
   assertEquals(explicitSaldoFromBlingStockRow({ saldoVirtualTotal: null, produto: { id: 1 } }), undefined);
   assertEquals(explicitSaldoFromBlingStockRow({ produto: { id: 1 } }), undefined);
@@ -21,6 +25,7 @@ Deno.test("explicitSaldoFromBlingStockRow: null/undefined não confirma saldo", 
 Deno.test("explicitSaldoFromWebhookPayload", () => {
   assertEquals(explicitSaldoFromWebhookPayload(5), 5);
   assertEquals(explicitSaldoFromWebhookPayload(0), 0);
+  assertEquals(explicitSaldoFromWebhookPayload({ saldoVirtualTotal: 0, saldoFisicoTotal: 4 }), 4);
   assertEquals(explicitSaldoFromWebhookPayload(undefined), undefined);
   assertEquals(explicitSaldoFromWebhookPayload(null), undefined);
 });

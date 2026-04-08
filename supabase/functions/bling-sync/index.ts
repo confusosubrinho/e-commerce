@@ -1334,7 +1334,7 @@ async function syncStock(supabase: any, token: string, tenantId: string) {
           if (qty === undefined && blingId != null) {
             console.warn(JSON.stringify({
               level: "warn",
-              message: "Bling stock skipped: missing explicit saldoVirtualTotal for bling id in sync_stock batch",
+              message: "Bling stock skipped: missing explicit stock saldo fields for bling id in sync_stock batch",
               context: "bling-sync.syncStock",
               bling_produto_id: blingId,
               decision: resolved.decision,

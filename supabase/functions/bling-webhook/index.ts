@@ -1212,7 +1212,7 @@ async function batchStockSync(supabase: any, tenantId: string) {
               match_type: resolved.match_type ?? null,
             });
             if (qty === undefined) {
-              logBlingStockEvent("Bling stock skipped: missing explicit saldoVirtualTotal in cron batch", "webhook.batchStockSync", {
+              logBlingStockEvent("Bling stock skipped: missing explicit stock saldo fields in cron batch", "webhook.batchStockSync", {
                 bling_produto_id: blingId,
                 decision: resolved.decision,
               });
@@ -1575,7 +1575,7 @@ Deno.serve(async (req) => {
             break;
           }
           const stockBlingId = dados?.produto?.id || dados?.idProduto;
-          const saldoExplicit = explicitSaldoFromWebhookPayload(dados?.saldoVirtualTotal);
+          const saldoExplicit = explicitSaldoFromWebhookPayload(dados);
           if (stockBlingId) {
             console.log(`[webhook] Stock event for bling_id=${stockBlingId}, saldoExplicit=${saldoExplicit ?? "absent"}`);
             const result = await updateStockForBlingId(supabase, tenantId, stockBlingId, saldoExplicit, token || undefined);

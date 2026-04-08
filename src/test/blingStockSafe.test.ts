@@ -15,6 +15,16 @@ describe("blingStockSafe (política conservadora Bling)", () => {
     expect(explicitSaldoFromBlingStockRow({ saldoVirtualTotal: 0, produto: { id: 1 } })).toBe(0);
   });
 
+  it("prioriza saldo explícito positivo quando virtual veio 0 e físico veio > 0", () => {
+    expect(
+      explicitSaldoFromBlingStockRow({
+        saldoVirtualTotal: 0,
+        saldoFisicoTotal: 7,
+        produto: { id: 1 },
+      }),
+    ).toBe(7);
+  });
+
   it("rejeita null/undefined/ausente como não confirmado", () => {
     expect(explicitSaldoFromBlingStockRow({ saldoVirtualTotal: null, produto: { id: 1 } })).toBeUndefined();
     expect(explicitSaldoFromBlingStockRow({ produto: { id: 1 } })).toBeUndefined();
@@ -24,6 +34,7 @@ describe("blingStockSafe (política conservadora Bling)", () => {
     expect(explicitSaldoFromWebhookPayload(5)).toBe(5);
     expect(explicitSaldoFromWebhookPayload(0)).toBe(0);
     expect(explicitSaldoFromWebhookPayload("12")).toBe(12);
+    expect(explicitSaldoFromWebhookPayload({ saldoVirtualTotal: 0, saldoFisicoTotal: 9 })).toBe(9);
     expect(explicitSaldoFromWebhookPayload(undefined)).toBeUndefined();
   });
 

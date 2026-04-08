@@ -147,9 +147,28 @@ export function ProductVariantsManager({
   const [bulkCustomAttrName, setBulkCustomAttrName] = useState('');
   const [bulkCustomAttrValues, setBulkCustomAttrValues] = useState('');
   const allColors = useMemo(() => [...COMMON_COLORS, ...customColors], [customColors]);
+  const duplicateSkuSet = useMemo(() => {
+    const skuCounts = new Map<string, number>();
+    for (const variant of variants) {
+      const normalizedSku = variant.sku?.trim();
+      if (!normalizedSku) continue;
+      skuCounts.set(normalizedSku, (skuCounts.get(normalizedSku) ?? 0) + 1);
+    }
 
-  const checkDuplicateSku = (sku: string, excludeIndex?: number): boolean => {
-    return variants.some((v, i) => i !== excludeIndex && v.sku === sku && sku !== '');
+    const duplicates = new Set<string>();
+    for (const [sku, count] of skuCounts) {
+      if (count > 1) {
+        duplicates.add(sku);
+      }
+    }
+
+    return duplicates;
+  }, [variants]);
+
+  const checkDuplicateSku = (sku: string): boolean => {
+    const normalizedSku = sku?.trim();
+    if (!normalizedSku) return false;
+    return duplicateSkuSet.has(normalizedSku);
   };
 
   const checkDuplicateVariant = (size: string, color: string | null, customValue?: string | null, excludeIndex?: number): boolean => {
@@ -314,9 +333,25 @@ export function ProductVariantsManager({
 
     // Check for SKU duplicates
     const allSkus = [...variants.map(v => v.sku), ...newVariants.map(v => v.sku)];
-    const duplicates = allSkus.filter((s, i) => s && allSkus.indexOf(s) !== i);
-    if (duplicates.length > 0) {
-      toast({ title: 'SKUs duplicados detectados', description: `SKUs: ${duplicates.join(', ')}`, variant: 'destructive' });
+    const seenSkus = new Set<string>();
+    const duplicateSkus = new Set<string>();
+
+    for (const sku of allSkus) {
+      const normalizedSku = sku?.trim();
+      if (!normalizedSku) continue;
+      if (seenSkus.has(normalizedSku)) {
+        duplicateSkus.add(normalizedSku);
+      } else {
+        seenSkus.add(normalizedSku);
+      }
+    }
+
+    if (duplicateSkus.size > 0) {
+      toast({
+        title: 'SKUs duplicados detectados',
+        description: `SKUs: ${Array.from(duplicateSkus).join(', ')}`,
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -430,7 +465,10 @@ export function ProductVariantsManager({
           )}
           {variants.map((variant, index) => (
             isMobile ? (
-              <div key={index} className="flex items-center gap-2 p-2.5 border rounded-lg">
+              <div
+                key={variant.id ?? `${variant.sku || 'nosku'}-${variant.size || 'nosize'}-${variant.color || 'nocolor'}-${variant.custom_attribute_value || 'nocustom'}-${index}`}
+                className="flex items-center gap-2 p-2.5 border rounded-lg"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     {variant.color_hex && (
@@ -457,7 +495,10 @@ export function ProductVariantsManager({
                 </Button>
               </div>
             ) : (
-              <div key={index} className="grid grid-cols-[1fr_1fr_70px_80px_auto_36px] gap-2 items-center p-2 border rounded-lg">
+              <div
+                key={variant.id ?? `${variant.sku || 'nosku'}-${variant.size || 'nosize'}-${variant.color || 'nocolor'}-${variant.custom_attribute_value || 'nocustom'}-${index}`}
+                className="grid grid-cols-[1fr_1fr_70px_80px_auto_36px] gap-2 items-center p-2 border rounded-lg"
+              >
                 <div className="text-sm font-medium">{variant.size || '—'}</div>
                 <div className="flex items-center gap-1.5 text-sm">
                   {variant.color_hex && (
@@ -466,7 +507,7 @@ export function ProductVariantsManager({
                   <span className="truncate">{variant.color || '—'}</span>
                 </div>
                 <span className="text-sm text-center">{variant.stock_quantity}</span>
-                <span className={`text-xs truncate ${checkDuplicateSku(variant.sku, index) ? 'text-destructive font-bold' : ''}`}>
+                <span className={`text-xs truncate ${checkDuplicateSku(variant.sku) ? 'text-destructive font-bold' : ''}`}>
                   {variant.sku || '—'}
                 </span>
                 <div className="flex items-center gap-1">
@@ -602,7 +643,7 @@ export function ProductVariantsManager({
                       <Wand2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {checkDuplicateSku(editingVariant.sku, editIndex) && (
+                  {checkDuplicateSku(editingVariant.sku) && (
                     <p className="text-xs text-destructive mt-1">SKU duplicado!</p>
                   )}
                 </div>

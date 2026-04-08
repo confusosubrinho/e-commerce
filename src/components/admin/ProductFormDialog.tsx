@@ -982,6 +982,8 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
   // Only show history tab when editing
   const STEPS = editingProduct ? STEPS_BASE : STEPS_BASE.filter(s => s.key !== 'history');
+  const activeStep = STEPS.find(s => s.key === activeTab) ?? STEPS[currentStep] ?? STEPS[0];
+  const activeStepKey = activeStep?.key ?? 'basic';
 
   const renderStepContent = (stepKey: string) => {
     switch (stepKey) {
@@ -1027,7 +1029,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           ))}
         </div>
         <span className="text-xs font-medium text-muted-foreground">
-          {currentStep + 1}/{STEPS.length} — {STEPS[currentStep].label}
+          {currentStep + 1}/{STEPS.length} — {STEPS[currentStep]?.label ?? activeStep.label}
         </span>
       </div>
 
@@ -1106,14 +1108,24 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
               {renderStepIndicator()}
               <ScrollArea className="flex-1">
                 <div className="p-4 pb-6">
-                  {renderStepContent(STEPS[currentStep].key)}
+                  {renderStepContent(STEPS[currentStep]?.key ?? STEPS[0].key)}
                 </div>
               </ScrollArea>
               {renderMobileFooter()}
             </>
           ) : (
             <>
-              <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setCurrentStep(STEPS.findIndex(s => s.key === v)); }} className="w-full flex flex-col min-h-0">
+              <Tabs
+                value={activeStepKey}
+                onValueChange={(v) => {
+                  setActiveTab(v);
+                  const nextIndex = STEPS.findIndex(s => s.key === v);
+                  if (nextIndex >= 0) {
+                    setCurrentStep(nextIndex);
+                  }
+                }}
+                className="w-full flex flex-col min-h-0"
+              >
                 <div className="px-6 flex-shrink-0">
                   <TabsList className={`grid w-full ${STEPS.length === 8 ? 'grid-cols-8' : 'grid-cols-7'}`}>
                     {STEPS.map(s => (
@@ -1123,11 +1135,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                 </div>
 
                 <div className="flex-1 min-h-0 px-6 overflow-y-auto" style={{ maxHeight: '60vh' }}>
-                  {STEPS.map(s => (
-                    <TabsContent key={s.key} value={s.key} className="mt-4 pb-6 focus-visible:outline-none">
-                      {renderStepContent(s.key)}
-                    </TabsContent>
-                  ))}
+                  <TabsContent key={activeStepKey} value={activeStepKey} forceMount className="mt-4 pb-6 focus-visible:outline-none">
+                    {renderStepContent(activeStepKey)}
+                  </TabsContent>
                 </div>
 
               </Tabs>

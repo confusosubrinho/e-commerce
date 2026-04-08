@@ -6,39 +6,77 @@
 export type BlingStockLogMeta = Record<string, unknown>;
 
 /** Saldo explícito: número finito retornado pelo Bling (0 é válido). null/undefined/ausente → não confirmado. */
-export function explicitSaldoFromBlingStockRow(s: unknown): number | undefined {
-  if (s == null || typeof s !== "object") return undefined;
-  const v = (s as Record<string, unknown>).saldoVirtualTotal;
-  if (typeof v === "number" && Number.isFinite(v)) {
-    return Math.max(0, Math.trunc(v));
-  }
-  return undefined;
-}
+const STOCK_VALUE_KEYS = [
+  "saldoVirtualTotal",
+  "saldoFisicoTotal",
+  "saldoVirtual",
+  "saldoFisico",
+  "saldoDisponivel",
+  "saldo",
+  "quantidade",
+] as const;
 
-/** Payload legado (retorno.estoques): tenta campos conhecidos; só aceita número finito explícito. */
-export function explicitSaldoFromLegacyEstoque(est: unknown): number | undefined {
-  if (est == null || typeof est !== "object") return undefined;
-  const o = est as Record<string, unknown>;
-  const inner = (o.estoque && typeof o.estoque === "object" ? o.estoque : o) as Record<string, unknown>;
-  const candidates = [inner.saldoVirtualTotal, inner.quantidade, inner.saldo];
-  for (const c of candidates) {
-    if (typeof c === "number" && Number.isFinite(c)) return Math.max(0, Math.trunc(c));
-    if (typeof c === "string" && c.trim() !== "") {
-      const n = Number(c.replace(",", "."));
-      if (Number.isFinite(n)) return Math.max(0, Math.trunc(n));
-    }
-  }
-  return undefined;
-}
+const STOCK_CONTAINER_KEYS = [
+  "estoque",
+  "estoques",
+  "saldos",
+  "depositos",
+  "depósitos",
+] as const;
 
-/** Webhook V3: saldo no payload do evento (número ou string numérica explícita). */
-export function explicitSaldoFromWebhookPayload(raw: unknown): number | undefined {
-  if (typeof raw === "number" && Number.isFinite(raw)) return Math.max(0, Math.trunc(raw));
+function parseExplicitStockValue(raw: unknown): number | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, Math.trunc(raw));
+  }
   if (typeof raw === "string" && raw.trim() !== "") {
     const n = Number(raw.replace(",", "."));
     if (Number.isFinite(n)) return Math.max(0, Math.trunc(n));
   }
   return undefined;
+}
+
+function extractStockCandidateValues(source: unknown, depth = 0): number[] {
+  const direct = parseExplicitStockValue(source);
+  const out: number[] = direct !== undefined ? [direct] : [];
+  if (source == null || typeof source !== "object") return out;
+
+  const record = source as Record<string, unknown>;
+  for (const key of STOCK_VALUE_KEYS) {
+    const parsed = parseExplicitStockValue(record[key]);
+    if (parsed !== undefined) out.push(parsed);
+  }
+
+  if (depth >= 1) return out;
+  for (const key of STOCK_CONTAINER_KEYS) {
+    const nested = record[key];
+    if (Array.isArray(nested)) {
+      for (const item of nested) out.push(...extractStockCandidateValues(item, depth + 1));
+      continue;
+    }
+    out.push(...extractStockCandidateValues(nested, depth + 1));
+  }
+
+  return out;
+}
+
+export function explicitSaldoFromBlingStockRow(s: unknown): number | undefined {
+  const candidates = extractStockCandidateValues(s);
+  if (candidates.length === 0) return undefined;
+  return Math.max(...candidates);
+}
+
+/** Payload legado (retorno.estoques): tenta campos conhecidos; só aceita número finito explícito. */
+export function explicitSaldoFromLegacyEstoque(est: unknown): number | undefined {
+  const candidates = extractStockCandidateValues(est);
+  if (candidates.length === 0) return undefined;
+  return Math.max(...candidates);
+}
+
+/** Webhook V3: saldo no payload do evento (número ou string numérica explícita). */
+export function explicitSaldoFromWebhookPayload(raw: unknown): number | undefined {
+  const candidates = extractStockCandidateValues(raw);
+  if (candidates.length === 0) return undefined;
+  return Math.max(...candidates);
 }
 
 /**
@@ -60,7 +98,7 @@ export function mergeExplicitSaldosIntoMap(
       if (logPartialRow) {
         console.warn(JSON.stringify({
           level: "warn",
-          message: "Bling stock skipped: missing explicit saldoVirtualTotal in API row",
+          message: "Bling stock skipped: missing explicit stock saldo fields in API row",
           context: logContext,
           bling_produto_id: pid,
         }));
