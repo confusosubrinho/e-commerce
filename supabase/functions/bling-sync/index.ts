@@ -1653,7 +1653,7 @@ serve(async (req) => {
                     logBlingVariantSyncAction({
                       action: "skipped",
                       context: "bling-sync.relink_variants",
-                      correlation_id: correlationId,
+                      correlation_id: relinkCorrelationId,
                       product_id: productId,
                       variant_id: lv.id,
                       local_sku: lv.sku ?? null,
