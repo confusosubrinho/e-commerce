@@ -1701,6 +1701,7 @@ serve(async (req) => {
           activeProductIds.add(p.id);
         }
         let linked = 0, stockUpdated = 0;
+        const relinkCorrelationId = crypto.randomUUID();
         const relinkHeaders = blingHeaders(token);
         const processedParents = new Set<number>();
         const relinkLog: Array<{ sku: string; bling_variant_id: number | null; stock: number | null; status: string }> = [];
@@ -1785,7 +1786,7 @@ serve(async (req) => {
                     logBlingVariantSyncAction({
                       action: "skipped",
                       context: "bling-sync.relink_variants",
-                      correlation_id: correlationId,
+                      correlation_id: relinkCorrelationId,
                       product_id: productId,
                       variant_id: lv.id,
                       local_sku: lv.sku ?? null,
