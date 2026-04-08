@@ -4,7 +4,7 @@ const SESSION_KEY = 'vl_session_id';
 const UTM_KEY = 'vl_utm_data';
 
 function generateSessionId(): string {
-  return 'sess_' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return 'sess_' + crypto.randomUUID();
 }
 
 export function getSessionId(): string {
