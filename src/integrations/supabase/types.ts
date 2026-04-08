@@ -2658,6 +2658,7 @@ export type Database = {
           access_token: string | null
           appmax_customer_id: string | null
           appmax_order_id: string | null
+          bling_order_id: number | null
           cart_id: string | null
           checkout_session_id: string | null
           coupon_code: string | null
@@ -2708,6 +2709,7 @@ export type Database = {
           access_token?: string | null
           appmax_customer_id?: string | null
           appmax_order_id?: string | null
+          bling_order_id?: number | null
           cart_id?: string | null
           checkout_session_id?: string | null
           coupon_code?: string | null
@@ -2758,6 +2760,7 @@ export type Database = {
           access_token?: string | null
           appmax_customer_id?: string | null
           appmax_order_id?: string | null
+          bling_order_id?: number | null
           cart_id?: string | null
           checkout_session_id?: string | null
           coupon_code?: string | null
@@ -4101,32 +4104,94 @@ export type Database = {
           },
         ]
       }
+      tenant_plans: {
+        Row: {
+          created_at: string
+          features: Json
+          id: string
+          limits: Json
+          name: string
+          slug: string
+          sort_order: number
+          stripe_price_id_monthly: string | null
+          stripe_price_id_yearly: string | null
+        }
+        Insert: {
+          created_at?: string
+          features?: Json
+          id?: string
+          limits?: Json
+          name: string
+          slug: string
+          sort_order?: number
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+        }
+        Update: {
+          created_at?: string
+          features?: Json
+          id?: string
+          limits?: Json
+          name?: string
+          slug?: string
+          sort_order?: number
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_yearly?: string | null
+        }
+        Relationships: []
+      }
       tenants: {
         Row: {
           active: boolean
+          billing_status: string
           created_at: string
           domain: string | null
           id: string
           name: string
+          plan_expires_at: string | null
+          plan_id: string | null
           slug: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_ends_at: string | null
         }
         Insert: {
           active?: boolean
+          billing_status?: string
           created_at?: string
           domain?: string | null
           id?: string
           name: string
+          plan_expires_at?: string | null
+          plan_id?: string | null
           slug: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
         }
         Update: {
           active?: boolean
+          billing_status?: string
           created_at?: string
           domain?: string | null
           id?: string
           name?: string
+          plan_expires_at?: string | null
+          plan_id?: string | null
           slug?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_ends_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       traffic_sessions: {
         Row: {
