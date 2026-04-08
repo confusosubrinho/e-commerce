@@ -45,10 +45,10 @@ export interface Product {
   seo_description: string | null;
   seo_keywords: string | null;
   // Bling integration (admin)
-  bling_product_id?: number | null;
-  bling_sync_status?: string | null;
-  bling_last_synced_at?: string | null;
-  bling_last_error?: string | null;
+  bling_product_id: number | null;
+  bling_sync_status: string | null;
+  bling_last_synced_at: string | null;
+  bling_last_error: string | null;
   // Relations
   category?: Category | { id: string; name: string; slug?: string };
   images?: ProductImage[];
