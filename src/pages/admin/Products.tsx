@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { formatPrice } from '@/lib/formatters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +39,23 @@ import { ptBR } from 'date-fns/locale';
 import { HelpHint } from '@/components/HelpHint';
 import { ProductExportDialog } from '@/components/admin/ProductExportDialog';
 import type { Product } from '@/types/database';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
+
+type ProductStockMetrics = {
+  activeVariantCount: number;
+  hasStock: boolean;
+  isOutOfStock: boolean;
+  totalStock: number;
+  hasLowStock: boolean;
+};
+
+const EMPTY_STOCK_METRICS: ProductStockMetrics = {
+  activeVariantCount: 0,
+  hasStock: false,
+  isOutOfStock: false,
+  totalStock: 0,
+  hasLowStock: false,
+};
 
 export default function Products() {
   const queryClient = useQueryClient();
@@ -81,6 +98,65 @@ export default function Products() {
       return data as unknown as Product[];
     },
   });
+
+  const productsById = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const product of products || []) {
+      map.set(product.id, product);
+    }
+    return map;
+  }, [products]);
+
+  const primaryImageByProductId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const product of products || []) {
+      const primary = product.images?.find(i => i.is_primary)?.url;
+      map.set(product.id, primary || product.images?.[0]?.url || '/placeholder.svg');
+    }
+    return map;
+  }, [products]);
+
+  const stockMetricsByProductId = useMemo(() => {
+    const map = new Map<string, ProductStockMetrics>();
+
+    for (const product of products || []) {
+      const variants = product.variants || [];
+      if (variants.length === 0) {
+        map.set(product.id, EMPTY_STOCK_METRICS);
+        continue;
+      }
+
+      let activeVariantCount = 0;
+      let hasStock = false;
+      let totalStock = 0;
+      let hasLowStock = false;
+
+      for (const variant of variants) {
+        if (!variant.is_active) continue;
+        activeVariantCount++;
+        const stock = variant.stock_quantity || 0;
+        totalStock += stock;
+        if (stock > 0) {
+          hasStock = true;
+          if (stock < 5) hasLowStock = true;
+        }
+      }
+
+      map.set(product.id, {
+        activeVariantCount,
+        hasStock,
+        isOutOfStock: activeVariantCount === 0 || !hasStock,
+        totalStock,
+        hasLowStock,
+      });
+    }
+
+    return map;
+  }, [products]);
+
+  const getStockMetrics = useCallback((product: Product): ProductStockMetrics => {
+    return stockMetricsByProductId.get(product.id) ?? EMPTY_STOCK_METRICS;
+  }, [stockMetricsByProductId]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -164,63 +240,95 @@ export default function Products() {
 
   // formatPrice imported from @/lib/formatters
 
-  const isOutOfStock = (p: Product) => {
-    if (!p.variants || p.variants.length === 0) return false;
-    const active = p.variants.filter(v => v.is_active);
-    if (active.length === 0) return true;
-    return active.every(v => v.stock_quantity <= 0);
-  };
-
-  const hasStock = (p: Product) => {
-    if (!p.variants || p.variants.length === 0) return false;
-    return p.variants.some(v => v.is_active && v.stock_quantity > 0);
-  };
-
-  const getTotalStock = (p: Product): number => {
-    if (!p.variants) return 0;
-    return p.variants.filter(v => v.is_active).reduce((sum, v) => sum + v.stock_quantity, 0);
-  };
-
-  const hasLowStock = (p: Product): boolean => {
-    if (!p.variants) return false;
-    return p.variants.some(v => v.is_active && v.stock_quantity > 0 && v.stock_quantity < 5);
-  };
+  const isOutOfStock = useCallback((p: Product) => getStockMetrics(p).isOutOfStock, [getStockMetrics]);
+  const hasStock = useCallback((p: Product) => getStockMetrics(p).hasStock, [getStockMetrics]);
+  const getTotalStock = useCallback((p: Product): number => getStockMetrics(p).totalStock, [getStockMetrics]);
+  const hasLowStock = useCallback((p: Product): boolean => getStockMetrics(p).hasLowStock, [getStockMetrics]);
+  const getPrimaryImageUrl = useCallback((p: Product): string => {
+    return primaryImageByProductId.get(p.id) || '/placeholder.svg';
+  }, [primaryImageByProductId]);
 
   const tabCounts = useMemo(() => {
     const all = products || [];
+    let activeStock = 0;
+    let outOfStock = 0;
+    let inactive = 0;
+
+    for (const product of all) {
+      const metrics = stockMetricsByProductId.get(product.id) ?? EMPTY_STOCK_METRICS;
+      if (product.is_active && metrics.hasStock) activeStock++;
+      if (metrics.isOutOfStock) outOfStock++;
+      if (!product.is_active) inactive++;
+    }
+
     return {
       all: all.length,
-      activeStock: all.filter(p => p.is_active && hasStock(p)).length,
-      outOfStock: all.filter(isOutOfStock).length,
-      inactive: all.filter(p => !p.is_active).length,
+      activeStock,
+      outOfStock,
+      inactive,
     };
-  }, [products]);
+  }, [products, stockMetricsByProductId]);
 
-  // Filtering
-  let filteredProducts = products?.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
-  ) || [];
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredProducts = useMemo(() => {
+    let next = products || [];
 
-  if (activeTab === 'active-stock') filteredProducts = filteredProducts.filter(p => p.is_active && hasStock(p));
-  else if (activeTab === 'out-of-stock') filteredProducts = filteredProducts.filter(isOutOfStock);
-  else if (activeTab === 'inactive') filteredProducts = filteredProducts.filter(p => !p.is_active);
+    if (normalizedSearchQuery) {
+      next = next.filter(p =>
+        p.name.toLowerCase().includes(normalizedSearchQuery) ||
+        (p.sku?.toLowerCase().includes(normalizedSearchQuery) ?? false)
+      );
+    }
 
-  if (categoryFilter !== 'all') filteredProducts = filteredProducts.filter(p => p.category_id === categoryFilter);
+    if (activeTab === 'active-stock') {
+      next = next.filter(p => {
+        const metrics = stockMetricsByProductId.get(p.id) ?? EMPTY_STOCK_METRICS;
+        return p.is_active && metrics.hasStock;
+      });
+    } else if (activeTab === 'out-of-stock') {
+      next = next.filter(p => (stockMetricsByProductId.get(p.id) ?? EMPTY_STOCK_METRICS).isOutOfStock);
+    } else if (activeTab === 'inactive') {
+      next = next.filter(p => !p.is_active);
+    }
 
-  if (statusFilter === 'active') filteredProducts = filteredProducts.filter(p => p.is_active);
-  else if (statusFilter === 'inactive') filteredProducts = filteredProducts.filter(p => !p.is_active);
-  else if (statusFilter === 'featured') filteredProducts = filteredProducts.filter(p => p.is_featured);
-  else if (statusFilter === 'new') filteredProducts = filteredProducts.filter(p => p.is_new);
-  else if (statusFilter === 'sale') filteredProducts = filteredProducts.filter(p => p.sale_price && p.sale_price < p.base_price);
+    if (categoryFilter !== 'all') next = next.filter(p => p.category_id === categoryFilter);
 
-  if (sourceFilter === 'bling') filteredProducts = filteredProducts.filter(p => p.bling_product_id != null);
-  else if (sourceFilter === 'manual') filteredProducts = filteredProducts.filter(p => p.bling_product_id == null);
+    if (statusFilter === 'active') next = next.filter(p => p.is_active);
+    else if (statusFilter === 'inactive') next = next.filter(p => !p.is_active);
+    else if (statusFilter === 'featured') next = next.filter(p => p.is_featured);
+    else if (statusFilter === 'new') next = next.filter(p => p.is_new);
+    else if (statusFilter === 'sale') next = next.filter(p => p.sale_price && p.sale_price < p.base_price);
 
-  filteredProducts = sortProductList(filteredProducts, sortBy);
+    if (sourceFilter === 'bling') next = next.filter(p => p.bling_product_id != null);
+    else if (sourceFilter === 'manual') next = next.filter(p => p.bling_product_id == null);
 
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const paginatedProducts = filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    return sortProductList([...next], sortBy);
+  }, [
+    products,
+    normalizedSearchQuery,
+    activeTab,
+    categoryFilter,
+    statusFilter,
+    sourceFilter,
+    sortBy,
+    stockMetricsByProductId,
+  ]);
+
+  const totalPages = useMemo(() => Math.ceil(filteredProducts.length / ITEMS_PER_PAGE), [filteredProducts.length]);
+  const paginatedProducts = useMemo(
+    () => filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [filteredProducts, currentPage],
+  );
+
+  useEffect(() => {
+    if (totalPages === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+      return;
+    }
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   const clearFilters = () => {
     setSortBy(DEFAULT_PRODUCT_SORT); setCategoryFilter('all'); setStatusFilter('all'); setSourceFilter('all');
@@ -289,7 +397,7 @@ export default function Products() {
   const handleBulkSyncBling = async () => {
     const allIds = getEffectiveIds();
     const eligibleProducts = allIds
-      .map(id => products?.find(pr => pr.id === id))
+      .map(id => productsById.get(id))
       .filter((p): p is Product => !!p && p.is_active && p.bling_product_id != null);
 
     if (eligibleProducts.length === 0) {
@@ -363,34 +471,30 @@ export default function Products() {
     const status = product.bling_sync_status || 'pending';
     if (status === 'synced') {
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400 gap-1 text-[10px]">
-                <CheckCircle className="h-3 w-3" /> Sync
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              {product.bling_last_synced_at
-                ? `Sincronizado em ${format(new Date(product.bling_last_synced_at), "dd/MM/yy HH:mm", { locale: ptBR })}`
-                : 'Sincronizado'}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400 gap-1 text-[10px]">
+              <CheckCircle className="h-3 w-3" /> Sync
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            {product.bling_last_synced_at
+              ? `Sincronizado em ${format(new Date(product.bling_last_synced_at), "dd/MM/yy HH:mm", { locale: ptBR })}`
+              : 'Sincronizado'}
+          </TooltipContent>
+        </Tooltip>
       );
     }
     if (status === 'error') {
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger>
-              <Badge variant="destructive" className="gap-1 text-[10px]">
-                <AlertCircle className="h-3 w-3" /> Erro
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">{product.bling_last_error || 'Erro na sincronização'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Badge variant="destructive" className="gap-1 text-[10px]">
+              <AlertCircle className="h-3 w-3" /> Erro
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{product.bling_last_error || 'Erro na sincronização'}</TooltipContent>
+        </Tooltip>
       );
     }
     return (
@@ -402,18 +506,16 @@ export default function Products() {
 
   // Last updated tooltip
   const renderUpdatedAt = (product: Product) => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <span className="text-[10px] text-muted-foreground">
-            {format(new Date(product.updated_at), "dd/MM", { locale: ptBR })}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>
-          Última alteração: {format(new Date(product.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="text-[10px] text-muted-foreground">
+          {format(new Date(product.updated_at), "dd/MM", { locale: ptBR })}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        Última alteração: {format(new Date(product.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+      </TooltipContent>
+    </Tooltip>
   );
 
   const importRef = useRef<HTMLInputElement>(null);
@@ -424,10 +526,10 @@ export default function Products() {
     setIsExportOpen(true);
   };
 
-  const getExportProducts = (): any[] => {
+  const getExportProducts = (): Product[] => {
     if (effectiveCount > 0) {
-      const ids = getEffectiveIds();
-      return (products || []).filter(p => ids.includes(p.id));
+      const ids = new Set(getEffectiveIds());
+      return (products || []).filter(p => ids.has(p.id));
     }
     return filteredProducts;
   };
@@ -640,157 +742,59 @@ export default function Products() {
       </p>
 
       {/* Product list */}
-      {isError ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <p className="text-destructive">Erro ao carregar produtos. Verifique sua conexão.</p>
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Tentar novamente
-          </Button>
-        </div>
-      ) : isMobile ? (
-        <div className="space-y-2 animate-content-in">
-          {isLoading ? (
-            <p className="text-center py-8 text-muted-foreground">Carregando...</p>
-          ) : paginatedProducts.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">Nenhum produto encontrado</p>
-          ) : (
-            paginatedProducts.map(product => (
-              <div key={product.id} className="flex items-center gap-2 p-3 rounded-lg border bg-background">
-                <Checkbox
-                  checked={selectAllGlobal || selectedIds.has(product.id)}
-                  onCheckedChange={() => toggleSelect(product.id)}
-                  className="flex-shrink-0"
-                />
-                <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => handleEdit(product)}>
-                  <img
-                    src={product.images?.find(i => i.is_primary)?.url || product.images?.[0]?.url || '/placeholder.svg'}
-                    alt={product.name} className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{product.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-sm font-semibold text-primary">{formatPrice(Number(product.sale_price || product.base_price))}</span>
-                      {product.sale_price && product.sale_price < product.base_price && (
-                        <span className="text-xs text-muted-foreground line-through">{formatPrice(Number(product.base_price))}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1 flex-wrap">
-                      {!product.is_active && <Badge variant="secondary" className="text-[10px] h-4 px-1">Inativo</Badge>}
-                      {isOutOfStock(product) ? (
-                        <Badge variant="destructive" className="text-[10px] h-4 px-1">Sem Estoque</Badge>
-                      ) : hasStock(product) ? (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-green-500 text-green-600">{getTotalStock(product)} un.</Badge>
-                      ) : null}
-                      {product.bling_product_id && renderBlingSyncBadge(product)}
-                    </div>
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEdit(product)}><Pencil className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleSyncSingleStock(product)}
-                      disabled={syncingProductId === product.id || !product.is_active}
-                    >
-                      {syncingProductId === product.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                      Sincronizar estoque
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <div className="bg-background rounded-lg border animate-content-in">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]">
-                  <Checkbox
-                    checked={allPageSelected}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Preço</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[60px]">Atualiz.</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      <PerfProfiler id="admin.products.list" slowThresholdMs={14}>
+        <TooltipProvider>
+          {isError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-4">
+              <p className="text-destructive">Erro ao carregar produtos. Verifique sua conexão.</p>
+              <Button variant="outline" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar novamente
+              </Button>
+            </div>
+          ) : isMobile ? (
+            <div className="space-y-2 animate-content-in">
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>
+                <p className="text-center py-8 text-muted-foreground">Carregando...</p>
               ) : paginatedProducts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="p-0">
-                    <AdminEmptyState
-                      icon={Package}
-                      title="Nenhum produto"
-                      description={filteredProducts.length === 0 ? 'Nenhum produto encontrado. Cadastre o primeiro produto ou ajuste os filtros.' : 'Nenhum produto nesta página.'}
-                    />
-                  </TableCell>
-                </TableRow>
+                <p className="text-center py-8 text-muted-foreground">Nenhum produto encontrado</p>
               ) : (
-                paginatedProducts.map(product => (
-                  <TableRow key={product.id} className={selectedIds.has(product.id) || selectAllGlobal ? 'bg-muted/30' : ''}>
-                    <TableCell>
+                paginatedProducts.map(product => {
+                  const metrics = getStockMetrics(product);
+                  return (
+                    <div key={product.id} className="flex items-center gap-2 p-3 rounded-lg border bg-background">
                       <Checkbox
                         checked={selectAllGlobal || selectedIds.has(product.id)}
                         onCheckedChange={() => toggleSelect(product.id)}
+                        className="flex-shrink-0"
                       />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleEdit(product)}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => handleEdit(product)}>
                         <img
-                          src={product.images?.find(i => i.is_primary)?.url || product.images?.[0]?.url || '/placeholder.svg'}
-                          alt={product.name} className="w-12 h-12 rounded-lg object-cover"
+                          src={getPrimaryImageUrl(product)}
+                          alt={product.name} className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                         />
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">{product.sku}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{product.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-sm font-semibold text-primary">{formatPrice(Number(product.sale_price || product.base_price))}</span>
+                            {product.sale_price && product.sale_price < product.base_price && (
+                              <span className="text-xs text-muted-foreground line-through">{formatPrice(Number(product.base_price))}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            {!product.is_active && <Badge variant="secondary" className="text-[10px] h-4 px-1">Inativo</Badge>}
+                            {metrics.isOutOfStock ? (
+                              <Badge variant="destructive" className="text-[10px] h-4 px-1">Sem Estoque</Badge>
+                            ) : metrics.hasStock ? (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 border-green-500 text-green-600">{metrics.totalStock} un.</Badge>
+                            ) : null}
+                            {product.bling_product_id && renderBlingSyncBadge(product)}
+                          </div>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>{product.category?.name || '-'}</TableCell>
-                    <TableCell>
-                      <div>
-                        {product.sale_price && (
-                          <span className="text-muted-foreground line-through text-sm mr-2">{formatPrice(Number(product.base_price))}</span>
-                        )}
-                        <span className="font-medium">{formatPrice(Number(product.sale_price || product.base_price))}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        <Badge variant={product.is_active ? 'default' : 'secondary'}>{product.is_active ? 'Ativo' : 'Inativo'}</Badge>
-                        {product.bling_product_id ? renderBlingSyncBadge(product) : (
-                          <Badge variant="outline" className="border-muted-foreground text-muted-foreground">Manual</Badge>
-                        )}
-                        {isOutOfStock(product) ? (
-                          <Badge variant="destructive" className="gap-1"><PackageX className="h-3 w-3" />Sem Estoque</Badge>
-                        ) : hasLowStock(product) ? (
-                          <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600 dark:text-orange-400">Estoque Baixo ({getTotalStock(product)})</Badge>
-                        ) : hasStock(product) ? (
-                          <Badge variant="outline" className="gap-1 border-green-500 text-green-600 dark:text-green-400">{getTotalStock(product)} un.</Badge>
-                        ) : null}
-                        {product.is_featured && <Badge variant="outline">Destaque</Badge>}
-                        {product.is_new && <Badge className="bg-primary">Novo</Badge>}
-                        {product.sale_price && product.sale_price < product.base_price && <Badge className="bg-destructive">Promoção</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell>{renderUpdatedAt(product)}</TableCell>
-                    <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"><MoreHorizontal className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleEdit(product)}><Pencil className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
@@ -804,14 +808,122 @@ export default function Products() {
                           <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
+                    </div>
+                  );
+                })
               )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+            </div>
+          ) : (
+            <div className="bg-background rounded-lg border animate-content-in">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allPageSelected}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Preço</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[60px]">Atualiz.</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell></TableRow>
+                  ) : paginatedProducts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="p-0">
+                        <AdminEmptyState
+                          icon={Package}
+                          title="Nenhum produto"
+                          description={filteredProducts.length === 0 ? 'Nenhum produto encontrado. Cadastre o primeiro produto ou ajuste os filtros.' : 'Nenhum produto nesta página.'}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedProducts.map(product => {
+                      const metrics = getStockMetrics(product);
+                      return (
+                        <TableRow key={product.id} className={selectedIds.has(product.id) || selectAllGlobal ? 'bg-muted/30' : ''}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectAllGlobal || selectedIds.has(product.id)}
+                              onCheckedChange={() => toggleSelect(product.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleEdit(product)}>
+                              <img
+                                src={getPrimaryImageUrl(product)}
+                                alt={product.name} className="w-12 h-12 rounded-lg object-cover"
+                              />
+                              <div>
+                                <p className="font-medium">{product.name}</p>
+                                <p className="text-sm text-muted-foreground">{product.sku}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{product.category?.name || '-'}</TableCell>
+                          <TableCell>
+                            <div>
+                              {product.sale_price && (
+                                <span className="text-muted-foreground line-through text-sm mr-2">{formatPrice(Number(product.base_price))}</span>
+                              )}
+                              <span className="font-medium">{formatPrice(Number(product.sale_price || product.base_price))}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant={product.is_active ? 'default' : 'secondary'}>{product.is_active ? 'Ativo' : 'Inativo'}</Badge>
+                              {product.bling_product_id ? renderBlingSyncBadge(product) : (
+                                <Badge variant="outline" className="border-muted-foreground text-muted-foreground">Manual</Badge>
+                              )}
+                              {metrics.isOutOfStock ? (
+                                <Badge variant="destructive" className="gap-1"><PackageX className="h-3 w-3" />Sem Estoque</Badge>
+                              ) : metrics.hasLowStock ? (
+                                <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600 dark:text-orange-400">Estoque Baixo ({metrics.totalStock})</Badge>
+                              ) : metrics.hasStock ? (
+                                <Badge variant="outline" className="gap-1 border-green-500 text-green-600 dark:text-green-400">{metrics.totalStock} un.</Badge>
+                              ) : null}
+                              {product.is_featured && <Badge variant="outline">Destaque</Badge>}
+                              {product.is_new && <Badge className="bg-primary">Novo</Badge>}
+                              {product.sale_price && product.sale_price < product.base_price && <Badge className="bg-destructive">Promoção</Badge>}
+                            </div>
+                          </TableCell>
+                          <TableCell>{renderUpdatedAt(product)}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleEdit(product)}><Pencil className="h-4 w-4 mr-2" /> Editar</DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleSyncSingleStock(product)}
+                                  disabled={syncingProductId === product.id || !product.is_active}
+                                >
+                                  {syncingProductId === product.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                                  Sincronizar estoque
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setProductToDelete(product)} className="text-destructive"><Trash2 className="h-4 w-4 mr-2" /> Excluir</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </TooltipProvider>
+      </PerfProfiler>
 
       {/* Pagination */}
       {totalPages > 1 && (

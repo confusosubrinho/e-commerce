@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { z } from 'zod';
 import { ProductChangeLog } from './ProductChangeLog';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { ProductMediaUpload } from './ProductMediaUpload';
 import { ProductSEOFields } from './ProductSEOFields';
 import { ProductVariantsManager, VariantItem } from './ProductVariantsManager';
 import { Category } from '@/types/database';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
 
 interface MediaItem {
   id: string;
@@ -207,6 +208,38 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   });
 
   const selectedCategory = categories?.find(c => c.id === formData.category_id);
+  const variantProductImages = useMemo(() => (
+    media
+      .filter(m => m.media_type === 'image')
+      .map(m => ({
+        id: m.id,
+        url: m.url,
+        alt_text: m.alt_text,
+        is_primary: m.is_primary,
+      }))
+  ), [media]);
+  const selectedBuyTogetherIds = useMemo(() => {
+    return new Set(buyTogetherItems.map(bt => bt.product_id));
+  }, [buyTogetherItems]);
+  const buyTogetherSearchResults = useMemo(() => {
+    const normalizedQuery = buyTogetherSearch.trim().toLowerCase();
+    if (!allProducts || normalizedQuery.length <= 1) return [];
+
+    return allProducts
+      .filter(p =>
+        p.id !== editingProduct?.id &&
+        !selectedBuyTogetherIds.has(p.id) &&
+        p.name.toLowerCase().includes(normalizedQuery)
+      )
+      .slice(0, 5);
+  }, [allProducts, buyTogetherSearch, editingProduct?.id, selectedBuyTogetherIds]);
+  const allProductsById = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; base_price: number | null; sale_price: number | null; slug: string | null }>();
+    for (const product of allProducts || []) {
+      map.set(product.id, product);
+    }
+    return map;
+  }, [allProducts]);
 
   // Reset step when dialog opens
   useEffect(() => {
@@ -374,62 +407,169 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           if (mediaError) throw mediaError;
         }
 
-        await supabase.from('product_variants').delete().eq('product_id', productId);
-        if (variants.length > 0) {
-          const variantInserts = variants.map(v => ({
+        // Conservador: nunca apagar variantes em massa para não perder vínculo externo (Bling/Yampi/Stripe).
+        const { data: existingVariantRows, error: existingVariantError } = await supabase
+          .from('product_variants')
+          .select('id, stock_quantity')
+          .eq('product_id', productId);
+        if (existingVariantError) throw existingVariantError;
+
+        const existingVariantMap = new Map<string, { id: string; stock_quantity: number | null }>();
+        for (const row of (existingVariantRows || [])) {
+          existingVariantMap.set(row.id, row);
+        }
+
+        const persistedVariantIdsByIndex = new Map<number, string>();
+        const retainedVariantIds = new Set<string>();
+
+        const isUnsafeEmptyVariantSave =
+          Boolean(editingProduct) &&
+          variants.length === 0 &&
+          existingVariantMap.size > 0;
+
+        if (isUnsafeEmptyVariantSave) {
+          console.warn('[product-form] Variants payload empty on edit; preserving existing variants to avoid stock reset', {
             product_id: productId,
-            size: v.size,
-            color: v.color || null,
-            color_hex: v.color_hex || null,
-            stock_quantity: v.stock_quantity,
-            price_modifier: v.price_modifier || 0,
-            sku: v.sku || null,
-            is_active: v.is_active,
-            custom_attribute_name: v.custom_attribute_name || null,
-            custom_attribute_value: v.custom_attribute_value || null,
-          }));
-          const { data: insertedVariants, error: varError } = await supabase.from('product_variants').insert(variantInserts).select('id');
-          if (varError) throw varError;
-          // Link variant images: set product_images.product_variant_id where url matches variant.image_url
-          if (insertedVariants && insertedVariants.length === variants.length) {
-            for (let i = 0; i < variants.length; i++) {
-              const imageUrl = variants[i].image_url;
-              if (imageUrl && insertedVariants[i]) {
-                await supabase.from('product_images').update({ product_variant_id: insertedVariants[i].id }).eq('product_id', productId).eq('url', imageUrl);
-              }
-            }
-          }
-        }
+            existing_variant_count: existingVariantMap.size,
+          });
+        } else if (variants.length > 0) {
+          for (let index = 0; index < variants.length; index++) {
+            const v = variants[index];
+            const normalizedSize = (v.size || '').trim();
+            if (!normalizedSize) continue;
 
-        if (productId) {
-          await supabase.from('product_characteristics').delete().eq('product_id', productId);
-          if (characteristics.length > 0) {
-            const charInserts = characteristics
-              .filter(c => c.name && c.value)
-              .map((c, i) => ({
-                product_id: productId,
-                name: c.name,
-                value: c.value,
-                display_order: i,
-              }));
-            if (charInserts.length > 0) {
-              await supabase.from('product_characteristics').insert(charInserts);
-            }
+            const existingVariant = v.id ? existingVariantMap.get(v.id) : undefined;
+            const parsedStock = Number(v.stock_quantity);
+            const safeStock = Number.isFinite(parsedStock) && parsedStock >= 0
+              ? Math.trunc(parsedStock)
+              : Math.max(0, Math.trunc(existingVariant?.stock_quantity ?? 0));
+            const parsedModifier = Number(v.price_modifier);
+            const safeModifier = Number.isFinite(parsedModifier) ? parsedModifier : 0;
 
-          await supabase.from('buy_together_products').delete().eq('product_id', productId);
-          if (buyTogetherItems.length > 0) {
-            const btInserts = buyTogetherItems.map((bt, i) => ({
+            const variantPayload = {
               product_id: productId,
-              related_product_id: bt.product_id,
-              discount_percent: bt.discount_percent,
+              size: normalizedSize,
+              color: v.color?.trim() ? v.color.trim() : null,
+              color_hex: v.color_hex?.trim() ? v.color_hex.trim() : null,
+              stock_quantity: safeStock,
+              price_modifier: safeModifier,
+              sku: v.sku?.trim() ? v.sku.trim() : null,
+              is_active: v.is_active ?? true,
+              custom_attribute_name: v.custom_attribute_name?.trim() ? v.custom_attribute_name.trim() : null,
+              custom_attribute_value: v.custom_attribute_value?.trim() ? v.custom_attribute_value.trim() : null,
+            };
+
+            if (existingVariant) {
+              const { error: updateVariantError } = await supabase
+                .from('product_variants')
+                .update(variantPayload)
+                .eq('id', existingVariant.id)
+                .eq('product_id', productId);
+              if (updateVariantError) throw updateVariantError;
+              retainedVariantIds.add(existingVariant.id);
+              persistedVariantIdsByIndex.set(index, existingVariant.id);
+              continue;
+            }
+
+            const { data: insertedVariant, error: insertVariantError } = await supabase
+              .from('product_variants')
+              .insert(variantPayload)
+              .select('id')
+              .single();
+            if (insertVariantError) throw insertVariantError;
+            if (insertedVariant?.id) {
+              retainedVariantIds.add(insertedVariant.id);
+              persistedVariantIdsByIndex.set(index, insertedVariant.id);
+            }
+          }
+
+          const removedVariantIds = (existingVariantRows || [])
+            .map((row) => row.id)
+            .filter((id) => !retainedVariantIds.has(id));
+
+          if (removedVariantIds.length > 0) {
+            const existingCount = (existingVariantRows || []).length;
+            const removedRatio = existingCount > 0 ? removedVariantIds.length / existingCount : 0;
+            const shouldSkipBulkDeactivate = Boolean(editingProduct) && removedRatio > 0.5;
+            if (shouldSkipBulkDeactivate) {
+              console.warn('[product-form] High variant removal ratio detected; skipping auto-deactivation to prevent accidental stock loss', {
+                product_id: productId,
+                existing_variant_count: existingCount,
+                incoming_variant_count: variants.length,
+                would_remove_count: removedVariantIds.length,
+              });
+            } else {
+              const { error: deactivateVariantsError } = await supabase
+                .from('product_variants')
+                .update({ is_active: false })
+                .in('id', removedVariantIds)
+                .eq('product_id', productId);
+              if (deactivateVariantsError) throw deactivateVariantsError;
+            }
+          }
+        }
+
+        // Link variant images by persisted variant IDs.
+        if (media.length > 0) {
+          const { error: clearVariantImageLinksError } = await supabase
+            .from('product_images')
+            .update({ product_variant_id: null })
+            .eq('product_id', productId);
+          if (clearVariantImageLinksError) throw clearVariantImageLinksError;
+        }
+        for (let i = 0; i < variants.length; i++) {
+          const imageUrl = variants[i].image_url;
+          const variantId = persistedVariantIdsByIndex.get(i);
+          if (!imageUrl || !variantId) continue;
+          const { error: linkVariantImageError } = await supabase
+            .from('product_images')
+            .update({ product_variant_id: variantId })
+            .eq('product_id', productId)
+            .eq('url', imageUrl);
+          if (linkVariantImageError) throw linkVariantImageError;
+        }
+
+        const { error: deleteCharacteristicsError } = await supabase
+          .from('product_characteristics')
+          .delete()
+          .eq('product_id', productId);
+        if (deleteCharacteristicsError) throw deleteCharacteristicsError;
+        if (characteristics.length > 0) {
+          const charInserts = characteristics
+            .filter(c => c.name && c.value)
+            .map((c, i) => ({
+              product_id: productId,
+              name: c.name,
+              value: c.value,
               display_order: i,
-              is_active: true,
             }));
-            await supabase.from('buy_together_products').insert(btInserts);
+          if (charInserts.length > 0) {
+            const { error: insertCharacteristicsError } = await supabase
+              .from('product_characteristics')
+              .insert(charInserts);
+            if (insertCharacteristicsError) throw insertCharacteristicsError;
           }
         }
-          }
+
+        const { error: deleteBuyTogetherError } = await supabase
+          .from('buy_together_products')
+          .delete()
+          .eq('product_id', productId);
+        if (deleteBuyTogetherError) throw deleteBuyTogetherError;
+        if (buyTogetherItems.length > 0) {
+          const btInserts = buyTogetherItems.map((bt, i) => ({
+            product_id: productId,
+            related_product_id: bt.product_id,
+            discount_percent: bt.discount_percent,
+            display_order: i,
+            is_active: true,
+          }));
+          const { error: insertBuyTogetherError } = await supabase
+            .from('buy_together_products')
+            .insert(btInserts);
+          if (insertBuyTogetherError) throw insertBuyTogetherError;
         }
+      }
 
       await logAudit({
         action: editingProduct ? 'update' : 'create',
@@ -705,24 +845,21 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   );
 
   const renderVariantsContent = () => (
-    <ProductVariantsManager
-      variants={variants}
-      onChange={setVariants}
-      productId={editingProduct?.id}
-      parentSku={formData.sku}
-      parentWeight={formData.weight}
-      parentWidth={formData.width}
-      parentHeight={formData.height}
-      parentDepth={formData.depth}
-      parentBasePrice={formData.base_price}
-      parentSalePrice={formData.sale_price}
-      productImages={media.filter(m => m.media_type === 'image').map(m => ({
-        id: m.id,
-        url: m.url,
-        alt_text: m.alt_text,
-        is_primary: m.is_primary,
-      }))}
-    />
+    <PerfProfiler id="admin.product-form.variants" slowThresholdMs={12}>
+      <ProductVariantsManager
+        variants={variants}
+        onChange={setVariants}
+        productId={editingProduct?.id}
+        parentSku={formData.sku}
+        parentWeight={formData.weight}
+        parentWidth={formData.width}
+        parentHeight={formData.height}
+        parentDepth={formData.depth}
+        parentBasePrice={formData.base_price}
+        parentSalePrice={formData.sale_price}
+        productImages={variantProductImages}
+      />
+    </PerfProfiler>
   );
 
   const renderShippingContent = () => (
@@ -911,13 +1048,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       </div>
       {buyTogetherSearch.length > 1 && (
         <div className="border rounded-lg max-h-40 overflow-y-auto">
-          {allProducts
-            ?.filter(p =>
-              p.name.toLowerCase().includes(buyTogetherSearch.toLowerCase()) &&
-              p.id !== editingProduct?.id &&
-              !buyTogetherItems.some(bt => bt.product_id === p.id)
-            )
-            .slice(0, 5)
+          {buyTogetherSearchResults
             .map(p => (
               <button
                 key={p.id}
@@ -941,7 +1072,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       ) : (
         <div className="space-y-3">
           {buyTogetherItems.map((bt, index) => {
-            const prod = allProducts?.find(p => p.id === bt.product_id);
+            const prod = allProductsById.get(bt.product_id);
             return (
               <div key={bt.product_id} className="flex gap-2 items-center border rounded-lg p-3">
                 <div className="flex-1 min-w-0">

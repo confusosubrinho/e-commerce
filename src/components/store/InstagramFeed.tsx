@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { normalizeSupabaseMediaUrl, resolveImageUrl } from '@/lib/imageUrl';
 
 interface InstagramVideo {
   id: string;
@@ -26,17 +27,38 @@ function normalizeMediaUrl(raw: string | null | undefined): string {
   const trimmed = raw.trim();
   if (!trimmed) return '';
   if (trimmed === 'null' || trimmed === 'undefined') return '';
+  return normalizeSupabaseMediaUrl(trimmed);
+}
+
+function isKnownPageVideoUrl(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes('instagram.com/reel/') ||
+    normalized.includes('instagram.com/p/') ||
+    normalized.includes('youtube.com/watch') ||
+    normalized.includes('youtu.be/') ||
+    normalized.includes('tiktok.com/')
+  );
+}
+
+function normalizeVideoUrl(raw: string | null | undefined): string {
+  const normalized = normalizeMediaUrl(raw);
+  if (!normalized) return '';
+  if (isKnownPageVideoUrl(normalized)) return '';
+
   try {
-    const url = new URL(trimmed);
-    // Handle Supabase signed URL -> public URL (bucket público)
-    if (url.pathname.includes('/storage/v1/object/sign/')) {
-      url.pathname = url.pathname.replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
-      url.search = '';
-    }
-    return encodeURI(url.toString());
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return parsed.toString();
   } catch {
-    return encodeURI(trimmed);
+    return '';
   }
+}
+
+function normalizeImageUrl(raw: string | null | undefined): string {
+  const normalized = normalizeMediaUrl(raw);
+  if (!normalized) return '';
+  return resolveImageUrl(normalized);
 }
 
 export function InstagramFeed() {
@@ -60,7 +82,7 @@ export function InstagramFeed() {
 
       if (error) throw error;
       const rows = (data as unknown as InstagramVideo[]) || [];
-      return rows.filter((row) => normalizeMediaUrl(row.video_url).length > 0);
+      return rows.filter((row) => normalizeVideoUrl(row.video_url).length > 0);
     },
   });
 
@@ -279,15 +301,20 @@ export function InstagramFeed() {
             const productImageKey = `product-${video.id}`;
             const isActive = index === activeIndex;
             const productImage = video.product?.images?.find(i => i.is_primary)?.url || video.product?.images?.[0]?.url;
-            const normalizedThumbUrl = normalizeMediaUrl(video.thumbnail_url);
-            const normalizedProductImage = normalizeMediaUrl(productImage);
+            const normalizedThumbUrl = normalizeImageUrl(video.thumbnail_url);
+            const normalizedProductImage = normalizeImageUrl(productImage);
             const thumbAvailable = Boolean(normalizedThumbUrl) && !failedImageKeys[thumbKey];
             const productImageAvailable = Boolean(normalizedProductImage) && !failedImageKeys[productImageKey];
-            const hasThumbnail = thumbAvailable;
+            const previewUsesThumb = thumbAvailable;
+            const previewUsesProduct = !thumbAvailable && productImageAvailable;
             const hasFailed = !!failedVideoIds[video.id];
             const isReady = !!readyVideoIds[video.id];
-            const fallbackMedia = thumbAvailable ? normalizedThumbUrl : productImageAvailable ? normalizedProductImage : null;
-            const normalizedVideoUrl = normalizeMediaUrl(video.video_url);
+            const previewMedia = previewUsesThumb
+              ? normalizedThumbUrl
+              : previewUsesProduct
+                ? normalizedProductImage
+                : '/placeholder.svg';
+            const normalizedVideoUrl = normalizeVideoUrl(video.video_url);
 
             return (
               <div
@@ -319,15 +346,19 @@ export function InstagramFeed() {
                     <div className="absolute inset-0 animate-pulse bg-zinc-700/80" />
                   )}
 
-                  {/* Thumbnail configurado */}
-                  {hasThumbnail && !hasFailed && (
+                  {/* Preview: thumbnail (admin) > imagem do produto > placeholder local */}
+                  {!!previewMedia && !hasFailed && (
                     <img
-                      src={normalizedThumbUrl}
+                      src={previewMedia}
                       alt={video.username ? `@${video.username}` : 'Video'}
                       className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${(isActive && isReady) ? 'opacity-0' : 'opacity-100'}`}
-                      loading="lazy"
+                      loading={isActive ? 'eager' : 'lazy'}
                       onError={() => {
-                        setFailedImageKeys((prev) => ({ ...prev, [thumbKey]: true }));
+                        setFailedImageKeys((prev) => ({
+                          ...prev,
+                          ...(previewUsesThumb ? { [thumbKey]: true } : {}),
+                          ...(previewUsesProduct ? { [productImageKey]: true } : {}),
+                        }));
                       }}
                     />
                   )}
@@ -338,7 +369,7 @@ export function InstagramFeed() {
                         else videoRefs.current.delete(video.id);
                       }}
                       src={normalizedVideoUrl}
-                      poster={fallbackMedia || undefined}
+                      poster={previewMedia || undefined}
                       className="absolute inset-0 w-full h-full object-cover"
                       loop
                       muted
@@ -355,9 +386,9 @@ export function InstagramFeed() {
                     />
                   ) : (
                     <div className="absolute inset-0">
-                      {fallbackMedia ? (
+                      {previewMedia ? (
                         <img
-                          src={fallbackMedia}
+                          src={previewMedia}
                           alt={video.username ? `@${video.username}` : 'Conteúdo'}
                           className="absolute inset-0 h-full w-full object-cover"
                           loading="lazy"
@@ -406,8 +437,10 @@ export function InstagramFeed() {
                         src={normalizedProductImage}
                         alt={video.product.name}
                         className="w-10 h-10 rounded object-cover"
-                        onError={() => {
+                        onError={(event) => {
                           setFailedImageKeys((prev) => ({ ...prev, [productImageKey]: true }));
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = '/placeholder.svg';
                         }}
                       />
                     )}

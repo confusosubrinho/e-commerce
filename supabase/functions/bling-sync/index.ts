@@ -14,7 +14,7 @@ import {
   BlingStockCircuitBreaker,
   canApplyParentStockFallback,
   evaluateSkuRelinkOnProduct,
-  explicitSaldoFromBlingStockRow,
+  explicitSaldoForBlingProductIdFromRows,
   logBlingVariantSyncAction,
   logBlingSaldosBatchAudit,
   mergeExplicitSaldosIntoMap,
@@ -27,6 +27,9 @@ import type { BlingSyncConfig } from "../_shared/bling-sync-fields.ts";
 
 const BLING_API_URL = "https://api.bling.com.br/Api/v3";
 const BLING_RATE_LIMIT_MS = 340;
+const BLING_ALLOW_DESTRUCTIVE_CLEANUP = ["1", "true", "yes", "on"].includes(
+  (Deno.env.get("BLING_SYNC_ALLOW_DESTRUCTIVE_CLEANUP") || "").toLowerCase(),
+);
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -669,141 +672,246 @@ async function upsertParentWithVariants(
     }
   }
 
-  // Default "Único" variant if none
+  // Default "Único" variant if none.
+  // Safety: if local already has variants, preserve them (não criar/reativar automaticamente).
   if (variantCount === 0) {
-    let simpleExplicitSaldo: number | undefined = undefined;
-    let simpleBatchHttpOk = true;
-    let simpleInPartialBatch = false;
-
-    if (config.sync_stock || imported) {
-      try {
-        const stockRes = await fetchWithRateLimit(
-          `${BLING_API_URL}/estoques/saldos?idsProdutos[]=${parentBlingId}`,
-          { headers },
-        );
-        if (!stockRes.ok) {
-          simpleBatchHttpOk = false;
-          const t = await stockRes.text();
-          console.warn(
-            JSON.stringify({
-              level: "warn",
-              message: "Bling estoques/saldos HTTP error (produto simples)",
-              context: "bling-sync.upsert.simpleProduct",
-              bling_product_id: parentBlingId,
-              status: stockRes.status,
-              body: t.substring(0, 300),
-            }),
-          );
-        } else {
-          const stockJson = await stockRes.json();
-          const rows: any[] = stockJson?.data || [];
-          const simpleAudit = auditBlingSaldosBatch([parentBlingId], rows);
-          logBlingSaldosBatchAudit(simpleAudit, "bling-sync.upsert.simpleProduct", {
-            product_id: productId,
-            bling_product_id: parentBlingId,
-          });
-          const row = rows.find((r: any) => r.produto?.id === parentBlingId);
-          if (row) {
-            simpleExplicitSaldo = explicitSaldoFromBlingStockRow(row);
-          }
-          simpleInPartialBatch = blingIdMissingExplicitInAudit(simpleAudit, parentBlingId) && simpleExplicitSaldo === undefined;
-        }
-      } catch (e) {
-        simpleBatchHttpOk = false;
-        console.warn(`[sync] estoques/saldos error (produto simples ${parentBlingId}):`, e);
-      }
-    }
-
-    const { data: existingDefault } = await supabase
+    const { data: existingProductVariants } = await supabase
       .from("product_variants")
-      .select("id, stock_quantity, is_active")
+      .select("id, stock_quantity, is_active, sku, size")
       .eq("product_id", productId)
-      .eq("size", "Único")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
+      .eq("tenant_id", tenantId);
 
-    if (existingDefault) {
-      if ((config.sync_stock || imported) && (existingDefault.is_active !== false || config.sync_variant_active)) {
-        const hasRecent = await hasRecentLocalMovements(supabase, existingDefault.id, 10, tenantId);
-        const oldSq = existingDefault.stock_quantity ?? 0;
-        const resolved = resolveSafeStockUpdate({
-          batchHttpOk: simpleBatchHttpOk,
-          explicitSaldo: simpleExplicitSaldo,
-          inPartialBatchMissingSaldo: simpleInPartialBatch,
-          hasRecentLocalMovement: hasRecent,
-          matchType: "bling_variant_id",
-          oldStock: oldSq,
-        });
-        const meta = blingVariantSyncDecisionColumns(resolved, "bling-sync.upsert.simpleProduct");
-        if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
-          await supabase
-            .from("product_variants")
-            .update({ stock_quantity: resolved.new_stock, ...meta })
-            .eq("id", existingDefault.id)
-            .eq("tenant_id", tenantId);
-        } else {
-          await supabase
-            .from("product_variants")
-            .update(meta)
-            .eq("id", existingDefault.id)
-            .eq("tenant_id", tenantId);
-          if (!resolved.shouldApplyStock) {
+    const activeExistingVariants = (existingProductVariants || []).filter((v: any) => v.is_active !== false);
+
+    const fetchParentSimpleStock = async () => {
+      let simpleExplicitSaldo: number | undefined = undefined;
+      let simpleBatchHttpOk = true;
+      let simpleInPartialBatch = false;
+
+      if (config.sync_stock || imported) {
+        try {
+          const stockRes = await fetchWithRateLimit(
+            `${BLING_API_URL}/estoques/saldos?idsProdutos[]=${parentBlingId}`,
+            { headers },
+          );
+          if (!stockRes.ok) {
+            simpleBatchHttpOk = false;
+            const t = await stockRes.text();
             console.warn(
               JSON.stringify({
                 level: "warn",
-                message: "Produto simples: estoque não atualizado",
+                message: "Bling estoques/saldos HTTP error (produto simples)",
                 context: "bling-sync.upsert.simpleProduct",
                 bling_product_id: parentBlingId,
-                decision: resolved.decision,
+                status: stockRes.status,
+                body: t.substring(0, 300),
               }),
             );
+          } else {
+            const stockJson = await stockRes.json();
+            const rows: any[] = stockJson?.data || [];
+            const simpleAudit = auditBlingSaldosBatch([parentBlingId], rows);
+            logBlingSaldosBatchAudit(simpleAudit, "bling-sync.upsert.simpleProduct", {
+              product_id: productId,
+              bling_product_id: parentBlingId,
+            });
+            simpleExplicitSaldo = explicitSaldoForBlingProductIdFromRows(rows, parentBlingId);
+            simpleInPartialBatch = blingIdMissingExplicitInAudit(simpleAudit, parentBlingId) && simpleExplicitSaldo === undefined;
+          }
+        } catch (e) {
+          simpleBatchHttpOk = false;
+          console.warn(`[sync] estoques/saldos error (produto simples ${parentBlingId}):`, e);
+        }
+      }
+
+      return { simpleExplicitSaldo, simpleBatchHttpOk, simpleInPartialBatch };
+    };
+
+    if ((existingProductVariants || []).length > 0) {
+      if (activeExistingVariants.length > 1) {
+        for (const localVariant of activeExistingVariants) {
+          syncedVariantIds.add(localVariant.id);
+          logBlingVariantSyncAction({
+            action: "mismatch",
+            context: "bling-sync.upsert.simpleProduct",
+            product_id: productId,
+            variant_id: localVariant.id,
+            local_sku: localVariant.sku ?? null,
+            bling_variant_id: parentBlingId,
+            previous_stock: localVariant.stock_quantity ?? 0,
+            reason: "no_bling_variations_payload_for_multi_variant_product",
+          });
+        }
+        variantCount = activeExistingVariants.length;
+      } else if (
+        activeExistingVariants.length === 1 &&
+        canApplyParentStockFallback(activeExistingVariants.length, (existingProductVariants || []).length)
+      ) {
+        const targetVariant = activeExistingVariants[0];
+        syncedVariantIds.add(targetVariant.id);
+
+        if (config.sync_stock || imported) {
+          const { simpleExplicitSaldo, simpleBatchHttpOk, simpleInPartialBatch } = await fetchParentSimpleStock();
+          const hasRecent = await hasRecentLocalMovements(supabase, targetVariant.id, 10, tenantId);
+          const oldSq = targetVariant.stock_quantity ?? 0;
+          const resolved = resolveSafeStockUpdate({
+            batchHttpOk: simpleBatchHttpOk,
+            explicitSaldo: simpleExplicitSaldo,
+            inPartialBatchMissingSaldo: simpleInPartialBatch,
+            hasRecentLocalMovement: hasRecent,
+            matchType: "bling_product_id_parent",
+            oldStock: oldSq,
+          });
+          const meta = blingVariantSyncDecisionColumns(resolved, "bling-sync.upsert.simpleProduct");
+          if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+            await supabase
+              .from("product_variants")
+              .update({ stock_quantity: resolved.new_stock, ...meta })
+              .eq("id", targetVariant.id)
+              .eq("tenant_id", tenantId);
+          } else {
+            await supabase
+              .from("product_variants")
+              .update(meta)
+              .eq("id", targetVariant.id)
+              .eq("tenant_id", tenantId);
           }
         }
-      } else if ((config.sync_stock || imported) && existingDefault.is_active === false) {
+        variantCount = 1;
+      } else if (activeExistingVariants.length === 1) {
+        const localVariant = activeExistingVariants[0];
+        syncedVariantIds.add(localVariant.id);
         logBlingVariantSyncAction({
-          action: "skipped",
+          action: "mismatch",
           context: "bling-sync.upsert.simpleProduct",
           product_id: productId,
-          variant_id: existingDefault.id,
+          variant_id: localVariant.id,
+          local_sku: localVariant.sku ?? null,
           bling_variant_id: parentBlingId,
-          previous_stock: existingDefault.stock_quantity ?? 0,
-          reason: "inactive_variant_stock_not_synced_without_sync_variant_active",
+          previous_stock: localVariant.stock_quantity ?? 0,
+          reason: "parent_stock_not_applied_to_non_simple_product",
         });
+        variantCount = 1;
+      } else {
+        for (const inactiveVariant of existingProductVariants || []) {
+          syncedVariantIds.add(inactiveVariant.id);
+          logBlingVariantSyncAction({
+            action: "skipped",
+            context: "bling-sync.upsert.simpleProduct",
+            product_id: productId,
+            variant_id: inactiveVariant.id,
+            local_sku: inactiveVariant.sku ?? null,
+            bling_variant_id: parentBlingId,
+            previous_stock: inactiveVariant.stock_quantity ?? 0,
+            reason: "all_local_variants_inactive",
+          });
+        }
+        variantCount = (existingProductVariants || []).length;
       }
     } else {
-      const insertRow: Record<string, unknown> = { product_id: productId, size: "Único", is_active: true, tenant_id: tenantId };
-      if (simpleExplicitSaldo !== undefined && simpleBatchHttpOk && !simpleInPartialBatch) {
-        insertRow.stock_quantity = simpleExplicitSaldo;
+      const { simpleExplicitSaldo, simpleBatchHttpOk, simpleInPartialBatch } = await fetchParentSimpleStock();
+      const { data: existingDefault } = await supabase
+        .from("product_variants")
+        .select("id, stock_quantity, is_active")
+        .eq("product_id", productId)
+        .eq("size", "Único")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (existingDefault) {
+        syncedVariantIds.add(existingDefault.id);
+        if ((config.sync_stock || imported) && (existingDefault.is_active !== false || config.sync_variant_active)) {
+          const hasRecent = await hasRecentLocalMovements(supabase, existingDefault.id, 10, tenantId);
+          const oldSq = existingDefault.stock_quantity ?? 0;
+          const resolved = resolveSafeStockUpdate({
+            batchHttpOk: simpleBatchHttpOk,
+            explicitSaldo: simpleExplicitSaldo,
+            inPartialBatchMissingSaldo: simpleInPartialBatch,
+            hasRecentLocalMovement: hasRecent,
+            matchType: "bling_product_id_parent",
+            oldStock: oldSq,
+          });
+          const meta = blingVariantSyncDecisionColumns(resolved, "bling-sync.upsert.simpleProduct");
+          if (resolved.shouldApplyStock && resolved.new_stock !== undefined) {
+            await supabase
+              .from("product_variants")
+              .update({ stock_quantity: resolved.new_stock, ...meta })
+              .eq("id", existingDefault.id)
+              .eq("tenant_id", tenantId);
+          } else {
+            await supabase
+              .from("product_variants")
+              .update(meta)
+              .eq("id", existingDefault.id)
+              .eq("tenant_id", tenantId);
+          }
+        } else if ((config.sync_stock || imported) && existingDefault.is_active === false) {
+          logBlingVariantSyncAction({
+            action: "skipped",
+            context: "bling-sync.upsert.simpleProduct",
+            product_id: productId,
+            variant_id: existingDefault.id,
+            bling_variant_id: parentBlingId,
+            previous_stock: existingDefault.stock_quantity ?? 0,
+            reason: "inactive_variant_stock_not_synced_without_sync_variant_active",
+          });
+        }
+      } else {
+        const insertRow: Record<string, unknown> = { product_id: productId, size: "Único", is_active: true, tenant_id: tenantId };
+        if (simpleExplicitSaldo !== undefined && simpleBatchHttpOk && !simpleInPartialBatch) {
+          insertRow.stock_quantity = simpleExplicitSaldo;
+        }
+        const { data: createdDefault } = await supabase.from("product_variants").insert(insertRow).select("id").maybeSingle();
+        if (createdDefault?.id) syncedVariantIds.add(createdDefault.id);
       }
-      await supabase.from("product_variants").insert(insertRow);
+      variantCount = 1;
     }
-    variantCount = 1;
   }
 
-  // Clean up orphaned variants — deactivate instead of delete if referenced in order_items
-  const { data: allVars } = await supabase
-    .from("product_variants")
-    .select("id")
-    .eq("product_id", productId)
-    .eq("tenant_id", tenantId)
-    .not("bling_variant_id", "is", null);
-  for (const v of (allVars || [])) {
-    if (!syncedVariantIds.has(v.id)) {
-      // Check if variant is referenced in order_items before deleting
-      const { data: orderRef } = await supabase
-        .from("order_items")
-        .select("id")
-        .eq("product_variant_id", v.id)
-        .eq("tenant_id", tenantId)
-        .limit(1);
-      if (orderRef?.length) {
-        // Deactivate instead of deleting to preserve order history
-        await supabase.from("product_variants").update({ is_active: false }).eq("id", v.id).eq("tenant_id", tenantId);
-        console.log(`[sync] Deactivated orphaned variant ${v.id} (referenced in orders)`);
-      } else {
-        await supabase.from("product_variants").delete().eq("id", v.id).eq("tenant_id", tenantId);
+  // Cleanup destrutivo desativado por padrão (modo conservador).
+  // Ativar apenas com BLING_SYNC_ALLOW_DESTRUCTIVE_CLEANUP=true.
+  if (BLING_ALLOW_DESTRUCTIVE_CLEANUP) {
+    const { data: allVars } = await supabase
+      .from("product_variants")
+      .select("id")
+      .eq("product_id", productId)
+      .eq("tenant_id", tenantId)
+      .not("bling_variant_id", "is", null);
+    for (const v of (allVars || [])) {
+      if (!syncedVariantIds.has(v.id)) {
+        // Check if variant is referenced in order_items before deleting
+        const { data: orderRef } = await supabase
+          .from("order_items")
+          .select("id")
+          .eq("product_variant_id", v.id)
+          .eq("tenant_id", tenantId)
+          .limit(1);
+        if (orderRef?.length) {
+          // Deactivate instead of deleting to preserve order history
+          await supabase.from("product_variants").update({ is_active: false }).eq("id", v.id).eq("tenant_id", tenantId);
+          console.log(`[sync] Deactivated orphaned variant ${v.id} (referenced in orders)`);
+        } else {
+          await supabase.from("product_variants").delete().eq("id", v.id).eq("tenant_id", tenantId);
+        }
       }
     }
+  } else {
+    const { count: orphanedCount } = await supabase
+      .from("product_variants")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId)
+      .eq("tenant_id", tenantId)
+      .not("bling_variant_id", "is", null);
+    console.log(
+      JSON.stringify({
+        level: "info",
+        message: "Destructive orphan cleanup skipped (conservative mode)",
+        context: "bling-sync.upsert",
+        product_id: productId,
+        known_synced_variants: syncedVariantIds.size,
+        total_bling_linked_variants: orphanedCount ?? 0,
+      }),
+    );
   }
 
   return { imported, updated, linkedBySku, variantCount };
@@ -1044,9 +1152,9 @@ async function syncProducts(
     }
   }
 
-  // PHASE 4: Clean up variations imported as standalone (skip when new_only — we didn't reclassify)
+  // PHASE 4: Clean up variations imported as standalone (modo destrutivo opcional)
   let cleaned = 0;
-  if (!newOnly) {
+  if (!newOnly && BLING_ALLOW_DESTRUCTIVE_CLEANUP) {
     const { data: blingProducts } = await supabase
       .from("products")
       .select("id, bling_product_id, name")
@@ -1086,6 +1194,15 @@ async function syncProducts(
         }
       }
     }
+  } else if (!newOnly && !BLING_ALLOW_DESTRUCTIVE_CLEANUP) {
+    console.log(
+      JSON.stringify({
+        level: "info",
+        message: "Standalone variation cleanup skipped (conservative mode)",
+        context: "bling-sync.phase4",
+        tenant_id: tenantId,
+      }),
+    );
   }
 
   // If this was first import, mark it and reset config to stock-only
@@ -1139,9 +1256,11 @@ async function syncStock(supabase: any, token: string, tenantId: string) {
   }
 
   const activeVariantsByProduct = new Map<string, Array<{ id: string; sku: string | null; bling_variant_id: number | null }>>();
+  const totalVariantsByProduct = new Map<string, number>();
   for (const v of (allVariants || [])) {
-    if (v.is_active === false) continue;
     if (!activeProductIds.has(v.product_id)) continue;
+    totalVariantsByProduct.set(v.product_id, (totalVariantsByProduct.get(v.product_id) || 0) + 1);
+    if (v.is_active === false) continue;
     if (!activeVariantsByProduct.has(v.product_id)) activeVariantsByProduct.set(v.product_id, []);
     activeVariantsByProduct.get(v.product_id)!.push(v);
   }
@@ -1163,7 +1282,8 @@ async function syncStock(supabase: any, token: string, tenantId: string) {
       const pbid = productBlingMap.get(v.product_id);
       if (!pbid) continue;
       const productActiveVariants = activeVariantsByProduct.get(v.product_id) || [];
-      if (canApplyParentStockFallback(productActiveVariants.length)) {
+      const totalVariants = totalVariantsByProduct.get(v.product_id) || productActiveVariants.length;
+      if (canApplyParentStockFallback(productActiveVariants.length, totalVariants)) {
         if (!blingIdToVariants.has(pbid)) blingIdToVariants.set(pbid, []);
         blingIdToVariants.get(pbid)!.push(v.id);
         variantMatchTypeById.set(v.id, "bling_product_id_parent");
@@ -1234,10 +1354,17 @@ async function syncStock(supabase: any, token: string, tenantId: string) {
       break outerSync;
     }
 
+    const rowIds = new Set<number>();
+    const qtyByBlingId = new Map<number, number>();
     for (const stock of batchRows) {
-      const blingId = stock.produto?.id;
-      const qty = explicitSaldoFromBlingStockRow(stock);
+      const blingId = stock?.produto?.id;
       if (!blingId || typeof blingId !== "number") continue;
+      rowIds.add(blingId);
+    }
+    mergeExplicitSaldosIntoMap(qtyByBlingId, batchRows, "bling-sync.syncStock.merge", false);
+
+    for (const blingId of rowIds) {
+      const qty = qtyByBlingId.get(blingId);
 
       const variantIds = blingIdToVariants.get(blingId);
       if (!variantIds) continue;
@@ -1637,10 +1764,16 @@ serve(async (req) => {
               const stockJson = await stockRes.json();
               const relinkRows = stockJson?.data || [];
               const relinkAudit = auditBlingSaldosBatch(varIds, relinkRows);
+              const relinkRowIds = new Set<number>();
+              const relinkQtyById = new Map<number, number>();
               for (const s of relinkRows) {
-                const bId = s.produto?.id;
-                const qty = explicitSaldoFromBlingStockRow(s);
+                const bId = s?.produto?.id;
                 if (!bId || typeof bId !== "number") continue;
+                relinkRowIds.add(bId);
+              }
+              mergeExplicitSaldosIntoMap(relinkQtyById, relinkRows, "bling-sync.relink_variants.merge", false);
+              for (const bId of relinkRowIds) {
+                const qty = relinkQtyById.get(bId);
                 const { data: lv } = await supabase
                   .from("product_variants")
                   .select("id, is_active, sku")

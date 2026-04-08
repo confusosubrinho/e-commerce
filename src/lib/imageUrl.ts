@@ -4,6 +4,80 @@
  */
 
 const PLACEHOLDER = '/placeholder.svg';
+const SUPABASE_BASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function absolutizeSupabaseStoragePath(url: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  const normalized = url.startsWith('/') ? url : `/${url}`;
+  if (!normalized.startsWith('/storage/v1/object/')) return url;
+  if (!SUPABASE_BASE_URL) return normalized;
+  return `${SUPABASE_BASE_URL}${normalized}`;
+}
+
+function normalizeSupabaseObjectPublicPath(pathname: string): string {
+  const marker = '/storage/v1/object/public/';
+  const idx = pathname.indexOf(marker);
+  if (idx < 0) return pathname;
+
+  const prefix = pathname.slice(0, idx + marker.length);
+  const rest = pathname.slice(idx + marker.length);
+  if (!rest) return pathname;
+
+  const firstSlash = rest.indexOf('/');
+  if (firstSlash <= 0) return pathname;
+
+  const bucket = rest.slice(0, firstSlash);
+  const rawObjectPath = rest.slice(firstSlash + 1);
+  if (!rawObjectPath) return pathname;
+
+  const decodedObjectPath = safeDecodeURIComponent(rawObjectPath);
+  const normalizedObjectPath = decodedObjectPath
+    .split('/')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return `${prefix}${bucket}/${normalizedObjectPath}`;
+}
+
+/**
+ * Converte URL assinada de objeto Supabase ("/object/sign/") para URL pública
+ * quando o bucket é público, removendo query params expiráveis.
+ */
+function normalizeSupabaseSignedPath(url: string): string {
+  if (!url) return url;
+  const withAbsoluteStoragePath = absolutizeSupabaseStoragePath(url);
+  const signedSegment = "/storage/v1/object/sign/";
+  const publicSegment = "/storage/v1/object/public/";
+  const shouldConvertSigned = withAbsoluteStoragePath.includes(signedSegment);
+
+  try {
+    const urlObj = new URL(withAbsoluteStoragePath);
+    if (shouldConvertSigned) {
+      urlObj.pathname = urlObj.pathname.replace(signedSegment, publicSegment);
+      urlObj.search = "";
+    }
+    if (urlObj.pathname.includes(publicSegment)) {
+      urlObj.pathname = normalizeSupabaseObjectPublicPath(urlObj.pathname);
+    }
+    return urlObj.toString();
+  } catch {
+    // Fallback para URLs sem parse válido no runtime atual
+    const maybePublic = shouldConvertSigned
+      ? withAbsoluteStoragePath.replace(signedSegment, publicSegment)
+      : withAbsoluteStoragePath;
+    return maybePublic.split("?")[0].replace(/%2F/gi, "/");
+  }
+}
 
 /**
  * Indica se a URL é do CDN da Tray (images.tcdn.com.br).
@@ -65,6 +139,22 @@ export type ResolveImageUrlOptions = {
 };
 
 /**
+ * Normalize a media URL stored in DB (image/video):
+ * - trims and rejects empty values
+ * - converts Supabase signed object URL to public URL
+ * - normalizes encoded object paths
+ * - strips signature query params when present
+ */
+export function normalizeSupabaseMediaUrl(url: string | null | undefined): string {
+  if (!url || url.trim() === '') return '';
+  let normalized = normalizeSupabaseSignedPath(url.trim());
+  if (hasSignatureParams(normalized)) {
+    normalized = stripSignature(normalized);
+  }
+  return normalized;
+}
+
+/**
  * Resolve an image URL to a valid, displayable URL.
  * - Supabase public URLs are returned as-is (unless options.width for future use)
  * - Tray CDN (tcdn.com.br): if options.width is set, returns resized URL via proxy (~320px)
@@ -77,10 +167,7 @@ export function resolveImageUrl(
 ): string {
   if (!url || url.trim() === '') return PLACEHOLDER;
 
-  // If it has signature params, strip them
-  if (hasSignatureParams(url)) {
-    url = stripSignature(url);
-  }
+  url = normalizeSupabaseMediaUrl(url);
 
   // Redimensionar imagens Tray para reduzir peso (PageSpeed: "melhorar entrega de imagens")
   const width = options?.width ?? 0;

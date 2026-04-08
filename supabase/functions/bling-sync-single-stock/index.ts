@@ -258,6 +258,7 @@ serve(async (req) => {
     let skippedRecent = 0;
     let mismatchedVariants = 0;
     const activeLocalVariants = (localVariants || []).filter((v: any) => v.is_active !== false);
+    const totalLocalVariants = (localVariants || []).length;
 
     // Collect all bling IDs to fetch stock in batch
     const blingIds: number[] = [];
@@ -304,6 +305,8 @@ serve(async (req) => {
       BLING_STOCK_CIRCUIT_MIN_REQUESTED_FOR_PERCENT: Deno.env.get("BLING_STOCK_CIRCUIT_MIN_REQUESTED_FOR_PERCENT") ?? undefined,
     }));
     let circuitTripped = false;
+    let circuitTripReason: string | null = null;
+    let sawExplicitSaldo = false;
 
     outerSingle: for (let i = 0; i < uniqueIds.length; i += 50) {
       const batch = uniqueIds.slice(i, i + 50);
@@ -330,6 +333,7 @@ serve(async (req) => {
         const evB = circuit.evaluateAfterBatch();
         if (evB.tripped) {
           circuitTripped = true;
+          circuitTripReason = evB.reason ?? null;
           console.warn(JSON.stringify({
             level: "warn",
             message: "bling-sync-single-stock circuit tripped",
@@ -370,6 +374,7 @@ serve(async (req) => {
         const stock = stockMap.get(bv.id);
         const localVar = variantByBlingId.get(bv.id);
         const inPartial = missingSaldoVarIds.includes(bv.id);
+        if (stock !== undefined) sawExplicitSaldo = true;
 
         if (localVar) {
           const hasRecent = await hasRecentLocalMovements(supabase, localVar.id, 10, tenantId);
@@ -388,6 +393,7 @@ serve(async (req) => {
             const evZ = circuit.evaluateAfterBatch();
             if (evZ.tripped) {
               circuitTripped = true;
+              circuitTripReason = evZ.reason ?? null;
               console.warn(JSON.stringify({ level: "warn", message: "single-stock circuit tripped", correlation_id: correlationId, reason: evZ.reason }));
               break variantsOuter;
             }
@@ -513,6 +519,7 @@ serve(async (req) => {
             const evZs = circuit.evaluateAfterBatch();
             if (evZs.tripped) {
               circuitTripped = true;
+              circuitTripReason = evZs.reason ?? null;
               break variantsOuter;
             }
             await supabase.from("product_variants").update({
@@ -569,8 +576,10 @@ serve(async (req) => {
     } else {
       const parentStock = stockMap.get(blingProductId);
       const parentMissing = !stockMap.has(blingProductId);
+      if (parentStock !== undefined) sawExplicitSaldo = true;
       const activeVariants = activeLocalVariants;
-      if (!canApplyParentStockFallback(activeVariants.length)) {
+      const allowParentFallback = canApplyParentStockFallback(activeVariants.length, totalLocalVariants);
+      if (!allowParentFallback) {
         for (const lv of activeVariants) {
           logBlingVariantSyncAction({
             action: "mismatch",
@@ -585,7 +594,7 @@ serve(async (req) => {
           });
           mismatchedVariants++;
         }
-      } else if (canApplyParentStockFallback(activeVariants.length)) {
+      } else {
         const lv = activeVariants[0];
         const hasRecent = await hasRecentLocalMovements(supabase, lv.id, 10, tenantId);
         const oldLv = lv.stock_quantity ?? 0;
@@ -603,6 +612,7 @@ serve(async (req) => {
           const evZp = circuit.evaluateAfterBatch();
           if (evZp.tripped) {
             circuitTripped = true;
+            circuitTripReason = evZp.reason ?? null;
           } else {
             await supabase
               .from("product_variants")
@@ -664,11 +674,25 @@ serve(async (req) => {
 
     // 8. Update sync status
     const now = new Date().toISOString();
-    await supabase.from("products").update({
-      bling_sync_status: "synced",
-      bling_last_synced_at: now,
-      bling_last_error: null,
-    }).eq("id", product_id).eq("tenant_id", tenantId);
+    if (circuitTripped) {
+      await supabase.from("products").update({
+        bling_sync_status: "error",
+        bling_last_synced_at: now,
+        bling_last_error: `Stock sync aborted by circuit breaker${circuitTripReason ? `: ${circuitTripReason}` : ""}`,
+      }).eq("id", product_id).eq("tenant_id", tenantId);
+    } else if (sawExplicitSaldo) {
+      await supabase.from("products").update({
+        bling_sync_status: "synced",
+        bling_last_synced_at: now,
+        bling_last_error: null,
+      }).eq("id", product_id).eq("tenant_id", tenantId);
+    } else {
+      await supabase.from("products").update({
+        bling_sync_status: "pending",
+        bling_last_synced_at: now,
+        bling_last_error: "No explicit saldo returned by Bling for requested product/variants",
+      }).eq("id", product_id).eq("tenant_id", tenantId);
+    }
 
     // 9. Log the sync action
     await supabase.from("product_change_log").insert({
@@ -688,6 +712,8 @@ serve(async (req) => {
       mismatched_variants: mismatchedVariants,
       synced_at: now,
       circuit_tripped: circuitTripped,
+      circuit_trip_reason: circuitTripReason,
+      explicit_saldo_received: sawExplicitSaldo,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err: any) {

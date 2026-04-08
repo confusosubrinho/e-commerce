@@ -80,6 +80,27 @@ export function explicitSaldoFromWebhookPayload(raw: unknown): number | undefine
 }
 
 /**
+ * Em respostas com múltiplas linhas para o mesmo produto (ex.: depósitos),
+ * retorna o MAIOR saldo explícito encontrado para o produto alvo.
+ */
+export function explicitSaldoForBlingProductIdFromRows(
+  rows: unknown[],
+  blingProductId: number,
+): number | undefined {
+  let best: number | undefined = undefined;
+  for (const row of rows) {
+    if (row == null || typeof row !== "object") continue;
+    const pid = (row as { produto?: { id?: unknown } }).produto?.id;
+    if (pid == null || typeof pid !== "number") continue;
+    if (pid !== blingProductId) continue;
+    const saldo = explicitSaldoFromBlingStockRow(row);
+    if (saldo === undefined) continue;
+    best = best === undefined ? saldo : Math.max(best, saldo);
+  }
+  return best;
+}
+
+/**
  * Mescla linhas de GET /estoques/saldos no mapa só quando saldo é explícito.
  * Ignora linhas sem produto.id ou sem saldo numérico (log opcional).
  */
@@ -105,7 +126,8 @@ export function mergeExplicitSaldosIntoMap(
       }
       continue;
     }
-    map.set(pid, saldo);
+    const prev = map.get(pid);
+    map.set(pid, prev === undefined ? saldo : Math.max(prev, saldo));
   }
 }
 
@@ -257,10 +279,16 @@ export function blingIdMissingExplicitInAudit(audit: BlingSaldosBatchAudit, blin
 
 /**
  * Fallback por produto-pai é permitido apenas para produtos simples
- * (exatamente uma variante ativa local).
+ * (exatamente uma variante ativa local e, quando informado, exatamente
+ * uma variante local total).
  */
-export function canApplyParentStockFallback(activeVariantCount: number): boolean {
-  return Number.isFinite(activeVariantCount) && activeVariantCount === 1;
+export function canApplyParentStockFallback(
+  activeVariantCount: number,
+  totalVariantCount?: number,
+): boolean {
+  if (!Number.isFinite(activeVariantCount) || activeVariantCount !== 1) return false;
+  if (totalVariantCount === undefined) return true;
+  return Number.isFinite(totalVariantCount) && totalVariantCount === 1;
 }
 
 // ─── Decisão centralizada de escrita de estoque ───

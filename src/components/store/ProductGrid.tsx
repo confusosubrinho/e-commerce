@@ -4,6 +4,7 @@ import { ProductCard } from './ProductCard';
 import { Button } from '@/components/ui/button';
 import { ProductGridSkeleton } from './Skeletons';
 import { FadeInOnScroll } from './FadeInOnScroll';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
  
  interface ProductGridProps {
    products: Product[];
@@ -55,11 +56,13 @@ import { FadeInOnScroll } from './FadeInOnScroll';
            </div>
          )}
  
-         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-           {products.map((product) => (
-             <ProductCard key={product.id} product={product} />
-           ))}
-         </div>
+         <PerfProfiler id="store.product-grid" slowThresholdMs={12}>
+           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+             {products.map((product) => (
+               <ProductCard key={product.id} product={product} />
+             ))}
+           </div>
+         </PerfProfiler>
 
          {showViewAll && viewAllLink && (
            <div className="text-center mt-8">

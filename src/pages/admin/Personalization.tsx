@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToWebP } from '@/lib/imageCompressor';
+import { normalizeSupabaseMediaUrl } from '@/lib/imageUrl';
 import { Plus, Pencil, Trash2, GripVertical, Upload, Monitor, Smartphone, Video, Image as ImageIcon } from 'lucide-react';
 
 // ─── Banners Section (reuse logic from Banners page) ───
@@ -271,16 +272,7 @@ function InstagramVideosSection() {
   const normalizeMediaUrl = (value: string): string => {
     const trimmed = value.trim();
     if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return '';
-    try {
-      const u = new URL(trimmed);
-      if (u.pathname.includes('/storage/v1/object/sign/')) {
-        u.pathname = u.pathname.replace('/storage/v1/object/sign/', '/storage/v1/object/public/');
-        u.search = '';
-      }
-      return encodeURI(u.toString());
-    } catch {
-      return encodeURI(trimmed);
-    }
+    return normalizeSupabaseMediaUrl(trimmed);
   };
 
   const isLikelyIncompatibleVideoUrl = (value: string): boolean => {
@@ -289,11 +281,23 @@ function InstagramVideosSection() {
     return normalized.includes('.webm');
   };
 
+  const isKnownPageVideoUrl = (value: string): boolean => {
+    const normalized = normalizeMediaUrl(value).toLowerCase();
+    if (!normalized) return false;
+    return (
+      normalized.includes('instagram.com/reel/') ||
+      normalized.includes('instagram.com/p/') ||
+      normalized.includes('youtube.com/watch') ||
+      normalized.includes('youtu.be/') ||
+      normalized.includes('tiktok.com/')
+    );
+  };
+
   const isSupportedVideoUpload = (file: File): boolean => {
     const lowerName = file.name.toLowerCase();
     const mime = file.type.toLowerCase();
-    const byExt = lowerName.endsWith('.mp4') || lowerName.endsWith('.mov') || lowerName.endsWith('.m4v');
-    const byMime = mime === 'video/mp4' || mime === 'video/quicktime' || mime === 'video/x-m4v';
+    const byExt = lowerName.endsWith('.mp4');
+    const byMime = mime === 'video/mp4';
     return byExt || byMime;
   };
 
@@ -358,6 +362,8 @@ function InstagramVideosSection() {
       nextErrors.video_url = 'Informe a URL do vídeo ou faça upload.';
     } else if (!isValidHttpUrl(videoUrl)) {
       nextErrors.video_url = 'A URL do vídeo deve começar com http:// ou https://.';
+    } else if (isKnownPageVideoUrl(videoUrl)) {
+      nextErrors.video_url = 'Use URL direta do arquivo de vídeo (MP4). Link de Reel/post não é reproduzível no player.';
     } else if (isLikelyIncompatibleVideoUrl(videoUrl)) {
       nextErrors.video_url = 'Formato WebM pode falhar em alguns dispositivos. Use MP4 (H.264) para máxima compatibilidade.';
     } else {
@@ -406,7 +412,7 @@ function InstagramVideosSection() {
       if (!isSupportedVideoUpload(file)) {
         toast({
           title: 'Formato não suportado',
-          description: 'Use vídeo em MP4/MOV (recomendado: MP4 H.264).',
+          description: 'Use vídeo em MP4 (H.264) para compatibilidade no site.',
           variant: 'destructive',
         });
         return;
@@ -462,7 +468,7 @@ function InstagramVideosSection() {
       } = {
         video_url: normalizedVideoUrl,
         thumbnail_url: normalizedThumbUrl || null,
-        username: data.username || null,
+        username: data.username.replace(/^@+/, '').trim() || null,
         product_id: data.product_id || null,
         is_active: data.is_active,
         display_order: editingVideo?.display_order || (videos?.length || 0),
@@ -516,7 +522,7 @@ function InstagramVideosSection() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Vídeos Inspire-se</h3>
-          <p className="text-sm text-muted-foreground">Vídeos exibidos na seção "Inspire-se" da home. Máx. 10MB por vídeo.</p>
+          <p className="text-sm text-muted-foreground">Vídeos exibidos na seção "Inspire-se" da home. Use MP4 (H.264), até 30MB.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -550,7 +556,7 @@ function InstagramVideosSection() {
                     aria-invalid={!!fieldErrors.video_url}
                   />
                   <label className="cursor-pointer">
-                    <input type="file" accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v" className="hidden" onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+                    <input type="file" accept="video/mp4,.mp4" className="hidden" onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
                     <Button type="button" variant="outline" asChild disabled={uploading}><span><Upload className="h-4 w-4 mr-1" />{uploading ? '...' : 'Upload'}</span></Button>
                   </label>
                 </div>

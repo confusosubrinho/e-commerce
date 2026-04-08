@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { ColorWheelPicker } from './ColorWheelPicker';
 import { getClosestColorName } from '@/lib/colorUtils';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
 
 export interface VariantItem {
   id?: string;
@@ -122,6 +123,13 @@ function generateSku(parentSku: string, size: string, color: string, customValue
   return parts.join('-');
 }
 
+function buildVariantKey(size: string | null | undefined, color: string | null | undefined, customValue?: string | null): string {
+  const normalizedSize = (size || '').trim();
+  const normalizedColor = (color || '').trim();
+  const normalizedCustom = (customValue || '').trim();
+  return `${normalizedSize}||${normalizedColor}||${normalizedCustom}`;
+}
+
 export function ProductVariantsManager({
   variants,
   onChange,
@@ -164,6 +172,14 @@ export function ProductVariantsManager({
 
     return duplicates;
   }, [variants]);
+  const variantCombinationCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const variant of variants) {
+      const key = buildVariantKey(variant.size, variant.color, variant.custom_attribute_value);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [variants]);
 
   const checkDuplicateSku = (sku: string): boolean => {
     const normalizedSku = sku?.trim();
@@ -172,9 +188,20 @@ export function ProductVariantsManager({
   };
 
   const checkDuplicateVariant = (size: string, color: string | null, customValue?: string | null, excludeIndex?: number): boolean => {
-    return variants.some((v, i) => 
-      i !== excludeIndex && v.size === size && (v.color || '') === (color || '') && (v.custom_attribute_value || '') === (customValue || '')
+    const key = buildVariantKey(size, color, customValue);
+    const count = variantCombinationCounts.get(key) ?? 0;
+    if (count <= 0) return false;
+    if (excludeIndex === undefined) return true;
+
+    const excludedVariant = variants[excludeIndex];
+    if (!excludedVariant) return count > 0;
+
+    const excludedKey = buildVariantKey(
+      excludedVariant.size,
+      excludedVariant.color,
+      excludedVariant.custom_attribute_value,
     );
+    return excludedKey === key ? count > 1 : count > 0;
   };
 
   const addVariant = () => {
@@ -287,7 +314,7 @@ export function ProductVariantsManager({
     const duplicateCombos: string[] = [];
     for (const size of sizes) {
       for (const customVal of customValues) {
-        if (variants.some(v => v.size === size && (v.color || '') === (bulkColor || '') && (v.custom_attribute_value || '') === (customVal || ''))) {
+        if (checkDuplicateVariant(size, bulkColor || '', customVal || '')) {
           duplicateCombos.push(`${size}${bulkColor ? '-' + bulkColor : ''}${customVal ? '-' + customVal : ''}`);
         }
       }
@@ -365,11 +392,12 @@ export function ProductVariantsManager({
   const editingVariant = editIndex !== null ? variants[editIndex] : null;
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      {/* Bulk Add */}
-      <div className="p-3 md:p-4 border rounded-lg bg-muted/30">
-        <h4 className="font-medium mb-3 text-sm">Adicionar variantes em lote</h4>
-        <div className="space-y-3">
+    <PerfProfiler id="admin.variants-manager" slowThresholdMs={10}>
+      <div className="space-y-4 md:space-y-6">
+        {/* Bulk Add */}
+        <div className="p-3 md:p-4 border rounded-lg bg-muted/30">
+          <h4 className="font-medium mb-3 text-sm">Adicionar variantes em lote</h4>
+          <div className="space-y-3">
           <div>
             <Label className="text-xs">Tamanhos (separados por vírgula)</Label>
             <Input
@@ -448,11 +476,11 @@ export function ProductVariantsManager({
             <Plus className="h-4 w-4 mr-1" /> Adicionar
           </Button>
         </div>
-      </div>
+        </div>
 
-      {/* Variants List */}
-      {variants.length > 0 && (
-        <div className="space-y-2">
+        {/* Variants List */}
+        {variants.length > 0 && (
+          <div className="space-y-2">
           {!isMobile && (
             <div className="grid grid-cols-[1fr_1fr_70px_80px_auto_36px] gap-2 text-xs font-medium text-muted-foreground px-1">
               <span>Tamanho</span>
@@ -528,24 +556,24 @@ export function ProductVariantsManager({
               </div>
             )
           ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={addVariant} className="flex-1" size="sm">
+            <Plus className="h-4 w-4 mr-2" /> Adicionar variante individual
+          </Button>
+          {productId && <StockNotifyButton productId={productId} />}
         </div>
-      )}
 
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" onClick={addVariant} className="flex-1" size="sm">
-          <Plus className="h-4 w-4 mr-2" /> Adicionar variante individual
-        </Button>
-        {productId && <StockNotifyButton productId={productId} />}
-      </div>
-
-      {/* Advanced Edit Dialog */}
-      <Dialog open={editIndex !== null} onOpenChange={(open) => { if (!open) setEditIndex(null); }}>
-        <DialogContent className={`${isMobile ? 'max-w-[100vw] w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 !left-0 !top-0 !translate-x-0 !translate-y-0' : 'max-w-lg'} p-0 flex flex-col`}>
-          <DialogHeader className="p-4 pb-2 border-b">
-            <DialogTitle className="text-base">Editar Variante {editingVariant ? `— ${editingVariant.size} ${editingVariant.color}` : ''}</DialogTitle>
-          </DialogHeader>
-          {editingVariant && editIndex !== null && (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Advanced Edit Dialog */}
+        <Dialog open={editIndex !== null} onOpenChange={(open) => { if (!open) setEditIndex(null); }}>
+          <DialogContent className={`${isMobile ? 'max-w-[100vw] w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 !left-0 !top-0 !translate-x-0 !translate-y-0' : 'max-w-lg'} p-0 flex flex-col`}>
+            <DialogHeader className="p-4 pb-2 border-b">
+              <DialogTitle className="text-base">Editar Variante {editingVariant ? `— ${editingVariant.size} ${editingVariant.color}` : ''}</DialogTitle>
+            </DialogHeader>
+            {editingVariant && editIndex !== null && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {/* Size on its own row */}
               <div>
                 <Label className="text-xs">Tamanho *</Label>
@@ -746,11 +774,12 @@ export function ProductVariantsManager({
               <div className="flex justify-end p-4 border-t">
                 <Button type="button" onClick={() => setEditIndex(null)}>Fechar</Button>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </PerfProfiler>
   );
 }
 

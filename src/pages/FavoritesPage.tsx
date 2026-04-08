@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Product } from '@/types/database';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
 
 export default function FavoritesPage() {
   const { favorites, isAuthenticated } = useFavorites();
@@ -71,11 +72,13 @@ export default function FavoritesPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {favoriteProducts.map(product => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <PerfProfiler id="store.favorites-grid" slowThresholdMs={12}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {favoriteProducts.map(product => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </PerfProfiler>
         )}
       </div>
     </StoreLayout>

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   auditBlingSaldosBatch,
   BlingStockCircuitBreaker,
+  canApplyParentStockFallback,
   evaluateSkuRelinkOnProduct,
+  explicitSaldoForBlingProductIdFromRows,
   explicitSaldoFromBlingStockRow,
   explicitSaldoFromLegacyEstoque,
   explicitSaldoFromWebhookPayload,
+  mergeExplicitSaldosIntoMap,
   normalizeBlingSku,
   resolveSafeStockUpdate,
 } from "../../supabase/functions/_shared/blingStockSafe.ts";
@@ -60,6 +63,39 @@ describe("blingStockSafe (política conservadora Bling)", () => {
   it("normalizeBlingSku só faz trim", () => {
     expect(normalizeBlingSku("  ABC-1  ")).toBe("ABC-1");
     expect(normalizeBlingSku(null)).toBe("");
+  });
+
+  it("mergeExplicitSaldosIntoMap usa maior saldo quando há múltiplas linhas do mesmo produto", () => {
+    const map = new Map<number, number>();
+    mergeExplicitSaldosIntoMap(
+      map,
+      [
+        { produto: { id: 101 }, saldoVirtualTotal: 8 },
+        { produto: { id: 101 }, saldoVirtualTotal: 0 },
+        { produto: { id: 101 }, saldoFisicoTotal: 5 },
+      ],
+      "test.merge",
+      false,
+    );
+    expect(map.get(101)).toBe(8);
+  });
+
+  it("explicitSaldoForBlingProductIdFromRows retorna maior saldo explícito no conjunto", () => {
+    const rows = [
+      { produto: { id: 55 }, saldoVirtualTotal: 0 },
+      { produto: { id: 55 }, saldoFisicoTotal: 11 },
+      { produto: { id: 55 }, saldo: 3 },
+    ];
+    expect(explicitSaldoForBlingProductIdFromRows(rows, 55)).toBe(11);
+    expect(explicitSaldoForBlingProductIdFromRows(rows, 99)).toBeUndefined();
+  });
+
+  it("canApplyParentStockFallback exige produto realmente simples quando total é informado", () => {
+    expect(canApplyParentStockFallback(1)).toBe(true);
+    expect(canApplyParentStockFallback(1, 1)).toBe(true);
+    expect(canApplyParentStockFallback(1, 2)).toBe(false);
+    expect(canApplyParentStockFallback(2, 2)).toBe(false);
+    expect(canApplyParentStockFallback(0, 1)).toBe(false);
   });
 
   describe("resolveSafeStockUpdate", () => {

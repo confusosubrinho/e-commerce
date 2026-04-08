@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
 import { useInView } from '@/hooks/useInView';
+import { PerfProfiler } from '@/components/dev/PerfProfiler';
 
 interface ProductCardProps {
   product: Product;
@@ -21,10 +22,10 @@ interface ProductCardProps {
 
 function useShowVariantsOnGrid() {
   const { data } = useStoreSettings();
-  return (data as any)?.show_variants_on_grid ?? true;
+  return data?.show_variants_on_grid ?? true;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product }: ProductCardProps) {
   const sizeScrollRef = useHorizontalScrollAxisLock();
   const navigatedRef = useRef(false);
   const [variantModalOpen, setVariantModalOpen] = useState(false);
@@ -53,37 +54,56 @@ export function ProductCard({ product }: ProductCardProps) {
     enabled: cardInView,
   });
 
-  const primaryImage = product.images?.find(img => img.is_primary) || product.images?.[0];
-  const secondaryImage = product.images?.find(img => !img.is_primary);
-  const hasDiscount = product.sale_price && product.sale_price < product.base_price;
-  const discountPercentage = hasDiscount
-    ? Math.round((1 - Number(product.sale_price) / Number(product.base_price)) * 100)
-    : 0;
+  const { primaryImage, secondaryImage } = useMemo(() => {
+    const primary = product.images?.find(img => img.is_primary) || product.images?.[0];
+    const secondary = product.images?.find(img => !img.is_primary);
+    return { primaryImage: primary, secondaryImage: secondary };
+  }, [product.images]);
+  const hasDiscount = !!(product.sale_price && product.sale_price < product.base_price);
+  const discountPercentage = useMemo(() => {
+    if (!hasDiscount) return 0;
+    return Math.round((1 - Number(product.sale_price) / Number(product.base_price)) * 100);
+  }, [hasDiscount, product.sale_price, product.base_price]);
   const formatPrice = formatCurrency;
   const currentPrice = Number(product.sale_price || product.base_price);
   const hasProductSale = hasDiscount; // product already has sale_price < base_price
-  const applyPix = pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasProductSale) : true;
-  const pixPrice = pricingConfig
-    ? getPixPriceForDisplay(currentPrice, pricingConfig, hasProductSale)
-    : (applyPix ? currentPrice * (1 - pixDiscountPercent / 100) : currentPrice);
-  const pixDiscountAmount = pricingConfig
-    ? getPixDiscountAmount(currentPrice, pricingConfig, hasProductSale)
-    : (applyPix ? currentPrice * (pixDiscountPercent / 100) : 0);
-  const activeVariants = product.variants?.filter(v => v.is_active) || [];
+  const applyPix = useMemo(() => (
+    pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasProductSale) : true
+  ), [pricingConfig, hasProductSale]);
+  const pixPrice = useMemo(() => (
+    pricingConfig
+      ? getPixPriceForDisplay(currentPrice, pricingConfig, hasProductSale)
+      : (applyPix ? currentPrice * (1 - pixDiscountPercent / 100) : currentPrice)
+  ), [pricingConfig, currentPrice, hasProductSale, applyPix, pixDiscountPercent]);
+  const pixDiscountAmount = useMemo(() => (
+    pricingConfig
+      ? getPixDiscountAmount(currentPrice, pricingConfig, hasProductSale)
+      : (applyPix ? currentPrice * (pixDiscountPercent / 100) : 0)
+  ), [pricingConfig, currentPrice, hasProductSale, applyPix, pixDiscountPercent]);
+  const activeVariants = useMemo(() => product.variants?.filter(v => v.is_active) || [], [product.variants]);
   const hasVariants = activeVariants.length > 0;
-  const totalStock = activeVariants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0);
+  const totalStock = useMemo(() => (
+    activeVariants.reduce((sum, v) => sum + (v.stock_quantity || 0), 0)
+  ), [activeVariants]);
   const isOutOfStock = hasVariants && totalStock === 0;
   const LOW_STOCK_THRESHOLD = 3;
   const isLowStock = hasVariants && totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
-  const sizes = activeVariants
-    .map(v => ({ size: v.size, inStock: v.stock_quantity > 0 }))
-    .filter((v, i, arr) => arr.findIndex(a => a.size === v.size) === i)
-    .sort((a, b) => {
-      const numA = parseFloat(a.size);
-      const numB = parseFloat(b.size);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return a.size.localeCompare(b.size);
-    }) || [];
+  const sizes = useMemo(() => {
+    return activeVariants
+      .map(v => ({ size: v.size, inStock: v.stock_quantity > 0 }))
+      .filter((v, i, arr) => arr.findIndex(a => a.size === v.size) === i)
+      .sort((a, b) => {
+        const numA = parseFloat(a.size);
+        const numB = parseFloat(b.size);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.size.localeCompare(b.size);
+      });
+  }, [activeVariants]);
+  const installmentDisplay = useMemo(() => {
+    if (!pricingConfig) return null;
+    return getInstallmentDisplay(currentPrice, pricingConfig, hasDiscount);
+  }, [pricingConfig, currentPrice, hasDiscount]);
+  const favorite = isFavorite(product.id);
 
   const handleBuyClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -127,141 +147,140 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <>
-      <a
-        ref={cardRef}
-        href={productUrl}
-        onClick={handleCardClick}
-        onPointerDownCapture={handleCardPointerDown}
-        className={`group card-product card-lift block rounded-lg overflow-hidden shadow-sm hover:shadow-md bg-background border border-border/40 cursor-pointer ${isOutOfStock ? 'opacity-65' : ''}`}
-        id={`product-card-${product.slug}`}
-      >
-        <div className="relative aspect-square overflow-hidden bg-muted">
-          <img
-            src={resolveImageUrl(primaryImage?.url)}
-            alt={product.name}
-            className={`w-full h-full object-cover transition-all duration-500 ${
-              secondaryImage ? 'group-hover:opacity-0' : 'group-hover:scale-110'
-            }`}
-            loading="lazy"
-            decoding="async"
-            width={300}
-            height={300}
-          />
-          {secondaryImage && (
+      <PerfProfiler id="store.product-card" slowThresholdMs={8}>
+        <a
+          ref={cardRef}
+          href={productUrl}
+          onClick={handleCardClick}
+          onPointerDownCapture={handleCardPointerDown}
+          className={`group card-product card-lift block rounded-lg overflow-hidden shadow-sm hover:shadow-md bg-background border border-border/40 cursor-pointer ${isOutOfStock ? 'opacity-65' : ''}`}
+          id={`product-card-${product.slug}`}
+        >
+          <div className="relative aspect-square overflow-hidden bg-muted">
             <img
-              src={resolveImageUrl(secondaryImage.url)}
-              alt={`${product.name} - foto alternativa`}
-              className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              src={resolveImageUrl(primaryImage?.url)}
+              alt={product.name}
+              className={`w-full h-full object-cover transition-all duration-500 ${
+                secondaryImage ? 'group-hover:opacity-0' : 'group-hover:scale-110'
+              }`}
               loading="lazy"
               decoding="async"
               width={300}
               height={300}
             />
-          )}
-
-          <div className="absolute top-2 left-2 flex flex-col gap-1 max-w-[calc(100%-3rem)]">
-            {isOutOfStock && <Badge variant="secondary" className="text-[10px] truncate bg-muted-foreground text-background">Sem estoque</Badge>}
-            {isLowStock && <Badge className="text-[10px] truncate bg-primary text-primary-foreground">Últimas unidades</Badge>}
-            {product.is_new && !isOutOfStock && <Badge className="badge-new text-[10px] truncate">Lançamento</Badge>}
-            {hasDiscount && !isOutOfStock && <Badge className="badge-sale text-[10px] truncate">-{discountPercentage}%</Badge>}
-            {product.is_featured && !product.is_new && !hasDiscount && !isOutOfStock && (
-              <Badge variant="outline" className="bg-background text-[10px] truncate">Destaque</Badge>
+            {secondaryImage && (
+              <img
+                src={resolveImageUrl(secondaryImage.url)}
+                alt={`${product.name} - foto alternativa`}
+                className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                loading="lazy"
+                decoding="async"
+                width={300}
+                height={300}
+              />
             )}
-          </div>
 
-          {/* Favorite button */}
-          <button
-            type="button"
-            onClick={handleFavoriteClick}
-            disabled={favoriteLoading}
-            className={`absolute top-2 right-2 bg-background/80 p-1.5 rounded-full hover:bg-background transition-all shadow-sm ${favoriteLoading ? 'opacity-50 animate-pulse' : ''}`}
-            aria-label={isFavorite(product.id) ? `Remover ${product.name} dos favoritos` : `Adicionar ${product.name} aos favoritos`}
-          >
-            <Heart className={`h-4 w-4 transition-transform ${isFavorite(product.id) ? 'fill-destructive text-destructive scale-110' : 'text-muted-foreground'}`} />
-          </button>
+            <div className="absolute top-2 left-2 flex flex-col gap-1 max-w-[calc(100%-3rem)]">
+              {isOutOfStock && <Badge variant="secondary" className="text-[10px] truncate bg-muted-foreground text-background">Sem estoque</Badge>}
+              {isLowStock && <Badge className="text-[10px] truncate bg-primary text-primary-foreground">Últimas unidades</Badge>}
+              {product.is_new && !isOutOfStock && <Badge className="badge-new text-[10px] truncate">Lançamento</Badge>}
+              {hasDiscount && !isOutOfStock && <Badge className="badge-sale text-[10px] truncate">-{discountPercentage}%</Badge>}
+              {product.is_featured && !product.is_new && !hasDiscount && !isOutOfStock && (
+                <Badge variant="outline" className="bg-background text-[10px] truncate">Destaque</Badge>
+              )}
+            </div>
 
-          {/* Buy button overlay */}
-          {hasVariants && (
+            {/* Favorite button */}
             <button
               type="button"
-              id={`btn-buy-${product.slug}`}
-              onClick={handleBuyClick}
-              className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press"
-              title={isOutOfStock ? 'Ver produto' : 'Comprar'}
-              aria-label={isOutOfStock ? `Ver detalhes de ${product.name}` : `Comprar ${product.name}`}
+              onClick={handleFavoriteClick}
+              disabled={favoriteLoading}
+              className={`absolute top-2 right-2 bg-background/80 p-1.5 rounded-full hover:bg-background transition-all shadow-sm ${favoriteLoading ? 'opacity-50 animate-pulse' : ''}`}
+              aria-label={favorite ? `Remover ${product.name} dos favoritos` : `Adicionar ${product.name} aos favoritos`}
             >
-              {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
+              <Heart className={`h-4 w-4 transition-transform ${favorite ? 'fill-destructive text-destructive scale-110' : 'text-muted-foreground'}`} />
             </button>
-          )}
-        </div>
 
-        <div className="p-3">
-          <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 text-sm leading-snug min-h-[2.5rem]">
-            {product.name}
-          </h3>
-
-          {reviewStats && reviewStats.count > 0 && (
-            <div className="flex items-center gap-1 mt-1">
-              <div className="flex">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <Star
-                    key={star}
-                    className={`h-3 w-3 ${star <= Math.round(reviewStats.avg) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
-                  />
-                ))}
-              </div>
-              <span className="text-[10px] text-muted-foreground">({reviewStats.count})</span>
-            </div>
-          )}
-
-          <div className="mt-2 space-y-0.5">
-            {hasDiscount ? (
-              <>
-                <p className="price-original text-xs line-through text-muted-foreground">{formatPrice(Number(product.base_price))}</p>
-                <p className="text-base font-bold text-primary">{formatPrice(currentPrice)}</p>
-                {applyPix && pixDiscountAmount > 0 ? (
-                  <p className="text-[11px] font-semibold text-primary">{formatPrice(pixPrice)} no PIX</p>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <p className="price-current text-base font-bold">{formatPrice(currentPrice)}</p>
-                {applyPix && pixDiscountAmount > 0 ? (
-                  <p className="text-[11px] font-semibold text-primary">{formatPrice(pixPrice)} no PIX</p>
-                ) : null}
-              </>
+            {/* Buy button overlay */}
+            {hasVariants && (
+              <button
+                type="button"
+                id={`btn-buy-${product.slug}`}
+                onClick={handleBuyClick}
+                className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press"
+                title={isOutOfStock ? 'Ver produto' : 'Comprar'}
+                aria-label={isOutOfStock ? `Ver detalhes de ${product.name}` : `Comprar ${product.name}`}
+              >
+                {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
+              </button>
             )}
-            {pricingConfig && (() => {
-              const display = getInstallmentDisplay(currentPrice, pricingConfig, hasDiscount);
-              return (
-                <div className="pt-0.5">
-                  <p className="text-[11px] font-medium text-foreground/80">{display.primaryText}</p>
-                </div>
-              );
-            })()}
           </div>
 
-          {showVariants && sizes.length > 0 && (
-            <div className="mt-2">
-              <p className="text-[11px] text-muted-foreground mb-1 font-medium">Tamanho</p>
-              <div ref={sizeScrollRef} className="flex gap-1 overflow-x-auto touch-pan-x cursor-grab active:cursor-grabbing select-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
-                {sizes.map(({ size, inStock }) => (
-                  <span
-                    key={size}
-                    className={`inline-flex items-center justify-center min-w-[28px] h-7 px-1.5 text-[11px] border rounded flex-shrink-0 ${
-                      inStock
-                        ? 'border-border text-foreground bg-background'
-                        : 'border-border/50 text-muted-foreground/50 line-through bg-muted/50'
-                    }`}
-                  >
-                    {size}
-                  </span>
-                ))}
+          <div className="p-3">
+            <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 text-sm leading-snug min-h-[2.5rem]">
+              {product.name}
+            </h3>
+
+            {reviewStats && reviewStats.count > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <Star
+                      key={star}
+                      className={`h-3 w-3 ${star <= Math.round(reviewStats.avg) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[10px] text-muted-foreground">({reviewStats.count})</span>
               </div>
+            )}
+
+            <div className="mt-2 space-y-0.5">
+              {hasDiscount ? (
+                <>
+                  <p className="price-original text-xs line-through text-muted-foreground">{formatPrice(Number(product.base_price))}</p>
+                  <p className="text-base font-bold text-primary">{formatPrice(currentPrice)}</p>
+                  {applyPix && pixDiscountAmount > 0 ? (
+                    <p className="text-[11px] font-semibold text-primary">{formatPrice(pixPrice)} no PIX</p>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="price-current text-base font-bold">{formatPrice(currentPrice)}</p>
+                  {applyPix && pixDiscountAmount > 0 ? (
+                    <p className="text-[11px] font-semibold text-primary">{formatPrice(pixPrice)} no PIX</p>
+                  ) : null}
+                </>
+              )}
+              {installmentDisplay && (
+                <div className="pt-0.5">
+                  <p className="text-[11px] font-medium text-foreground/80">{installmentDisplay.primaryText}</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </a>
+
+            {showVariants && sizes.length > 0 && (
+              <div className="mt-2">
+                <p className="text-[11px] text-muted-foreground mb-1 font-medium">Tamanho</p>
+                <div ref={sizeScrollRef} className="flex gap-1 overflow-x-auto touch-pan-x cursor-grab active:cursor-grabbing select-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                  {sizes.map(({ size, inStock }) => (
+                    <span
+                      key={size}
+                      className={`inline-flex items-center justify-center min-w-[28px] h-7 px-1.5 text-[11px] border rounded flex-shrink-0 ${
+                        inStock
+                          ? 'border-border text-foreground bg-background'
+                          : 'border-border/50 text-muted-foreground/50 line-through bg-muted/50'
+                      }`}
+                    >
+                      {size}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </a>
+      </PerfProfiler>
 
       <VariantSelectorModal
         product={product}
@@ -270,4 +289,6 @@ export function ProductCard({ product }: ProductCardProps) {
       />
     </>
   );
-}
+});
+
+ProductCard.displayName = 'ProductCard';

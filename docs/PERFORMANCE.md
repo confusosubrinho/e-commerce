@@ -38,6 +38,25 @@ Checklist e plano para Core Web Vitals (LCP, FID/INP, CLS) e experiência geral.
 
 Ferramentas: [PageSpeed Insights](https://pagespeed.web.dev/), Chrome DevTools → Lighthouse, “Network” e “Performance”.
 
+## Profiling em tempo real (DEV)
+
+Foi adicionado um profiler de baixo risco para medir commits React com dados consolidados por componente:
+
+- Arquivo: `src/components/dev/PerfProfiler.tsx`
+- Ativar: abrir a aplicação com `?perf=1` (ex.: `/admin/produtos?perf=1`)
+- Desativar: `?perf=0`
+- Ver relatório: no console do browser, executar `window.__printEcomPerfReport()`
+- Limpar dados: `window.__resetEcomPerfReport()`
+
+IDs instrumentados inicialmente:
+
+- `admin.products.list`
+- `admin.product-form.variants`
+- `admin.variants-manager`
+- `store.product-grid`
+- `store.product-card`
+- `store.favorites-grid`
+
 ## Preview / Dev server (“100+ módulos”, página em branco)
 
 O aviso **“servidor de desenvolvimento sobrecarregado (projeto com 100+ módulos)”** na preview (ex.: Lovable) não é bug do app — é limite de CPU/memória do ambiente de dev. Os “módulos” são o grafo de dependências (seu código + `node_modules`); não dá para “apagar” sem remover funcionalidade.
