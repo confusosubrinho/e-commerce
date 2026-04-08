@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
                     reason: inconsistencyReason,
                     yampi_order_id: yampiOrderId,
                   },
-                }).catch(() => {});
+                }).then(() => {}, () => {});
 
                 // Retorna 200 para Yampi não retransmitir, mas não confirma o pedido
                 return jsonOk({
