@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { normalizeSupabaseMediaUrl, resolveImageUrl } from '@/lib/imageUrl';
+import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
 
 interface InstagramVideo {
   id: string;
@@ -67,7 +68,7 @@ export function InstagramFeed() {
   const [readyVideoIds, setReadyVideoIds] = useState<Record<string, boolean>>({});
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [failedImageKeys, setFailedImageKeys] = useState<Record<string, boolean>>({});
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useHorizontalScrollAxisLock();
   const scrollRafRef = useRef<number | null>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -102,7 +103,7 @@ export function InstagramFeed() {
     const item = items[index] as HTMLElement;
     const scrollLeft = item.offsetLeft - container.offsetWidth / 2 + item.offsetWidth / 2;
     container.scrollTo({ left: scrollLeft, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-  }, [videos, prefersReducedMotion]);
+  }, [videos, prefersReducedMotion, scrollRef]);
 
   useEffect(() => {
     if (!videos || videos.length === 0) return;
@@ -291,7 +292,7 @@ export function InstagramFeed() {
         <div
           ref={scrollRef}
           onScroll={handleCarouselScroll}
-          className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto py-2 md:gap-5"
+          className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto py-2 touch-pan-y md:gap-5"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', paddingLeft: 'max(0.75rem, calc(50% - 170px))', paddingRight: 'max(0.75rem, calc(50% - 170px))' }}
           role="list"
           aria-label="Lista de vídeos"

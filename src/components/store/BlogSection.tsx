@@ -4,12 +4,14 @@ import { useBlogPosts, useBlogSettings } from '@/hooks/useBlog';
 import { resolveImageUrl } from '@/lib/imageUrl';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
 
 interface BlogSectionProps {
   config?: { max_posts?: number };
 }
 
 export function BlogSection({ config }: BlogSectionProps) {
+  const mobileScrollRef = useHorizontalScrollAxisLock();
   const { data: settings } = useBlogSettings();
   const { data: posts, isLoading } = useBlogPosts(true);
 
@@ -66,7 +68,11 @@ export function BlogSection({ config }: BlogSectionProps) {
 
             {/* Mobile: Horizontal scroll */}
             <div className="sm:hidden -mx-4 px-4">
-              <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4">
+              <div
+                ref={mobileScrollRef}
+                className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 touch-pan-y cursor-grab active:cursor-grabbing"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+              >
                 {visiblePosts.map((post) => (
                   <div
                     key={post.id}

@@ -49,7 +49,6 @@ export function ProductCarousel({
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) { setTotalPages(1); setActivePageIndex(0); return; }
-    const itemWidth = 220; // approximate card width + gap
     const pages = Math.max(1, Math.ceil(el.scrollWidth / el.clientWidth));
     setTotalPages(pages);
     const progress = el.scrollLeft / maxScroll;
@@ -66,7 +65,7 @@ export function ProductCarousel({
       el.removeEventListener('scroll', updateScrollIndicator);
       window.removeEventListener('resize', updateScrollIndicator);
     };
-  }, [updateScrollIndicator, products]);
+  }, [updateScrollIndicator, products, scrollRef]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -156,7 +155,7 @@ export function ProductCarousel({
 
             <div
               ref={scrollRef}
-              className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory touch-pan-x cursor-grab active:cursor-grabbing scroll-smooth"
+              className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory touch-pan-y cursor-grab active:cursor-grabbing scroll-smooth"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
@@ -261,7 +260,7 @@ export function ProductCarousel({
                         return sizes.length > 0 ? (
                           <div>
                             <p className={`text-[11px] mb-1 font-medium ${isDark && !cardBg ? 'text-secondary-foreground/70' : 'text-muted-foreground'}`}>Tamanho</p>
-                            <div className="flex gap-1 justify-center overflow-x-auto touch-pan-x cursor-grab active:cursor-grabbing" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                            <div className="flex gap-1 justify-center overflow-x-auto scrollbar-hide touch-pan-y" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                               {sizes.map(({ size, inStock }) => (
                                 <span
                                   key={size}

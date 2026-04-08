@@ -70,7 +70,7 @@ export function CustomerTestimonials() {
     if (!el) return;
     setCanScrollLeft(el.scrollLeft > 5);
     setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
-  }, []);
+  }, [scrollRef]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -78,7 +78,7 @@ export function CustomerTestimonials() {
     el.addEventListener('scroll', updateScrollButtons, { passive: true });
     updateScrollButtons();
     return () => el.removeEventListener('scroll', updateScrollButtons);
-  }, [testimonials, updateScrollButtons]);
+  }, [testimonials, updateScrollButtons, scrollRef]);
 
   // Autoplay
   useEffect(() => {
@@ -96,7 +96,7 @@ export function CustomerTestimonials() {
       }
     }, speed);
     return () => clearInterval(interval);
-  }, [config?.autoplay, config?.autoplay_speed, testimonials?.length]);
+  }, [config?.autoplay, config?.autoplay_speed, testimonials?.length, scrollRef]);
 
   if (!config?.is_active || !testimonials?.length) return null;
 
@@ -138,7 +138,7 @@ export function CustomerTestimonials() {
             </button>
           )}
 
-          <div ref={scrollRef} className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth px-1 py-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div ref={scrollRef} className="flex gap-6 overflow-x-auto scrollbar-hide scroll-smooth px-1 py-2 touch-pan-y" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
             {testimonials.map((t) => (
               <div
                 key={t.id}

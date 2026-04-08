@@ -7,18 +7,25 @@ import { useState } from 'react';
 import { VariantSelectorModal } from './VariantSelectorModal';
 import { useStoreContact } from '@/hooks/useStoreContact';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
 
 interface CartProductSuggestionsProps {
   compact?: boolean;
 }
 
 export function CartProductSuggestions({ compact = false }: CartProductSuggestionsProps) {
+  const compactScrollRef = useHorizontalScrollAxisLock();
   const { subtotal, items } = useCart();
   const { data: allProducts } = useProducts();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const { data: storeSettings } = useStoreContact();
 
-  const FREE_SHIPPING_THRESHOLD = (storeSettings as any)?.free_shipping_threshold ?? 399;
+  const freeShippingThresholdRaw =
+    (storeSettings as unknown as Record<string, unknown> | null)?.free_shipping_threshold;
+  const FREE_SHIPPING_THRESHOLD =
+    typeof freeShippingThresholdRaw === 'number' && Number.isFinite(freeShippingThresholdRaw)
+      ? freeShippingThresholdRaw
+      : 399;
   const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
 
@@ -71,7 +78,13 @@ export function CartProductSuggestions({ compact = false }: CartProductSuggestio
         )}
       </div>
 
-      <div className={compact ? 'flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x' : `grid grid-cols-2 md:grid-cols-4 gap-2`}>
+      <div
+        ref={compact ? compactScrollRef : undefined}
+        className={compact
+          ? 'flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x touch-pan-y cursor-grab active:cursor-grabbing'
+          : 'grid grid-cols-2 md:grid-cols-4 gap-2'}
+        style={compact ? { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' } : undefined}
+      >
         {suggested.map(product => {
           const img = product.images?.find(i => i.is_primary) || product.images?.[0];
           const price = Number(product.sale_price || product.base_price);
