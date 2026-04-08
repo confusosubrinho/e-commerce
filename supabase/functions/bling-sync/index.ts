@@ -1574,6 +1574,7 @@ serve(async (req) => {
           activeProductIds.add(p.id);
         }
         let linked = 0, stockUpdated = 0;
+        const relinkCorrelationId = crypto.randomUUID();
         const relinkHeaders = blingHeaders(token);
         const processedParents = new Set<number>();
         const relinkLog: Array<{ sku: string; bling_variant_id: number | null; stock: number | null; status: string }> = [];
