@@ -512,6 +512,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             items: items.map((i) => ({ variant_id: i.variant_id, quantity: i.quantity })),
+            cart_id: cartId,
             attribution,
             request_id: requestId,
             tenant_id: tenantId,

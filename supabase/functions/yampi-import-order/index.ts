@@ -17,6 +17,115 @@ function jsonRes(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function pickFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (value == null) continue;
+    if (typeof value === "string" && value.trim().length > 0) return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+  return null;
+}
+
+function normalizeCollection(raw: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  if (!raw || typeof raw !== "object") return [];
+
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.data)) {
+    return obj.data.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  if (obj.data && typeof obj.data === "object") {
+    return [obj.data as Record<string, unknown>];
+  }
+
+  return [obj];
+}
+
+function resolveTransactionFields(order: Record<string, unknown>) {
+  const transactions = normalizeCollection(order.transactions);
+  const firstTx = transactions[0] || {};
+  const txPaymentRaw = firstTx.payment;
+  const txPaymentObj = txPaymentRaw && typeof txPaymentRaw === "object"
+    ? ((txPaymentRaw as Record<string, unknown>).data as Record<string, unknown> | undefined) || (txPaymentRaw as Record<string, unknown>)
+    : {};
+  const orderPaymentRaw = order.payment_method;
+  const orderPaymentObj = orderPaymentRaw && typeof orderPaymentRaw === "object"
+    ? ((orderPaymentRaw as Record<string, unknown>).data as Record<string, unknown> | undefined) || (orderPaymentRaw as Record<string, unknown>)
+    : {};
+
+  const paymentMethod = pickFirstString(
+    firstTx.payment_method,
+    firstTx.payment_method_name,
+    firstTx.method,
+    firstTx.type,
+    txPaymentObj.name,
+    txPaymentObj.alias,
+    order.payment_method,
+    order.payment_method_name,
+    orderPaymentObj.name,
+    orderPaymentObj.alias,
+  );
+
+  const gateway = pickFirstString(
+    firstTx.gateway,
+    txPaymentObj.alias,
+    txPaymentObj.name,
+    order.gateway,
+  );
+
+  const installmentsRaw = Number(
+    pickFirstString(firstTx.installments, order.installments) || 1,
+  );
+  const installments = Number.isFinite(installmentsRaw) && installmentsRaw > 0
+    ? installmentsRaw
+    : 1;
+
+  const transactionId = pickFirstString(
+    firstTx.transaction_id,
+    firstTx.id,
+    firstTx.gateway_transaction_id,
+    firstTx.tid,
+    order.transaction_id,
+  );
+
+  const txStatusRaw = pickFirstString(firstTx.status, firstTx.state);
+  const txStatus = txStatusRaw ? txStatusRaw.toLowerCase() : "";
+
+  return { transactions, firstTx, paymentMethod, gateway, installments, transactionId, txStatus };
+}
+
+function parseYampiDate(raw: unknown): string | null {
+  if (raw == null) return null;
+
+  let value: unknown = raw;
+  if (typeof raw === "object" && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    value = obj.date ?? obj.datetime ?? obj.value ?? null;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function getSkuIdFromYampiItem(item: Record<string, unknown>): number | null {
+  const raw =
+    item.sku_id ??
+    (item.sku as Record<string, unknown>)?.id ??
+    (item.product as Record<string, unknown>)?.sku_id ??
+    ((item.product as Record<string, unknown>)?.skus as Record<string, unknown>[])?.[0]?.id ??
+    item.id;
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonRes({ ok: false, error: "Method not allowed" }, 405);
@@ -192,36 +301,14 @@ Deno.serve(async (req) => {
   let subtotal = totalAmount - shippingCost + discountAmount;
   if (subtotal <= 0) subtotal = totalAmount;
 
-  const yampiItems = ((yampiOrder.items as Record<string, unknown>)?.data as unknown[]) ||
-    (yampiOrder.items as unknown[]) || [];
-
-  // Helper: extrai o ID do SKU do item (API pode vir em sku_id, sku.id, product.sku_id, etc.)
-  function getSkuIdFromYampiItem(item: Record<string, unknown>): number | null {
-    const raw =
-      item.sku_id ??
-      (item.sku as Record<string, unknown>)?.id ??
-      (item.product as Record<string, unknown>)?.sku_id ??
-      ((item.product as Record<string, unknown>)?.skus as Record<string, unknown>[])?.[0]?.id ??
-      item.id;
-    if (raw == null || raw === "") return null;
-    const n = Number(raw);
-    return Number.isNaN(n) ? null : n;
-  }
-
-  const transactions = ((yampiOrder.transactions as Record<string, unknown>)?.data as unknown[]) ||
-    (yampiOrder.transactions as unknown[]) || [];
-  const firstTx = (transactions[0] as Record<string, unknown>) || {};
-  const paymentMethod =
-    (firstTx.payment_method as string) ||
-    (firstTx.payment_method_name as string) ||
-    (firstTx.method as string) ||
-    (firstTx.type as string) ||
-    (yampiOrder.payment_method as string) ||
-    (yampiOrder.payment_method_name as string) ||
-    null;
-  const gateway = (firstTx.gateway as string) || (yampiOrder.gateway as string) || null;
-  const installments = Number(firstTx.installments || yampiOrder.installments || 1);
-  const transactionId = (firstTx.transaction_id as string) || (yampiOrder.transaction_id as string) || null;
+  const yampiItems = normalizeCollection(yampiOrder.items);
+  const {
+    paymentMethod,
+    gateway,
+    installments,
+    transactionId,
+    txStatus,
+  } = resolveTransactionFields(yampiOrder);
   const trackingCode = (yampiOrder.tracking_code as string) || null;
 
   const shippingOption = (yampiOrder.shipping_option as Record<string, unknown>) || {};
@@ -252,11 +339,11 @@ Deno.serve(async (req) => {
     pending: "pending", waiting_payment: "pending",
     cancelled: "failed", refused: "failed", refunded: "refunded",
   };
-  const txStatus = (firstTx.status as string)?.toLowerCase() || yampiStatus;
   const paymentStatus = paymentStatusMap[txStatus] || paymentStatusMap[yampiStatus] || (localStatus === "pending" ? "pending" : localStatus === "cancelled" ? "failed" : "approved");
 
-  const yampiOrderDate = (yampiOrder.created_at as string) || (yampiOrder.date as string) || (yampiOrder.order_date as string) || (yampiOrder.updated_at as string) || null;
-  const yampiCreatedAt = yampiOrderDate ? new Date(yampiOrderDate).toISOString() : null;
+  const yampiCreatedAt = parseYampiDate(
+    yampiOrder.created_at ?? yampiOrder.date ?? yampiOrder.order_date ?? yampiOrder.updated_at,
+  );
 
   // Y48: Extract coupon code from Yampi order
   const couponData = (yampiOrder.coupon as Record<string, unknown>) || {};
@@ -534,7 +621,10 @@ async function importSingleOrder(
   if (!yampiOrder) return { ok: false, yampi_order_id: yampiOrderId, error: "Não encontrado na Yampi" };
 
   const yId = String(yampiOrder.id || yampiOrderId);
-  const yampiOrderNumber = yampiOrder.number != null ? String(yampiOrder.number) : null;
+  const yampiOrderNumber =
+    yampiOrder.number != null ? String(yampiOrder.number)
+    : yampiOrder.order_number != null ? String(yampiOrder.order_number)
+    : null;
   const customer = (yampiOrder.customer as Record<string, unknown>) || {};
   const customerData = (customer.data as Record<string, unknown>) || customer;
   const customerEmail = (customerData.email as string) || null;
@@ -568,12 +658,21 @@ async function importSingleOrder(
   else if (["cancelled", "refused", "refunded"].includes(yampiStatus)) localStatus = "cancelled";
   else if (["pending", "waiting_payment"].includes(yampiStatus)) localStatus = "pending";
 
-  const transactions = ((yampiOrder.transactions as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.transactions as unknown[]) || [];
-  const firstTx = (transactions[0] as Record<string, unknown>) || {};
-  const paymentMethod = (firstTx.payment_method as string) || (yampiOrder.payment_method as string) || null;
-  const gateway = (firstTx.gateway as string) || (yampiOrder.gateway as string) || null;
-  const installments = Number(firstTx.installments || yampiOrder.installments || 1);
-  const transactionId = (firstTx.transaction_id as string) || (yampiOrder.transaction_id as string) || null;
+  const {
+    paymentMethod,
+    gateway,
+    installments,
+    transactionId,
+    txStatus,
+  } = resolveTransactionFields(yampiOrder);
+  const paymentStatusMap: Record<string, string> = {
+    paid: "approved", approved: "approved", payment_approved: "approved",
+    processing: "approved", in_production: "approved", in_separation: "approved",
+    ready_for_shipping: "approved", invoiced: "approved",
+    pending: "pending", waiting_payment: "pending",
+    cancelled: "failed", refused: "failed", refunded: "refunded",
+  };
+  const paymentStatus = paymentStatusMap[txStatus] || paymentStatusMap[yampiStatus] || (localStatus === "pending" ? "pending" : localStatus === "cancelled" ? "failed" : "approved");
 
   // Y48: Extract coupon code from Yampi order (batch)
   const couponData = (yampiOrder.coupon as Record<string, unknown>) || {};
@@ -588,10 +687,10 @@ async function importSingleOrder(
     shipping_phone: customerPhone, customer_email: customerEmail, customer_cpf: customerCpf,
     provider: "yampi", gateway, payment_method: paymentMethod, installments, transaction_id: transactionId,
     status: localStatus, external_reference: yId, yampi_order_number: yampiOrderNumber,
-    payment_status: yampiStatus === "refunded" ? "refunded" : (localStatus === "cancelled" ? "failed" : (localStatus === "pending" ? "pending" : "approved")),
+    payment_status: paymentStatus,
     tracking_code: (yampiOrder.tracking_code as string) || null,
     shipping_method: (yampiOrder.shipping_option_name as string) || ((yampiOrder.shipping_option as Record<string, unknown>)?.name as string) || (((yampiOrder.shipping_option as Record<string, unknown>)?.data as Record<string, unknown>)?.name as string) || ((yampiOrder.delivery_option as Record<string, unknown>)?.name as string) || null,
-    yampi_created_at: (yampiOrder.created_at as string) ? new Date(yampiOrder.created_at as string).toISOString() : null,
+    yampi_created_at: parseYampiDate(yampiOrder.created_at ?? yampiOrder.date ?? yampiOrder.order_date ?? yampiOrder.updated_at),
     coupon_code: couponCode,
     notes: `Importado batch da Yampi (ID ${yId})`,
   } as Record<string, unknown>).select("id, order_number").single();
@@ -611,16 +710,16 @@ async function importSingleOrder(
   }
 
   // Insert items
-  const yampiItems = ((yampiOrder.items as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.items as unknown[]) || [];
+  const yampiItems = normalizeCollection(yampiOrder.items);
   for (const rawItem of yampiItems) {
     const item = rawItem as Record<string, unknown>;
     const quantity = Number(item.quantity || 1);
-    const unitPrice = Number(item.price || item.price_sale || 0);
+    const unitPrice = Number(item.price || item.price_sale || item.unit_price || 0);
     const itemName = (item.name as string) || "Produto";
-    const skuId = item.sku_id != null ? Number(item.sku_id) : null;
+    const skuId = getSkuIdFromYampiItem(item);
 
     let localVariant: Record<string, unknown> | null = null;
-    if (skuId) {
+    if (skuId != null) {
       const { data: v } = await supabase.from("product_variants").select("id, product_id, size, color, sku").eq("yampi_sku_id", skuId).maybeSingle();
       localVariant = v;
     }

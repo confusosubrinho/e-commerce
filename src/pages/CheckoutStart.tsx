@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { useTenant } from "@/hooks/useTenant";
 import { captureAttribution, getAttribution } from "@/lib/attribution";
+import { getSessionId as getTrackingSessionId } from "@/lib/utmTracker";
 import { Loader2, ShieldCheck, Lock, CreditCard } from "lucide-react";
 import { getCartItemUnitPrice } from "@/lib/cartPricing";
 import { generateRequestId, invokeCheckoutRouter } from "@/lib/checkoutClient";
@@ -56,6 +57,7 @@ export default function CheckoutStart() {
             utm_content: getAttribution()?.utm_content,
             referrer: getAttribution()?.referrer,
             landing_page: getAttribution()?.landing_page,
+            tracking_session_id: getTrackingSessionId(),
           } : undefined,
           items: items.map((i) => ({
             variant_id: i.variant.id,

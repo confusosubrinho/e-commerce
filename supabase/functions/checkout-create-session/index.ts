@@ -99,9 +99,19 @@ Deno.serve(async (req) => {
       return jsonRes({ flow: "transparent", redirect_url: "/checkout" });
     }
 
-    const { items, attribution } = body as {
+    const { items, attribution, cart_id } = body as {
       items: { variant_id: string; quantity: number }[];
-      attribution?: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_term?: string; utm_content?: string; referrer?: string; landing_page?: string };
+      cart_id?: string;
+      attribution?: {
+        utm_source?: string;
+        utm_medium?: string;
+        utm_campaign?: string;
+        utm_term?: string;
+        utm_content?: string;
+        referrer?: string;
+        landing_page?: string;
+        tracking_session_id?: string;
+      };
     };
 
     if (!items?.length) {
@@ -209,20 +219,33 @@ Deno.serve(async (req) => {
     // ou gera novo UUID como fallback (fluxo legado sem checkout_session).
     const passedCheckoutSessionId = body?.checkout_session_id as string | undefined;
     const sessionId = passedCheckoutSessionId || crypto.randomUUID();
+    const trackingSessionId = attribution?.tracking_session_id || null;
+    const cartId = typeof cart_id === "string" && cart_id.trim().length > 0 ? cart_id.trim() : null;
 
-    await supabase.from("abandoned_carts").insert({
+    const abandonedPayload = {
       session_id: sessionId,
       user_id: userId,
       tenant_id: tenantId,
       subtotal,
       cart_data: cartDetails,
+      status: "pending",
       page_url: attribution?.landing_page || null,
       utm_source: attribution?.utm_source || null,
       utm_medium: attribution?.utm_medium || null,
       utm_campaign: attribution?.utm_campaign || null,
       utm_term: attribution?.utm_term || null,
       utm_content: attribution?.utm_content || null,
-    });
+    };
+
+    await supabase
+      .from("abandoned_carts")
+      .upsert(abandonedPayload, { onConflict: "session_id" });
+
+    if (trackingSessionId && trackingSessionId !== sessionId) {
+      await supabase
+        .from("abandoned_carts")
+        .upsert({ ...abandonedPayload, session_id: trackingSessionId }, { onConflict: "session_id" });
+    }
 
     // 8. Provider-specific: Yampi
     if (provider === "yampi") {
@@ -346,6 +369,10 @@ Deno.serve(async (req) => {
           }
         }
 
+        const metadataPayload: Record<string, string> = { session_id: sessionId };
+        if (trackingSessionId) metadataPayload.tracking_session_id = trackingSessionId;
+        if (cartId) metadataPayload.cart_id = cartId;
+
         // Create payment link with session_id in metadata
         const linkSkus = items.map((item) => {
           const variant = variants.find((v) => v.id === item.variant_id)!;
@@ -367,7 +394,7 @@ Deno.serve(async (req) => {
               name: checkoutName,
               active: true,
               skus: linkSkus,
-              metadata: { session_id: sessionId },
+              metadata: metadataPayload,
               ...(redirectAfterPayment && { redirect_url: redirectAfterPayment }),
             },
           },
@@ -376,7 +403,7 @@ Deno.serve(async (req) => {
             body: {
               name: checkoutName,
               items: linkSkus.map((sku) => ({ sku_id: sku.id, quantity: sku.quantity })),
-              metadata: { session_id: sessionId },
+              metadata: metadataPayload,
               ...(redirectAfterPayment && { redirect_url: redirectAfterPayment }),
             },
           },

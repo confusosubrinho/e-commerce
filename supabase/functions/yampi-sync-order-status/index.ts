@@ -18,6 +18,105 @@ function jsonRes(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function pickFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (value == null) continue;
+    if (typeof value === "string" && value.trim().length > 0) return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+  return null;
+}
+
+function normalizeCollection(raw: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  if (!raw || typeof raw !== "object") return [];
+
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.data)) {
+    return obj.data.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+
+  if (obj.data && typeof obj.data === "object") {
+    return [obj.data as Record<string, unknown>];
+  }
+
+  return [obj];
+}
+
+function resolveTransactionFields(order: Record<string, unknown>) {
+  const transactions = normalizeCollection(order.transactions);
+  const firstTx = transactions[0] || {};
+  const txPaymentRaw = firstTx.payment;
+  const txPaymentObj = txPaymentRaw && typeof txPaymentRaw === "object"
+    ? ((txPaymentRaw as Record<string, unknown>).data as Record<string, unknown> | undefined) || (txPaymentRaw as Record<string, unknown>)
+    : {};
+  const orderPaymentRaw = order.payment_method;
+  const orderPaymentObj = orderPaymentRaw && typeof orderPaymentRaw === "object"
+    ? ((orderPaymentRaw as Record<string, unknown>).data as Record<string, unknown> | undefined) || (orderPaymentRaw as Record<string, unknown>)
+    : {};
+
+  const paymentMethod = pickFirstString(
+    firstTx.payment_method,
+    firstTx.payment_method_name,
+    firstTx.method,
+    firstTx.type,
+    txPaymentObj.name,
+    txPaymentObj.alias,
+    order.payment_method,
+    order.payment_method_name,
+    orderPaymentObj.name,
+    orderPaymentObj.alias,
+  );
+
+  const gateway = pickFirstString(
+    firstTx.gateway,
+    txPaymentObj.alias,
+    txPaymentObj.name,
+    order.gateway,
+  );
+
+  const installmentsCandidate = pickFirstString(firstTx.installments, order.installments);
+  let installments: number | null = null;
+  if (installmentsCandidate != null) {
+    const installmentsRaw = Number(installmentsCandidate);
+    installments = Number.isFinite(installmentsRaw) && installmentsRaw > 0
+      ? installmentsRaw
+      : null;
+  }
+
+  const transactionId = pickFirstString(
+    firstTx.transaction_id,
+    firstTx.id,
+    firstTx.gateway_transaction_id,
+    firstTx.tid,
+    order.transaction_id,
+  );
+
+  const txStatusRaw = pickFirstString(firstTx.status, firstTx.state);
+  const txStatus = txStatusRaw ? txStatusRaw.toLowerCase() : "";
+
+  return { paymentMethod, gateway, installments, transactionId, txStatus };
+}
+
+function parseYampiDate(raw: unknown): string | null {
+  if (raw == null) return null;
+
+  let value: unknown = raw;
+  if (typeof raw === "object" && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    value = obj.date ?? obj.datetime ?? obj.value ?? null;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonRes({ ok: false, error: "Method not allowed" }, 405);
@@ -204,16 +303,17 @@ Deno.serve(async (req) => {
   console.log("[yampi-sync] shipment_service:", yampiOrder.shipment_service);
   console.log("[yampi-sync] shipments:", (JSON.stringify(yampiOrder.shipments) || "").slice(0, 500));
 
-  const transactions = ((yampiOrder.transactions as Record<string, unknown>)?.data as unknown[]) || (yampiOrder.transactions as unknown[]) || [];
-  const firstTx = (transactions[0] as Record<string, unknown>) || {};
+  const txFields = resolveTransactionFields(yampiOrder);
+  const transactions = normalizeCollection(yampiOrder.transactions);
+  const firstTx = transactions[0] || {};
   console.log("[yampi-sync] firstTx keys:", Object.keys(firstTx));
-  const txStatus = (firstTx.status as string)?.toLowerCase() || yampiStatus;
+  const txStatus = txFields.txStatus || yampiStatus;
   const paymentStatus = paymentStatusMap[txStatus] || paymentStatusMap[yampiStatus] || (localStatus === "pending" ? "pending" : localStatus === "cancelled" ? "failed" : "approved");
 
   const trackingCode = (yampiOrder.tracking_code as string) || null;
 
   // --- Expanded shipping method extraction ---
-  const shipmentsData = ((yampiOrder.shipments as Record<string, unknown>)?.data as unknown[]) || [];
+  const shipmentsData = normalizeCollection(yampiOrder.shipments);
   const firstShipment = (shipmentsData[0] as Record<string, unknown>) || {};
   const shippingOption = (yampiOrder.shipping_option as Record<string, unknown>) || {};
   const shippingMethodName = (yampiOrder.shipment_service as string) ||
@@ -226,22 +326,10 @@ Deno.serve(async (req) => {
     null;
   console.log("[yampi-sync] Resolved shippingMethodName:", shippingMethodName);
 
-  // --- Date parsing (handles Yampi object format {date, timezone_type, timezone}) ---
-  const yampiOrderDateRaw = yampiOrder.created_at || yampiOrder.date || yampiOrder.order_date || yampiOrder.updated_at || null;
-  let yampiCreatedAt: string | null = null;
-  if (yampiOrderDateRaw) {
-    let dateStr: string | null = null;
-    if (typeof yampiOrderDateRaw === "object" && (yampiOrderDateRaw as Record<string, unknown>)?.date) {
-      dateStr = (yampiOrderDateRaw as Record<string, unknown>).date as string;
-    } else if (typeof yampiOrderDateRaw === "string") {
-      dateStr = yampiOrderDateRaw;
-    }
-    if (dateStr) {
-      const d = new Date(dateStr);
-      if (!isNaN(d.getTime())) yampiCreatedAt = d.toISOString();
-      else console.warn("[yampi-sync] Invalid date ignored:", dateStr);
-    }
-  }
+  // --- Date parsing (supports plain string or Yampi object format) ---
+  const yampiCreatedAt = parseYampiDate(
+    yampiOrder.created_at ?? yampiOrder.date ?? yampiOrder.order_date ?? yampiOrder.updated_at,
+  );
   const yampiOrderNumber = (yampiOrder.number != null ? String(yampiOrder.number) : null) || (yampiOrder.order_number != null ? String(yampiOrder.order_number) : null) || null;
 
   // Fetch current order status to detect transitions
@@ -269,26 +357,10 @@ Deno.serve(async (req) => {
     }).eq("id", order.id);
   } else {
     // Extract transaction details (expanded fallbacks for Yampi nested structures)
-    const txPaymentMethodObj = firstTx.payment_method || firstTx.payment;
-    const txPaymentMethod = (typeof txPaymentMethodObj === "object" && txPaymentMethodObj !== null
-      ? ((txPaymentMethodObj as Record<string, unknown>).name as string) || ((txPaymentMethodObj as Record<string, unknown>).label as string)
-      : (txPaymentMethodObj as string))
-      || (typeof yampiOrder.payment_method === "object" && yampiOrder.payment_method !== null
-        ? ((yampiOrder.payment_method as Record<string, unknown>).name as string)
-        : (yampiOrder.payment_method as string))
-      || null;
-
-    const txGatewayObj = firstTx.gateway;
-    const txGateway = (typeof txGatewayObj === "object" && txGatewayObj !== null
-      ? ((txGatewayObj as Record<string, unknown>).name as string)
-      : (txGatewayObj as string))
-      || (typeof yampiOrder.gateway === "object" && yampiOrder.gateway !== null
-        ? ((yampiOrder.gateway as Record<string, unknown>).name as string)
-        : (yampiOrder.gateway as string))
-      || null;
-
-    const txInstallments = firstTx.installments ? Number(firstTx.installments) : (yampiOrder.installments ? Number(yampiOrder.installments) : null);
-    const txTransactionId = (firstTx.transaction_id as string) || (firstTx.tid as string) || (yampiOrder.transaction_id as string) || null;
+    const txPaymentMethod = txFields.paymentMethod;
+    const txGateway = txFields.gateway;
+    const txInstallments = txFields.installments;
+    const txTransactionId = txFields.transactionId;
     const txShippingCost = yampiOrder.value_shipment != null ? Number(yampiOrder.value_shipment) : (yampiOrder.shipping_cost != null ? Number(yampiOrder.shipping_cost) : null);
 
     console.log("[yampi-sync] Resolved payment_method:", txPaymentMethod, "| gateway:", txGateway, "| shipping_method:", shippingMethodName);
@@ -367,8 +439,7 @@ Deno.serve(async (req) => {
     }
 
     // --- Enrich order_items from Yampi items ---
-    const yampiItemsRaw = yampiOrder.items as Record<string, unknown> | unknown[] | undefined;
-    const yampiItems = (Array.isArray(yampiItemsRaw) ? yampiItemsRaw : (yampiItemsRaw?.data as unknown[])) || [];
+    const yampiItems = normalizeCollection(yampiOrder.items);
     if (yampiItems.length > 0) {
       // Fetch existing order items
       const { data: existingItems } = await supabase
@@ -414,10 +485,10 @@ Deno.serve(async (req) => {
 
         // --- Fix #3: Correct variation extraction - handle both array and {data:[]} formats ---
         const variationsRaw = skuData.variations;
-        const variationsArr: unknown[] = Array.isArray(variationsRaw)
-          ? variationsRaw
-          : ((variationsRaw as Record<string, unknown>)?.data as unknown[] || []);
-        const variationLabels = variationsArr.map((v: any) => v?.value_name || v?.value).filter(Boolean);
+        const variationsArr = normalizeCollection(variationsRaw);
+        const variationLabels = variationsArr
+          .map((v) => (v.value_name as string) || (v.value as string))
+          .filter(Boolean);
         const variantInfo = variationLabels.length > 0
           ? variationLabels.join(" / ")
           : ([skuData.size, skuData.color].filter(Boolean).join(" / ") ||
@@ -479,8 +550,8 @@ Deno.serve(async (req) => {
         if (localProductName) productName = localProductName;
 
         // Image URL - with local fallback
-        const skuImagesArr = ((skuData.images as Record<string, unknown>)?.data as unknown[]) || (skuData.images as unknown[]) || [];
-        const productImagesArr = ((productData.images as Record<string, unknown>)?.data as unknown[]) || (productData.images as unknown[]) || [];
+        const skuImagesArr = normalizeCollection(skuData.images);
+        const productImagesArr = normalizeCollection(productData.images);
         const imageUrl = (skuData.image_url as string) ||
           ((skuImagesArr[0] as Record<string, unknown>)?.url as string) ||
           (productData.image_url as string) ||

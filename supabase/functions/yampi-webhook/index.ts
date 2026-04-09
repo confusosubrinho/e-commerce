@@ -6,6 +6,113 @@ import { validateCheckoutAmount } from "../_shared/yampiCheckoutPricing.ts";
 
 const SCOPE = "yampi-webhook";
 
+async function computeYampiWebhookSignature(body: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const bytes = new Uint8Array(signature);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function pickFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (value == null) continue;
+    if (typeof value === "string" && value.trim().length > 0) return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+  return null;
+}
+
+function normalizeMetadata(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+
+  const addEntry = (entry: unknown) => {
+    if (!entry || typeof entry !== "object") return;
+    const obj = entry as Record<string, unknown>;
+    if (typeof obj.key !== "string") return;
+    out[obj.key] = obj.value == null ? "" : String(obj.value);
+  };
+
+  if (Array.isArray(raw)) {
+    raw.forEach(addEntry);
+    return out;
+  }
+
+  if (!raw || typeof raw !== "object") return out;
+
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.data)) {
+    obj.data.forEach(addEntry);
+  } else if (obj.data && typeof obj.data === "object") {
+    addEntry(obj.data);
+  }
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === "data") continue;
+    if (value == null) continue;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = String(value);
+    }
+  }
+
+  return out;
+}
+
+function getStatusAlias(resource: Record<string, unknown>): string {
+  const statusRaw = resource.status;
+  if (typeof statusRaw === "string") return statusRaw.toLowerCase();
+
+  if (statusRaw && typeof statusRaw === "object") {
+    const statusObj = statusRaw as Record<string, unknown>;
+    if (typeof statusObj.alias === "string") return statusObj.alias.toLowerCase();
+    const statusData = statusObj.data;
+    if (statusData && typeof statusData === "object" && typeof (statusData as Record<string, unknown>).alias === "string") {
+      return ((statusData as Record<string, unknown>).alias as string).toLowerCase();
+    }
+  }
+
+  if (typeof resource.status_alias === "string") return resource.status_alias.toLowerCase();
+  if (typeof resource.order_status === "string") return resource.order_status.toLowerCase();
+  return "";
+}
+
+function getTransactions(resource: Record<string, unknown>): Array<Record<string, unknown>> {
+  const txRaw = resource.transactions;
+  if (Array.isArray(txRaw)) return txRaw.filter((tx): tx is Record<string, unknown> => !!tx && typeof tx === "object");
+  if (txRaw && typeof txRaw === "object") {
+    const txObj = txRaw as Record<string, unknown>;
+    if (Array.isArray(txObj.data)) {
+      return (txObj.data as unknown[]).filter((tx): tx is Record<string, unknown> => !!tx && typeof tx === "object");
+    }
+    if (txObj.data && typeof txObj.data === "object") {
+      return [txObj.data as Record<string, unknown>];
+    }
+    return [txObj];
+  }
+  return [];
+}
+
+function getItems(resource: Record<string, unknown>): Array<Record<string, unknown>> {
+  const candidates = [resource.items, resource.products, resource.skus];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+    }
+    if (candidate && typeof candidate === "object" && Array.isArray((candidate as Record<string, unknown>).data)) {
+      return ((candidate as Record<string, unknown>).data as unknown[]).filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+    }
+  }
+  return [];
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("Origin");
   const corsHeaders = {
@@ -29,6 +136,18 @@ Deno.serve(async (req) => {
   );
 
   try {
+    const rawBody = await req.text();
+    let payload: Record<string, unknown> | null = null;
+    try {
+      payload = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : null;
+    } catch {
+      payload = null;
+    }
+    if (!payload) {
+      logError(SCOPE, correlationId, new Error("Body JSON inválido"));
+      return errorResponse("Invalid JSON body", 400, corsHeaders);
+    }
+
     // Webhook security: validate shared secret in query string (?token=...)
     const url = new URL(req.url);
     let webhookSecret: string | undefined;
@@ -41,49 +160,111 @@ Deno.serve(async (req) => {
     }
 
     const incomingToken = url.searchParams.get("token");
-    if (!incomingToken || incomingToken !== webhookSecret) {
-      logError(SCOPE, correlationId, new Error("Webhook token inválido"));
+    const incomingHmac = req.headers.get("X-Yampi-Hmac-SHA256") || req.headers.get("x-yampi-hmac-sha256");
+    const tokenValid = !!incomingToken && incomingToken === webhookSecret;
+
+    let hmacValid = false;
+    if (incomingHmac) {
+      try {
+        const expectedHmac = await computeYampiWebhookSignature(rawBody, webhookSecret);
+        hmacValid = incomingHmac === expectedHmac;
+      } catch (hmacErr) {
+        logError(SCOPE, correlationId, hmacErr, { message: "Erro ao validar assinatura HMAC" });
+      }
+    }
+
+    if (!tokenValid && !hmacValid) {
+      logError(SCOPE, correlationId, new Error("Webhook não autenticado (token/HMAC inválido)"));
       return errorResponse("Unauthorized", 401, corsHeaders);
     }
 
-    const payload = await req.json();
     const event = payload?.event || payload?.type || "unknown";
     const resourceData = payload?.resource || payload?.data || payload;
+    const resource = (resourceData && typeof resourceData === "object")
+      ? (resourceData as Record<string, unknown>)
+      : {};
+    const metadata = normalizeMetadata(resource.metadata);
+    const metadataSessionId = pickFirstString(metadata.session_id, metadata.checkout_session_id, resource.checkout_session_id);
+    const metadataTrackingSessionId = pickFirstString(metadata.tracking_session_id);
+    const metadataCartId = pickFirstString(metadata.cart_id);
+    const payloadPaymentLinkId = pickFirstString(
+      resource.payment_link_id,
+      metadata.payment_link_id,
+      (resource.payment_link as Record<string, unknown> | undefined)?.id,
+      ((resource.payment_link as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.id,
+    );
+
+    const transactions = getTransactions(resource);
+    const firstTx = transactions[0] || {};
 
     logInfo(SCOPE, correlationId, "Event received", { event, resource_keys: Object.keys(resourceData || {}) });
 
-    const paymentMethod = resourceData?.payment_method || resourceData?.payment?.method || null;
-    const gateway = resourceData?.gateway || resourceData?.payment?.gateway || null;
-    const installments = resourceData?.installments || resourceData?.payment?.installments || 1;
-    const transactionId = resourceData?.transaction_id || resourceData?.payment?.transaction_id || null;
-    const totalAmount = resourceData?.amount || resourceData?.total || resourceData?.value_total || 0;
+    const paymentMethod = pickFirstString(
+      resource.payment_method,
+      (resource.payment as Record<string, unknown> | undefined)?.method,
+      (firstTx.payment as Record<string, unknown> | undefined)?.name,
+      ((firstTx.payment as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.name,
+      ((firstTx.payment as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.alias,
+    );
+    const gateway = pickFirstString(
+      resource.gateway,
+      (resource.payment as Record<string, unknown> | undefined)?.gateway,
+      firstTx.gateway,
+    );
+    const installments = Number(
+      pickFirstString(
+        resource.installments,
+        (resource.payment as Record<string, unknown> | undefined)?.installments,
+        firstTx.installments,
+      ) || 1,
+    );
+    const transactionId = pickFirstString(
+      resource.transaction_id,
+      (resource.payment as Record<string, unknown> | undefined)?.transaction_id,
+      firstTx.id,
+      firstTx.transaction_id,
+    );
+    const totalAmount = Number(
+      pickFirstString(
+        resource.amount,
+        resource.total,
+        resource.value_total,
+        firstTx.amount,
+      ) || 0,
+    );
 
     const approvedEvents = ["payment.approved", "payment.paid", "order.paid"];
-    const cancelledEvents = ["payment.cancelled", "payment.refused", "order.cancelled"];
+    const cancelledEvents = ["payment.cancelled", "payment.refused", "transaction.payment.refused", "order.cancelled"];
     const refundedEvents = ["payment.refunded", "order.refunded"];
     const statusUpdateEvents = ["order.status_update"];
     const shippedEvents = ["order.shipped", "order.sent", "shipment.created"];
     const deliveredEvents = ["order.delivered", "shipment.delivered"];
 
-    // order.status.updated: Yampi pode enviar status assim — normalizar para evento correto
-    const statusValue = (resourceData?.status || resourceData?.order_status || "").toString().toLowerCase();
+    // order.updated/order.status.updated: normaliza pelo alias de status do payload oficial
+    const statusAlias = getStatusAlias(resource);
+    const txStatus = typeof firstTx.status === "string" ? firstTx.status.toLowerCase() : "";
+    const statusValue = statusAlias || txStatus;
     let effectiveEvent = event;
-    if (event === "order.status.updated") {
+    if (event === "order.status.updated" || event === "order.updated") {
       if (["paid", "approved", "payment_approved"].includes(statusValue)) effectiveEvent = "order.paid";
       else if (["cancelled", "canceled", "refused"].includes(statusValue)) effectiveEvent = "order.cancelled";
       else if (["refunded"].includes(statusValue)) effectiveEvent = "order.refunded";
       else if (["shipped", "sent", "sending"].includes(statusValue)) effectiveEvent = "order.shipped";
       else if (["delivered"].includes(statusValue)) effectiveEvent = "order.delivered";
       else if (["processing", "in_production", "in_separation", "ready_for_shipping", "invoiced"].includes(statusValue)) {
-        console.log("[yampi-webhook] order.status.updated with intermediate status:", statusValue, "— routing to status_update handler");
+        console.log("[yampi-webhook] order.updated/order.status.updated with intermediate status:", statusValue, "— routing to status_update handler");
         effectiveEvent = "order.status_update";
       }
     }
 
     // ===== PAYMENT APPROVED -> UPDATE EXISTING (by session) OR CREATE ORDER =====
     if (approvedEvents.includes(effectiveEvent)) {
-      const yampiOrderId = resourceData?.order_id?.toString() || resourceData?.id?.toString() || null;
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const yampiOrderId = pickFirstString(resource.order_id, resource.id);
+      const sessionId = metadataSessionId;
+      const yampiPaymentLinkId = payloadPaymentLinkId;
+      const abandonedCartSessionIds = [sessionId, metadataTrackingSessionId].filter((v): v is string => !!v);
+      let reconciled = false;
+      let reconciledSessionId = sessionId;
 
       // Idempotency: check order_events hash for approved event
       const approvedHash = `approved-${yampiOrderId || "unknown"}-${transactionId || yampiOrderId || Date.now()}`;
@@ -120,11 +301,11 @@ Deno.serve(async (req) => {
         }
       }
 
-      // #5 Idempotency: check if order already exists by external_reference
+      // #5 Idempotency: if order is already in final paid/fulfilled statuses, skip
       if (yampiOrderId) {
         const { data: existingOrder } = await supabase
           .from("orders")
-          .select("id, order_number, status")
+          .select("id, order_number, status, checkout_session_id")
           .eq("external_reference", yampiOrderId)
           .maybeSingle();
 
@@ -135,16 +316,16 @@ Deno.serve(async (req) => {
             await storeApprovedEventHash(existingOrder.id);
             return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true, status: existingOrder.status });
           }
-          console.log("[yampi-webhook] Order already exists, skipping:", existingOrder.id);
-          await storeApprovedEventHash(existingOrder.id);
-          return jsonOk({ ok: true, order_id: existingOrder.id, duplicate: true });
+
+          if (existingOrder.checkout_session_id) {
+            reconciledSessionId = existingOrder.checkout_session_id;
+            reconciled = true;
+            console.log("[yampi-webhook] Existing order found in status", existingOrder.status, "— reconciling by checkout_session_id:", existingOrder.id);
+          }
         }
       }
 
-      // Fix #3: Fallback reconciliation — find pre-linked order by external_reference (yampi link ID)
-      // or by cart_id + total_amount matching when session_id is missing
-      let reconciled = false;
-      let reconciledSessionId = sessionId;
+      // Fix #3: Fallback reconciliation — find pre-linked order by external_reference
       if (!sessionId && yampiOrderId) {
         // Try to find a pending order that was pre-linked with this yampi ID as external_reference
         const { data: preLinked } = await supabase
@@ -161,16 +342,52 @@ Deno.serve(async (req) => {
         }
       }
 
+      if (!sessionId && !reconciled && yampiPaymentLinkId) {
+        const { data: preLinkedByLinkId } = await supabase
+          .from("orders")
+          .select("id, order_number, status, checkout_session_id")
+          .eq("external_reference", String(yampiPaymentLinkId))
+          .eq("status", "pending")
+          .maybeSingle();
+
+        if (preLinkedByLinkId) {
+          reconciledSessionId = preLinkedByLinkId.checkout_session_id;
+          reconciled = true;
+          console.log("[yampi-webhook] Reconciled order by payment_link_id:", preLinkedByLinkId.id);
+        }
+      }
+
+      if (!sessionId && !reconciled && metadataCartId) {
+        const { data: preLinkedByCartId } = await supabase
+          .from("orders")
+          .select("id, order_number, status, checkout_session_id")
+          .eq("cart_id", String(metadataCartId))
+          .eq("provider", "yampi")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (preLinkedByCartId) {
+          reconciledSessionId = preLinkedByCartId.checkout_session_id;
+          reconciled = true;
+          console.log("[yampi-webhook] Reconciled order by cart_id metadata:", preLinkedByCartId.id);
+        }
+      }
+
       // Fix #3b: Last-resort reconciliation by total_amount + yampi_sku_ids for pending orders in the last 30 min
       if (!sessionId && !reconciled && totalAmount > 0) {
         const thirtyMinAgo = new Date(Date.now() - 30 * 60_000).toISOString();
-        const yampiItems = resourceData?.items || resourceData?.products || resourceData?.skus || [];
+        const yampiItems = getItems(resource);
         const webhookSkuIds = (yampiItems as Array<Record<string, unknown>>)
           .map((item) => {
-            const rawId = item.sku_id ?? (item.sku as Record<string, unknown>)?.id ?? item.id;
-            return rawId != null ? Number(rawId) : null;
-          })
-          .filter((id): id is number => id != null && !Number.isNaN(id))
+              const skuRaw = item.sku;
+              const rawId = item.sku_id
+                ?? ((skuRaw && typeof skuRaw === "object") ? (skuRaw as Record<string, unknown>).id : null)
+                ?? item.id;
+              return rawId != null ? Number(rawId) : null;
+            })
+            .filter((id): id is number => id != null && !Number.isNaN(id))
           .sort();
 
         if (webhookSkuIds.length > 0) {
@@ -323,7 +540,8 @@ Deno.serve(async (req) => {
             || "Cliente Yampi";
           const customerPhone = customer?.phone?.full_number || customer?.phone || null;
           const customerCpf = customer?.cpf || customer?.document || null;
-          const shipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
+          const rawShipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
+          const shipping = (rawShipping as Record<string, unknown>)?.data || rawShipping;
           const shippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || 0;
           const discountAmount = resourceData?.discount || resourceData?.value_discount || 0;
           let subtotalOrder = totalAmount - shippingCost;
@@ -479,7 +697,12 @@ Deno.serve(async (req) => {
               raw: payload,
             });
           }
-          if (reconciledSessionId) await supabase.from("abandoned_carts").update({ recovered: true, recovered_at: new Date().toISOString() }).eq("session_id", reconciledSessionId);
+          if (abandonedCartSessionIds.length > 0) {
+            await supabase
+              .from("abandoned_carts")
+              .update({ recovered: true, recovered_at: new Date().toISOString(), status: "recovered" })
+              .in("session_id", abandonedCartSessionIds);
+          }
           if (customerEmail) {
             const { data: existingCustomer } = await supabase.from("customers").select("id, total_orders, total_spent").eq("email", customerEmail).maybeSingle();
             if (existingCustomer) {
@@ -531,10 +754,11 @@ Deno.serve(async (req) => {
       const customerPhone = customer?.phone?.full_number || customer?.phone || null;
       const customerCpf = customer?.cpf || customer?.document || null;
 
-      const shipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
+      const rawShipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
+      const shipping = (rawShipping as Record<string, unknown>)?.data || rawShipping;
       const shippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || 0;
       const discountAmount = resourceData?.discount || resourceData?.value_discount || 0;
-      const yampiItems = resourceData?.items || resourceData?.products || resourceData?.skus || [];
+      const yampiItems = getItems(resource);
       const yampiOrderNumber = resourceData?.number?.toString() || resourceData?.order_number?.toString() || yampiOrderId || "";
       const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || null;
 
@@ -757,11 +981,11 @@ Deno.serve(async (req) => {
       }
 
       // Mark abandoned cart as recovered
-      if (sessionId) {
+      if (abandonedCartSessionIds.length > 0) {
         await supabase
           .from("abandoned_carts")
-          .update({ recovered: true, recovered_at: new Date().toISOString() })
-          .eq("session_id", sessionId);
+          .update({ recovered: true, recovered_at: new Date().toISOString(), status: "recovered" })
+          .in("session_id", abandonedCartSessionIds);
       }
 
       // #3 Upsert customer
@@ -800,6 +1024,23 @@ Deno.serve(async (req) => {
         .select("tenant_id")
         .eq("id", order.id)
         .maybeSingle();
+
+      if (orderTenantRow?.tenant_id) {
+        await supabase.from("admin_notifications").insert({
+          tenant_id: orderTenantRow.tenant_id,
+          type: "order_paid",
+          title: "Pedido pago",
+          message: `Pedido #${order.order_number || order.id} confirmado — R$ ${Number(totalAmount || 0).toFixed(2)}`,
+          link: "/admin/pedidos",
+          metadata: {
+            order_id: order.id,
+            order_number: order.order_number,
+            amount: totalAmount,
+            source: "yampi_webhook_create",
+          },
+        }).then(() => {}, () => {});
+      }
+
       await supabase.from("email_automation_logs").insert({
         tenant_id: orderTenantRow?.tenant_id,
         recipient_email: customerEmail || "unknown",
@@ -826,7 +1067,7 @@ Deno.serve(async (req) => {
     // ===== STATUS UPDATE (intermediate statuses: processing, in_production, in_separation, ready_for_shipping) =====
     if (statusUpdateEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const sessionId = metadataSessionId;
 
       const statusHash = `status-update-${externalRef || sessionId}-${statusValue}`;
       const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", statusHash).maybeSingle();
@@ -875,7 +1116,7 @@ Deno.serve(async (req) => {
     // ===== REFUNDED EVENTS (separate from cancelled — may be partial) =====
     if (refundedEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const sessionId = metadataSessionId;
 
       const refundHash = `refund-${externalRef || sessionId}-${transactionId || Date.now()}`;
       const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", refundHash).maybeSingle();
@@ -978,7 +1219,7 @@ Deno.serve(async (req) => {
     // ===== #10 SHIPPED EVENTS =====
     if (shippedEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const sessionId = metadataSessionId;
       const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || resourceData?.shipment?.tracking_code || null;
       const eventShippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || null;
 
@@ -1020,7 +1261,7 @@ Deno.serve(async (req) => {
     // ===== #10 DELIVERED EVENTS =====
     if (deliveredEvents.includes(effectiveEvent)) {
       const externalRef = resourceData?.order_id?.toString() || resourceData?.id?.toString() || "";
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const sessionId = metadataSessionId;
 
       const deliveredHash = `delivered-${externalRef || sessionId}`;
       const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", deliveredHash).maybeSingle();
@@ -1054,7 +1295,7 @@ Deno.serve(async (req) => {
         resourceData?.order_id?.toString() ||
         resourceData?.id?.toString() ||
         "";
-      const sessionId = resourceData?.metadata?.session_id || null;
+      const sessionId = metadataSessionId;
 
       const cancelHash = `cancel-${externalRef || sessionId}-${effectiveEvent}`;
       const { data: existingEvent } = await supabase.from("order_events").select("id").eq("event_hash", cancelHash).maybeSingle();
