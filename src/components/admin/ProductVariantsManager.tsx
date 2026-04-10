@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Settings2, Wand2, Bell, Palette } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -154,6 +154,8 @@ export function ProductVariantsManager({
   // Custom attribute for bulk add
   const [bulkCustomAttrName, setBulkCustomAttrName] = useState('');
   const [bulkCustomAttrValues, setBulkCustomAttrValues] = useState('');
+  const initialVisibleCount = isMobile ? 40 : 80;
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const allColors = useMemo(() => [...COMMON_COLORS, ...customColors], [customColors]);
   const duplicateSkuSet = useMemo(() => {
     const skuCounts = new Map<string, number>();
@@ -180,6 +182,20 @@ export function ProductVariantsManager({
     }
     return counts;
   }, [variants]);
+  const visibleVariants = useMemo(
+    () => variants.slice(0, visibleCount),
+    [variants, visibleCount],
+  );
+
+  useEffect(() => {
+    setVisibleCount((prev) => {
+      const minVisible = isMobile ? 40 : 80;
+      if (variants.length <= minVisible) return variants.length;
+      if (prev < minVisible) return minVisible;
+      if (prev > variants.length) return variants.length;
+      return prev;
+    });
+  }, [isMobile, variants.length]);
 
   const checkDuplicateSku = (sku: string): boolean => {
     const normalizedSku = sku?.trim();
@@ -491,7 +507,7 @@ export function ProductVariantsManager({
               <span></span>
             </div>
           )}
-          {variants.map((variant, index) => (
+          {visibleVariants.map((variant, index) => (
             isMobile ? (
               <div
                 key={variant.id ?? `${variant.sku || 'nosku'}-${variant.size || 'nosize'}-${variant.color || 'nocolor'}-${variant.custom_attribute_value || 'nocustom'}-${index}`}
@@ -556,6 +572,21 @@ export function ProductVariantsManager({
               </div>
             )
           ))}
+          {variants.length > visibleCount && (
+            <div className="pt-2 flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                Exibindo {visibleCount} de {variants.length} variantes
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((prev) => Math.min(prev + (isMobile ? 40 : 80), variants.length))}
+              >
+                Carregar mais
+              </Button>
+            </div>
+          )}
           </div>
         )}
 
@@ -567,7 +598,7 @@ export function ProductVariantsManager({
         </div>
 
         {/* Advanced Edit Dialog */}
-        <Dialog open={editIndex !== null} onOpenChange={(open) => { if (!open) setEditIndex(null); }}>
+        <Dialog modal={false} open={editIndex !== null} onOpenChange={(open) => { if (!open) setEditIndex(null); }}>
           <DialogContent className={`${isMobile ? 'max-w-[100vw] w-full h-[100dvh] max-h-[100dvh] rounded-none border-0 !left-0 !top-0 !translate-x-0 !translate-y-0' : 'max-w-lg'} p-0 flex flex-col`}>
             <DialogHeader className="p-4 pb-2 border-b">
               <DialogTitle className="text-base">Editar Variante {editingVariant ? `— ${editingVariant.size} ${editingVariant.color}` : ''}</DialogTitle>

@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -1237,11 +1236,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
           {isMobile ? (
             <>
               {renderStepIndicator()}
-              <ScrollArea className="flex-1">
+              <div
+                className="flex-1 overflow-y-auto overscroll-contain touch-pan-y"
+                style={{ WebkitOverflowScrolling: 'touch' }}
+              >
                 <div className="p-4 pb-6">
                   {renderStepContent(STEPS[currentStep]?.key ?? STEPS[0].key)}
                 </div>
-              </ScrollArea>
+              </div>
               {renderMobileFooter()}
             </>
           ) : (
@@ -1265,7 +1267,10 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
                   </TabsList>
                 </div>
 
-                <div className="flex-1 min-h-0 px-6 overflow-y-auto" style={{ maxHeight: '60vh' }}>
+                <div
+                  className="flex-1 min-h-0 px-6 overflow-y-auto overscroll-contain touch-pan-y"
+                  style={{ maxHeight: '60vh', WebkitOverflowScrolling: 'touch' }}
+                >
                   <TabsContent key={activeStepKey} value={activeStepKey} forceMount className="mt-4 pb-6 focus-visible:outline-none">
                     {renderStepContent(activeStepKey)}
                   </TabsContent>
