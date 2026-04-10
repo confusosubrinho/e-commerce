@@ -891,9 +891,19 @@ function StockNotifyButton({ productId }: { productId: string }) {
         .select('*', { count: 'exact', head: true })
         .eq('product_id', productId)
         .eq('is_notified', false);
-      if (error) throw error;
+
+      if (error) {
+        console.warn('[ProductVariantsManager] Não foi possível carregar contagem de notificações de estoque', {
+          productId,
+          message: error.message,
+        });
+        return 0;
+      }
+
       return count || 0;
     },
+    enabled: !!productId,
+    retry: false,
   });
 
   if (!count || count === 0) return null;
