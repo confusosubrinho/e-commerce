@@ -22,6 +22,7 @@ import { ProductSEOFields } from './ProductSEOFields';
 import { ProductVariantsManager, VariantItem } from './ProductVariantsManager';
 import { Category } from '@/types/database';
 import { PerfProfiler } from '@/components/dev/PerfProfiler';
+const MAX_VARIANTS_FOR_SAFE_EDITOR = 1200;
 
 interface MediaItem {
   id: string;
@@ -167,6 +168,8 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
   const [buyTogetherSearch, setBuyTogetherSearch] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [activeTab, setActiveTab] = useState('basic');
+  const [variantEditorProtected, setVariantEditorProtected] = useState(false);
+  const [variantTotalCount, setVariantTotalCount] = useState(0);
   const submitLockRef = useRef(false);
 
   const { data: allProducts } = useQuery({
@@ -290,8 +293,23 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         })));
       }
       if (editingProduct.variants) {
-        setVariants(editingProduct.variants.map((v: any) => {
-          const linkedImage = editingProduct.images?.find((img: any) => img.product_variant_id === v.id);
+        const rawVariants = editingProduct.variants as any[];
+        const shouldProtectVariantEditor = rawVariants.length > MAX_VARIANTS_FOR_SAFE_EDITOR;
+        const sourceVariants = shouldProtectVariantEditor
+          ? rawVariants.slice(0, MAX_VARIANTS_FOR_SAFE_EDITOR)
+          : rawVariants;
+        setVariantEditorProtected(shouldProtectVariantEditor);
+        setVariantTotalCount(rawVariants.length);
+
+        const imageByVariantId = new Map<string, string>();
+        for (const img of editingProduct.images || []) {
+          const variantId = (img as { product_variant_id?: string | null }).product_variant_id;
+          if (variantId && img.url) {
+            imageByVariantId.set(variantId, img.url);
+          }
+        }
+
+        setVariants(sourceVariants.map((v: any) => {
           return {
             id: v.id,
             size: v.size || '',
@@ -301,11 +319,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             price_modifier: v.price_modifier || 0,
             sku: v.sku || '',
             is_active: v.is_active ?? true,
-            image_url: linkedImage?.url,
+            image_url: imageByVariantId.get(v.id),
             custom_attribute_name: v.custom_attribute_name || '',
             custom_attribute_value: v.custom_attribute_value || '',
           };
         }));
+      } else {
+        setVariantEditorProtected(false);
+        setVariantTotalCount(0);
       }
       if (editingProduct.id) {
         supabase
@@ -335,6 +356,8 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
       setFormData(initialFormData);
       setMedia([]);
       setVariants([]);
+      setVariantEditorProtected(false);
+      setVariantTotalCount(0);
       setCharacteristics([]);
       setBuyTogetherItems([]);
     }
@@ -407,6 +430,14 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
         }
 
         // Conservador: nunca apagar variantes em massa para não perder vínculo externo (Bling/Yampi/Stripe).
+        // Modo protegido: não persistir alterações de variantes quando o payload veio truncado por segurança.
+        if (variantEditorProtected) {
+          console.warn('[product-form] Variant persistence skipped due protected editor mode', {
+            product_id: productId,
+            preview_variant_count: variants.length,
+            total_variant_count: variantTotalCount,
+          });
+        } else {
         const { data: existingVariantRows, error: existingVariantError } = await supabase
           .from('product_variants')
           .select('id, stock_quantity')
@@ -526,6 +557,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
             .eq('product_id', productId)
             .eq('url', imageUrl);
           if (linkVariantImageError) throw linkVariantImageError;
+        }
         }
 
         const { error: deleteCharacteristicsError } = await supabase
@@ -845,19 +877,31 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct }: Produc
 
   const renderVariantsContent = () => (
     <PerfProfiler id="admin.product-form.variants" slowThresholdMs={12}>
-      <ProductVariantsManager
-        variants={variants}
-        onChange={setVariants}
-        productId={editingProduct?.id}
-        parentSku={formData.sku}
-        parentWeight={formData.weight}
-        parentWidth={formData.width}
-        parentHeight={formData.height}
-        parentDepth={formData.depth}
-        parentBasePrice={formData.base_price}
-        parentSalePrice={formData.sale_price}
-        productImages={variantProductImages}
-      />
+      {variantEditorProtected ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-2">
+          <p className="text-sm font-semibold text-amber-900">Modo de proteção ativado para variantes</p>
+          <p className="text-sm text-amber-900">
+            Este produto possui {variantTotalCount} variantes. Para evitar travamento da página, o editor completo de variantes foi desativado nesta tela.
+          </p>
+          <p className="text-xs text-amber-800">
+            Você ainda pode editar dados gerais do produto e salvar. Alterações de variantes ficam bloqueadas até reduzir o volume de variantes.
+          </p>
+        </div>
+      ) : (
+        <ProductVariantsManager
+          variants={variants}
+          onChange={setVariants}
+          productId={editingProduct?.id}
+          parentSku={formData.sku}
+          parentWeight={formData.weight}
+          parentWidth={formData.width}
+          parentHeight={formData.height}
+          parentDepth={formData.depth}
+          parentBasePrice={formData.base_price}
+          parentSalePrice={formData.sale_price}
+          productImages={variantProductImages}
+        />
+      )}
     </PerfProfiler>
   );
 

@@ -113,6 +113,7 @@ const COMMON_COLORS: { name: string; hex: string }[] = [
   { name: 'Turquesa', hex: '#2DD4BF' },
   { name: 'Menta', hex: '#99F6E4' },
 ];
+const VARIANT_ANALYSIS_LIMIT = 5000;
 
 function generateSku(parentSku: string, size: string, color: string, customValue?: string): string {
   const base = parentSku || 'SKU';
@@ -157,9 +158,14 @@ export function ProductVariantsManager({
   const initialVisibleCount = isMobile ? 40 : 80;
   const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const allColors = useMemo(() => [...COMMON_COLORS, ...customColors], [customColors]);
+  const analysisVariants = useMemo(
+    () => (variants.length > VARIANT_ANALYSIS_LIMIT ? variants.slice(0, VARIANT_ANALYSIS_LIMIT) : variants),
+    [variants],
+  );
+  const isAnalysisLimited = variants.length > VARIANT_ANALYSIS_LIMIT;
   const duplicateSkuSet = useMemo(() => {
     const skuCounts = new Map<string, number>();
-    for (const variant of variants) {
+    for (const variant of analysisVariants) {
       const normalizedSku = variant.sku?.trim();
       if (!normalizedSku) continue;
       skuCounts.set(normalizedSku, (skuCounts.get(normalizedSku) ?? 0) + 1);
@@ -173,15 +179,15 @@ export function ProductVariantsManager({
     }
 
     return duplicates;
-  }, [variants]);
+  }, [analysisVariants]);
   const variantCombinationCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const variant of variants) {
+    for (const variant of analysisVariants) {
       const key = buildVariantKey(variant.size, variant.color, variant.custom_attribute_value);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return counts;
-  }, [variants]);
+  }, [analysisVariants]);
   const visibleVariants = useMemo(
     () => variants.slice(0, visibleCount),
     [variants, visibleCount],
@@ -505,6 +511,11 @@ export function ProductVariantsManager({
               <span>SKU</span>
               <span>Imagem</span>
               <span></span>
+            </div>
+          )}
+          {isAnalysisLimited && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Produto com muitas variantes: validações de duplicidade estão limitadas aos primeiros {VARIANT_ANALYSIS_LIMIT} itens para evitar travamento da página.
             </div>
           )}
           {visibleVariants.map((variant, index) => (
