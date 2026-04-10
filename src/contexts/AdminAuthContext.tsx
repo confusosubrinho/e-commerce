@@ -55,7 +55,9 @@ export function AdminAuthProvider({
 
         if (isSupabaseRequest && isDataEndpoint && !isAuthEndpoint) {
           const now = Date.now();
-          if (now - lastUnauthorizedEventAtRef.current >= UNAUTHORIZED_EVENT_COOLDOWN_MS) {
+          const shouldHandleAsSessionExpiry = response.status === 401;
+
+          if (shouldHandleAsSessionExpiry && now - lastUnauthorizedEventAtRef.current >= UNAUTHORIZED_EVENT_COOLDOWN_MS) {
             lastUnauthorizedEventAtRef.current = now;
             onSessionExpiredRef.current('Sessão expirada ou acesso negado. Faça login novamente.');
           }

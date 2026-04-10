@@ -31,6 +31,10 @@ function pickFirstString(...values: unknown[]): string | null {
   return null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
 function normalizeMetadata(raw: unknown): Record<string, string> {
   const out: Record<string, string> = {};
 
@@ -178,11 +182,10 @@ Deno.serve(async (req) => {
       return errorResponse("Unauthorized", 401, corsHeaders);
     }
 
-    const event = payload?.event || payload?.type || "unknown";
-    const resourceData = payload?.resource || payload?.data || payload;
-    const resource = (resourceData && typeof resourceData === "object")
-      ? (resourceData as Record<string, unknown>)
-      : {};
+    const rawEvent = payload.event ?? payload.type ?? "unknown";
+    const event = typeof rawEvent === "string" ? rawEvent : String(rawEvent);
+    const resourceData = asRecord(payload.resource ?? payload.data ?? payload);
+    const resource = resourceData;
     const metadata = normalizeMetadata(resource.metadata);
     const metadataSessionId = pickFirstString(metadata.session_id, metadata.checkout_session_id, resource.checkout_session_id);
     const metadataTrackingSessionId = pickFirstString(metadata.tracking_session_id);
@@ -197,7 +200,7 @@ Deno.serve(async (req) => {
     const transactions = getTransactions(resource);
     const firstTx = transactions[0] || {};
 
-    logInfo(SCOPE, correlationId, "Event received", { event, resource_keys: Object.keys(resourceData || {}) });
+    logInfo(SCOPE, correlationId, "Event received", { event, resource_keys: Object.keys(resourceData) });
 
     const paymentMethod = pickFirstString(
       resource.payment_method,
@@ -530,33 +533,35 @@ Deno.serve(async (req) => {
           // ─── Fim da validação de amount ───────────────────────────────────────────
 
           // Bug fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
-          const rawCustomer = resourceData?.customer || resourceData?.buyer || {};
-          const customer = rawCustomer?.data || rawCustomer;
-          const customerEmail = customer?.email || resourceData?.email || null;
-          // Bug fix: correct ternary precedence for customerName
-          const customerName = customer?.name
-            || (customer?.first_name ? `${customer.first_name} ${customer?.last_name || ""}`.trim() : null)
-            || resourceData?.customer_name
-            || "Cliente Yampi";
-          const customerPhone = customer?.phone?.full_number || customer?.phone || null;
-          const customerCpf = customer?.cpf || customer?.document || null;
-          const rawShipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
-          const shipping = (rawShipping as Record<string, unknown>)?.data || rawShipping;
-          const shippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || 0;
-          const discountAmount = resourceData?.discount || resourceData?.value_discount || 0;
+          const rawCustomer = asRecord(resourceData.customer ?? resourceData.buyer);
+          const customer = asRecord(rawCustomer.data ?? rawCustomer);
+          const customerEmail = pickFirstString(customer.email, resourceData.email);
+          const customerFirstName = pickFirstString(customer.first_name);
+          const customerLastName = pickFirstString(customer.last_name);
+          const customerName = pickFirstString(
+            customer.name,
+            customerFirstName ? `${customerFirstName} ${customerLastName ?? ""}`.trim() : null,
+            resourceData.customer_name,
+          ) ?? "Cliente Yampi";
+          const customerPhone = pickFirstString(asRecord(customer.phone).full_number, customer.phone);
+          const customerCpf = pickFirstString(customer.cpf, customer.document);
+          const rawShipping = asRecord(resourceData.shipping_address ?? resourceData.address ?? customer.address);
+          const shipping = asRecord(rawShipping.data ?? rawShipping);
+          const shippingCost = Number(resourceData.shipping_cost ?? resourceData.value_shipment ?? 0);
+          const discountAmount = Number(resourceData.discount ?? resourceData.value_discount ?? 0);
           let subtotalOrder = totalAmount - shippingCost;
           if (subtotalOrder <= 0) subtotalOrder = totalAmount;
-          const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || null;
+          const trackingCode = pickFirstString(resourceData.tracking_code, asRecord(resourceData.tracking).code);
 
           // Fix #6: Extract shipping_method from approved payload (update path)
-          const shippingOptRaw = resourceData?.shipping_option || {};
-          const shippingOptData = shippingOptRaw?.data || shippingOptRaw;
-          const shippingMethodUpdate =
-            (resourceData?.shipping_option_name as string) ||
-            (shippingOptData?.name as string) ||
-            (resourceData?.delivery_option?.name as string) ||
-            (resourceData?.shipping_method as string) ||
-            null;
+          const shippingOptRaw = asRecord(resourceData.shipping_option);
+          const shippingOptData = asRecord(shippingOptRaw.data ?? shippingOptRaw);
+          const shippingMethodUpdate = pickFirstString(
+            resourceData.shipping_option_name,
+            shippingOptData.name,
+            asRecord(resourceData.delivery_option).name,
+            resourceData.shipping_method,
+          );
 
           const updatePayload: Record<string, unknown> = {
             subtotal: subtotalOrder,
@@ -564,10 +569,10 @@ Deno.serve(async (req) => {
             shipping_cost: shippingCost,
             discount_amount: discountAmount,
             shipping_name: customerName,
-            shipping_address: shipping?.street || shipping?.address || "",
-            shipping_city: shipping?.city || "",
-            shipping_state: shipping?.state || "",
-            shipping_zip: shipping?.zipcode || shipping?.zip || "",
+            shipping_address: pickFirstString(shipping.street, shipping.address) || "",
+            shipping_city: pickFirstString(shipping.city) || "",
+            shipping_state: pickFirstString(shipping.state) || "",
+            shipping_zip: pickFirstString(shipping.zipcode, shipping.zip) || "",
             shipping_phone: customerPhone,
             customer_email: customerEmail,
             customer_cpf: customerCpf,
@@ -743,24 +748,26 @@ Deno.serve(async (req) => {
       }
 
       // Bug fix: unwrap customer.data wrapper (Yampi API may wrap customer in .data)
-      const rawCustomer = resourceData?.customer || resourceData?.buyer || {};
-      const customer = rawCustomer?.data || rawCustomer;
-      const customerEmail = customer?.email || resourceData?.email || null;
-      // Bug fix: correct ternary precedence for customerName
-      const customerName = customer?.name
-        || (customer?.first_name ? `${customer.first_name} ${customer?.last_name || ""}`.trim() : null)
-        || resourceData?.customer_name
-        || "Cliente Yampi";
-      const customerPhone = customer?.phone?.full_number || customer?.phone || null;
-      const customerCpf = customer?.cpf || customer?.document || null;
+      const rawCustomer = asRecord(resourceData.customer ?? resourceData.buyer);
+      const customer = asRecord(rawCustomer.data ?? rawCustomer);
+      const customerEmail = pickFirstString(customer.email, resourceData.email);
+      const customerFirstName = pickFirstString(customer.first_name);
+      const customerLastName = pickFirstString(customer.last_name);
+      const customerName = pickFirstString(
+        customer.name,
+        customerFirstName ? `${customerFirstName} ${customerLastName ?? ""}`.trim() : null,
+        resourceData.customer_name,
+      ) ?? "Cliente Yampi";
+      const customerPhone = pickFirstString(asRecord(customer.phone).full_number, customer.phone);
+      const customerCpf = pickFirstString(customer.cpf, customer.document);
 
-      const rawShipping = resourceData?.shipping_address || resourceData?.address || customer?.address || {};
-      const shipping = (rawShipping as Record<string, unknown>)?.data || rawShipping;
-      const shippingCost = resourceData?.shipping_cost || resourceData?.value_shipment || 0;
-      const discountAmount = resourceData?.discount || resourceData?.value_discount || 0;
+      const rawShipping = asRecord(resourceData.shipping_address ?? resourceData.address ?? customer.address);
+      const shipping = asRecord(rawShipping.data ?? rawShipping);
+      const shippingCost = Number(resourceData.shipping_cost ?? resourceData.value_shipment ?? 0);
+      const discountAmount = Number(resourceData.discount ?? resourceData.value_discount ?? 0);
       const yampiItems = getItems(resource);
-      const yampiOrderNumber = resourceData?.number?.toString() || resourceData?.order_number?.toString() || yampiOrderId || "";
-      const trackingCode = resourceData?.tracking_code || resourceData?.tracking?.code || null;
+      const yampiOrderNumber = pickFirstString(resourceData.number, resourceData.order_number, yampiOrderId) || "";
+      const trackingCode = pickFirstString(resourceData.tracking_code, asRecord(resourceData.tracking).code);
 
       let subtotal = totalAmount - shippingCost;
       if (subtotal <= 0) subtotal = totalAmount;
@@ -786,14 +793,14 @@ Deno.serve(async (req) => {
       }
 
       // Fix #6: Extract shipping_method from approved payload
-      const shippingOptionRaw = resourceData?.shipping_option || {};
-      const shippingOptionData = shippingOptionRaw?.data || shippingOptionRaw;
-      const shippingMethodFromPayload =
-        (resourceData?.shipping_option_name as string) ||
-        (shippingOptionData?.name as string) ||
-        (resourceData?.delivery_option?.name as string) ||
-        (resourceData?.shipping_method as string) ||
-        null;
+      const shippingOptionRaw = asRecord(resourceData.shipping_option);
+      const shippingOptionData = asRecord(shippingOptionRaw.data ?? shippingOptionRaw);
+      const shippingMethodFromPayload = pickFirstString(
+        resourceData.shipping_option_name,
+        shippingOptionData.name,
+        asRecord(resourceData.delivery_option).name,
+        resourceData.shipping_method,
+      );
 
       // Create the order with UTM data
       const { data: order, error: orderError } = await supabase
