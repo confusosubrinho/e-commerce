@@ -5,6 +5,8 @@ import { appLogger } from './appLogger';
 let isRecovering = false;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let initialized = false;
+let lastSignedOutLogAt = 0;
+const SIGNED_OUT_LOG_COOLDOWN_MS = 2000;
 
 /**
  * Initializes session recovery that handles expired JWTs gracefully.
@@ -21,7 +23,11 @@ export function initSessionRecovery() {
       appLogger.info('Auth: token refreshed successfully');
     }
     if (event === 'SIGNED_OUT') {
-      appLogger.info('Auth: user signed out');
+      const now = Date.now();
+      if (now - lastSignedOutLogAt >= SIGNED_OUT_LOG_COOLDOWN_MS) {
+        lastSignedOutLogAt = now;
+        appLogger.info('Auth: user signed out');
+      }
     }
   });
 

@@ -631,7 +631,7 @@ export default function AdminLayout() {
   const checkAdmin = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      navigate('/admin/login');
+      navigate('/admin/login', { replace: true });
       return;
     }
 
@@ -643,7 +643,7 @@ export default function AdminLayout() {
 
     if (member !== null) {
       if (!member.is_active) {
-        navigate('/admin/login');
+        navigate('/admin/login', { replace: true });
         return;
       }
       setIsAdmin(true);
@@ -657,7 +657,7 @@ export default function AdminLayout() {
       .eq('role', 'admin');
 
     if (!roles || roles.length === 0) {
-      navigate('/admin/login');
+      navigate('/admin/login', { replace: true });
       return;
     }
 

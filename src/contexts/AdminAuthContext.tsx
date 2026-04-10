@@ -13,6 +13,8 @@ type AdminAuthContextValue = {
 };
 
 const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
+const UNAUTHORIZED_EVENT_COOLDOWN_MS = 1500;
+const SESSION_EXPIRY_COOLDOWN_MS = 5000;
 
 export function useAdminSessionExpired(): AdminAuthContextValue['onSessionExpired'] {
   const ctx = useContext(AdminAuthContext);
@@ -28,6 +30,7 @@ export function AdminAuthProvider({
 }) {
   // Ref estável para evitar recriar o wrapper de fetch a cada render
   const onSessionExpiredRef = useRef(onSessionExpired);
+  const lastUnauthorizedEventAtRef = useRef(0);
   useEffect(() => { onSessionExpiredRef.current = onSessionExpired; }, [onSessionExpired]);
 
   const value: AdminAuthContextValue = { onSessionExpired };
@@ -37,34 +40,34 @@ export function AdminAuthProvider({
     const originalFetch = window.fetch;
 
     window.fetch = async (...args) => {
-      try {
-        const response = await originalFetch(...args);
+      const response = await originalFetch(...args);
 
-        if (response.status === 401 || response.status === 403) {
-          const url = typeof args[0] === 'string'
-            ? args[0]
-            : (args[0] instanceof Request ? args[0].url : '');
+      if (response.status === 401 || response.status === 403) {
+        const url = typeof args[0] === 'string'
+          ? args[0]
+          : (args[0] instanceof Request ? args[0].url : '');
 
-          const isSupabaseRequest = url.includes('supabase.co') || url.includes(import.meta.env.VITE_SUPABASE_URL || 'supabase');
+        const isSupabaseRequest = url.includes('supabase.co') || url.includes(import.meta.env.VITE_SUPABASE_URL || 'supabase');
+        const isDataEndpoint = url.includes('/rest/v1/') || url.includes('/functions/v1/');
 
-          // Não interceptar requests de auth para evitar loop na hora de logar ou renovar token
-          const isAuthEndpoint = url.includes('/auth/v1/');
+        // Não interceptar requests de auth para evitar loop na hora de logar ou renovar token
+        const isAuthEndpoint = url.includes('/auth/v1/');
 
-          if (isSupabaseRequest && !isAuthEndpoint) {
+        if (isSupabaseRequest && isDataEndpoint && !isAuthEndpoint) {
+          const now = Date.now();
+          if (now - lastUnauthorizedEventAtRef.current >= UNAUTHORIZED_EVENT_COOLDOWN_MS) {
+            lastUnauthorizedEventAtRef.current = now;
             onSessionExpiredRef.current('Sessão expirada ou acesso negado. Faça login novamente.');
           }
         }
-
-        return response;
-      } catch (error) {
-        throw error;
       }
+
+      return response;
     };
 
     return () => {
       window.fetch = originalFetch;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -80,13 +83,30 @@ export function AdminAuthProvider({
 export function useAdminAuthProviderValue(): AdminAuthContextValue['onSessionExpired'] {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isHandlingSessionExpiryRef = useRef(false);
+  const lastSessionExpiryAtRef = useRef(0);
 
   return useCallback(
     (message?: string) => {
+      const now = Date.now();
+      if (isHandlingSessionExpiryRef.current) return;
+      if (now - lastSessionExpiryAtRef.current < SESSION_EXPIRY_COOLDOWN_MS) return;
+
+      isHandlingSessionExpiryRef.current = true;
+      lastSessionExpiryAtRef.current = now;
       queryClient.clear();
-      supabase.auth.signOut().finally(() => {
-        navigate('/admin/login', { replace: true, state: { sessionExpired: true, message } });
-      });
+
+      void (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            await supabase.auth.signOut();
+          }
+        } finally {
+          navigate('/admin/login', { replace: true, state: { sessionExpired: true, message } });
+          isHandlingSessionExpiryRef.current = false;
+        }
+      })();
     },
     [queryClient, navigate]
   );
