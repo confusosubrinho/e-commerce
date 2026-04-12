@@ -70,7 +70,7 @@ export function BlogSection({ config }: BlogSectionProps) {
             <div className="sm:hidden -mx-4 px-4">
               <div
                 ref={mobileScrollRef}
-                className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 touch-pan-y cursor-grab active:cursor-grabbing"
+                className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 cursor-grab active:cursor-grabbing"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
               >
                 {visiblePosts.map((post) => (

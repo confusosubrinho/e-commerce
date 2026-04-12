@@ -259,7 +259,7 @@ export function ProductCarousel({
                         return sizes.length > 0 ? (
                           <div>
                             <p className={`text-[11px] mb-1 font-medium ${isDark && !cardBg ? 'text-secondary-foreground/70' : 'text-muted-foreground'}`}>Tamanho</p>
-                            <div className="flex gap-1 justify-center overflow-x-auto scrollbar-hide touch-pan-y" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                            <div className="flex gap-1 justify-center overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                               {sizes.map(({ size, inStock }) => (
                                 <span
                                   key={size}

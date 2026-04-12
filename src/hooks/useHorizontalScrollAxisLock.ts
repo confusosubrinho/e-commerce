@@ -36,8 +36,13 @@ export function useHorizontalScrollAxisLock() {
     if (!el) return;
     const previousTouchAction = el.style.touchAction;
     const previousSnapType = el.style.scrollSnapType;
-    // Deixa o browser lidar naturalmente com pan vertical; o horizontal será controlado no lock.
-    el.style.touchAction = 'pan-y pinch-zoom';
+    const previousScrollBehavior = el.style.scrollBehavior;
+    el.style.touchAction = 'pan-x pan-y pinch-zoom';
+
+    const restoreDraggingStyles = () => {
+      el.style.scrollSnapType = previousSnapType;
+      el.style.scrollBehavior = previousScrollBehavior;
+    };
 
     const onTouchStart = (e: TouchEvent) => {
       if (!e.touches[0]) return;
@@ -47,15 +52,11 @@ export function useHorizontalScrollAxisLock() {
       lastX.current = e.touches[0].pageX;
       lastY.current = e.touches[0].pageY;
       suppressClick.current = false;
-      // Disable snap during drag so scrollLeft assignments aren't fought
-      el.style.scrollSnapType = 'none';
-      el.style.scrollBehavior = 'auto';
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (!e.touches[0]) return;
       const touch = e.touches[0];
-      const deltaX = touch.pageX - lastX.current;
       const totalX = touch.pageX - startX.current;
       const totalY = touch.pageY - startY.current;
       lastX.current = touch.pageX;
@@ -65,25 +66,19 @@ export function useHorizontalScrollAxisLock() {
         lock.current = resolveLock(totalX, totalY);
       }
 
-      if (lock.current === 'horizontal') {
-        e.preventDefault();
-        if (Math.abs(totalX) >= AXIS_LOCK_THRESHOLD) suppressClick.current = true;
-        const newScrollLeft = el.scrollLeft - deltaX;
-        el.scrollLeft = Math.max(0, Math.min(newScrollLeft, el.scrollWidth - el.clientWidth));
+      if (lock.current === 'horizontal' && Math.abs(totalX) >= AXIS_LOCK_THRESHOLD) {
+        suppressClick.current = true;
       }
     };
 
     const onTouchEnd = () => {
       lock.current = null;
-      // Re-enable snap after drag ends
-      el.style.scrollSnapType = '';
-      el.style.scrollBehavior = '';
     };
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
       const target = e.target as HTMLElement;
-      if (target.closest('a') || target.closest('button')) return;
+      if (target.closest('button, input, select, textarea, [role="button"]')) return;
       lock.current = null;
       pointerDragging.current = true;
       suppressClick.current = false;
@@ -91,6 +86,8 @@ export function useHorizontalScrollAxisLock() {
       startY.current = e.pageY;
       lastX.current = e.pageX;
       lastY.current = e.pageY;
+      el.style.scrollSnapType = 'none';
+      el.style.scrollBehavior = 'auto';
       if (e.pointerType === 'mouse') el.setPointerCapture?.(e.pointerId);
     };
 
@@ -120,6 +117,7 @@ export function useHorizontalScrollAxisLock() {
       el.releasePointerCapture?.(e.pointerId);
       pointerDragging.current = false;
       lock.current = null;
+      restoreDraggingStyles();
     };
 
     const onClickCapture = (e: MouseEvent) => {
@@ -143,7 +141,7 @@ export function useHorizontalScrollAxisLock() {
 
     return () => {
       el.style.touchAction = previousTouchAction;
-      el.style.scrollSnapType = previousSnapType;
+      restoreDraggingStyles();
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);
