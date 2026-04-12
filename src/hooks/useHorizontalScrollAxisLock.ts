@@ -35,6 +35,7 @@ export function useHorizontalScrollAxisLock() {
     const el = ref.current;
     if (!el) return;
     const previousTouchAction = el.style.touchAction;
+    const previousSnapType = el.style.scrollSnapType;
     // Deixa o browser lidar naturalmente com pan vertical; o horizontal será controlado no lock.
     el.style.touchAction = 'pan-y pinch-zoom';
 
@@ -46,6 +47,9 @@ export function useHorizontalScrollAxisLock() {
       lastX.current = e.touches[0].pageX;
       lastY.current = e.touches[0].pageY;
       suppressClick.current = false;
+      // Disable snap during drag so scrollLeft assignments aren't fought
+      el.style.scrollSnapType = 'none';
+      el.style.scrollBehavior = 'auto';
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -71,6 +75,9 @@ export function useHorizontalScrollAxisLock() {
 
     const onTouchEnd = () => {
       lock.current = null;
+      // Re-enable snap after drag ends
+      el.style.scrollSnapType = '';
+      el.style.scrollBehavior = '';
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -136,6 +143,7 @@ export function useHorizontalScrollAxisLock() {
 
     return () => {
       el.style.touchAction = previousTouchAction;
+      el.style.scrollSnapType = previousSnapType;
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
       el.removeEventListener('touchend', onTouchEnd);

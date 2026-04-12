@@ -155,12 +155,11 @@ export function ProductCarousel({
 
             <div
               ref={scrollRef}
-              className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory touch-pan-y cursor-grab active:cursor-grabbing scroll-smooth"
+              className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory cursor-grab active:cursor-grabbing"
               style={{
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
-                scrollBehavior: 'smooth',
               }}
             >
               {products.map((product) => {
