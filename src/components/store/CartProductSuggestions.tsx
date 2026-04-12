@@ -81,7 +81,7 @@ export function CartProductSuggestions({ compact = false }: CartProductSuggestio
       <div
         ref={compact ? compactScrollRef : undefined}
         className={compact
-          ? 'flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x touch-pan-y cursor-grab active:cursor-grabbing'
+          ? 'flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 snap-x cursor-grab active:cursor-grabbing'
           : 'grid grid-cols-2 md:grid-cols-4 gap-2'}
         style={compact ? { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' } : undefined}
       >

@@ -26,12 +26,28 @@ function dispatchTouch(target: HTMLElement, type: 'touchstart' | 'touchmove' | '
   return ev;
 }
 
+function dispatchPointer(
+  target: HTMLElement,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  x: number,
+  y: number,
+  pointerType: 'mouse' | 'pen' = 'mouse',
+) {
+  const ev = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'pageX', { configurable: true, value: x });
+  Object.defineProperty(ev, 'pageY', { configurable: true, value: y });
+  Object.defineProperty(ev, 'pointerType', { configurable: true, value: pointerType });
+  Object.defineProperty(ev, 'pointerId', { configurable: true, value: 1 });
+  target.dispatchEvent(ev);
+  return ev;
+}
+
 describe('useHorizontalScrollAxisLock', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('aplica lock horizontal e previne o evento quando gesto é majoritariamente horizontal', () => {
+  it('mantém o scroll nativo no toque horizontal sem forçar scroll via JS', () => {
     render(<TouchHarness />);
     const scroller = screen.getByTestId('scroller') as HTMLDivElement;
     setScrollableMetrics(scroller, 300, 1200);
@@ -40,8 +56,8 @@ describe('useHorizontalScrollAxisLock', () => {
     dispatchTouch(scroller, 'touchstart', 100, 100);
     const moveEvent = dispatchTouch(scroller, 'touchmove', 30, 95);
 
-    expect(moveEvent.defaultPrevented).toBe(true);
-    expect(scroller.scrollLeft).toBeGreaterThan(120);
+    expect(moveEvent.defaultPrevented).toBe(false);
+    expect(scroller.scrollLeft).toBe(120);
   });
 
   it('não força scroll vertical via JS quando gesto é vertical', () => {
@@ -59,7 +75,7 @@ describe('useHorizontalScrollAxisLock', () => {
     expect(scrollBySpy).not.toHaveBeenCalled();
   });
 
-  it('bloqueia click acidental após arrastar horizontalmente', () => {
+  it('bloqueia click acidental após arrastar horizontalmente no toque', () => {
     render(<TouchHarness />);
     const scroller = screen.getByTestId('scroller') as HTMLDivElement;
     const link = screen.getByTestId('item');
@@ -74,6 +90,22 @@ describe('useHorizontalScrollAxisLock', () => {
 
     expect(dispatchResult).toBe(false);
     expect(click.defaultPrevented).toBe(true);
+  });
+
+  it('aplica lock horizontal com pointer drag para desktop', () => {
+    render(<TouchHarness />);
+    const scroller = screen.getByTestId('scroller') as HTMLDivElement;
+    setScrollableMetrics(scroller, 300, 1200);
+    scroller.scrollLeft = 120;
+
+    const moveEvent = dispatchPointer(scroller, 'pointerdown', 180, 100);
+    expect(moveEvent.defaultPrevented).toBe(false);
+
+    const pointerMoveEvent = dispatchPointer(scroller, 'pointermove', 60, 98);
+    dispatchPointer(scroller, 'pointerup', 60, 98);
+
+    expect(pointerMoveEvent.defaultPrevented).toBe(true);
+    expect(scroller.scrollLeft).toBeGreaterThan(120);
   });
 
   it('mantém click normal quando não houve arrasto', () => {

@@ -292,7 +292,7 @@ export function InstagramFeed() {
         <div
           ref={scrollRef}
           onScroll={handleCarouselScroll}
-          className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto py-2 touch-pan-y md:gap-5"
+          className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto py-2 cursor-grab active:cursor-grabbing md:gap-5"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', paddingLeft: 'max(0.75rem, calc(50% - 170px))', paddingRight: 'max(0.75rem, calc(50% - 170px))' }}
           role="list"
           aria-label="Lista de vídeos"

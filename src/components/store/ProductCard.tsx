@@ -262,7 +262,7 @@ export const ProductCard = memo(function ProductCard({ product }: ProductCardPro
             {showVariants && sizes.length > 0 && (
               <div className="mt-2">
                 <p className="text-[11px] text-muted-foreground mb-1 font-medium">Tamanho</p>
-                <div ref={sizeScrollRef} className="flex gap-1 overflow-x-auto touch-pan-y cursor-grab active:cursor-grabbing select-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
+                <div ref={sizeScrollRef} className="flex gap-1 overflow-x-auto cursor-grab active:cursor-grabbing select-none" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
                   {sizes.map(({ size, inStock }) => (
                     <span
                       key={size}
