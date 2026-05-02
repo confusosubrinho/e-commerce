@@ -169,6 +169,7 @@ function PageFallback() {
 }
 
 const App = () => {
+  useShopifyCartSync();
   useEffect(() => {
     captureAttribution();
     // Clean up persist cache from old versions & stale retry flags
