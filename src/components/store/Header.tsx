@@ -55,7 +55,6 @@ function useDropdown() {
 
 export function Header() {
   const navigate = useNavigate();
-  const { itemCount, items, subtotal, removeItem, updateQuantity, isCartOpen, setIsCartOpen, discount, selectedShipping, total } = useCart();
   const { data: categories } = useCategories();
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
