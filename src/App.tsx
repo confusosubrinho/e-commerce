@@ -13,6 +13,7 @@ import { ScrollToTop } from "@/components/store/ScrollToTop";
 import { VersionChecker } from "@/components/store/VersionChecker";
 import { ThemeProvider } from "@/components/store/ThemeProvider";
 import { AppmaxScriptLoader } from "@/components/store/AppmaxScriptLoader";
+import { useShopifyCartSync } from "@/hooks/useShopifyCartSync";
 import { APP_VERSION } from "@/lib/appVersion";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -168,6 +169,7 @@ function PageFallback() {
 }
 
 const App = () => {
+  useShopifyCartSync();
   useEffect(() => {
     captureAttribution();
     // Clean up persist cache from old versions & stale retry flags
@@ -209,7 +211,8 @@ const App = () => {
           <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/produto/:slug" element={<ProductDetail />} />
+              <Route path="/produto/:handle" element={<ProductDetail />} />
+              <Route path="/product/:handle" element={<ProductDetail />} />
               <Route path="/categoria/:slug" element={<CategoryPage />} />
               <Route path="/conta" element={<MyAccount />} />
               <Route path="/auth" element={<Auth />} />
