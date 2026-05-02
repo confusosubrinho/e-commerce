@@ -13,6 +13,7 @@ import { ScrollToTop } from "@/components/store/ScrollToTop";
 import { VersionChecker } from "@/components/store/VersionChecker";
 import { ThemeProvider } from "@/components/store/ThemeProvider";
 import { AppmaxScriptLoader } from "@/components/store/AppmaxScriptLoader";
+import { useShopifyCartSync } from "@/hooks/useShopifyCartSync";
 import { APP_VERSION } from "@/lib/appVersion";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
