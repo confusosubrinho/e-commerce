@@ -131,10 +131,8 @@ export function Header() {
     return allProducts?.filter(p => p.category_id === categoryId)?.slice(0, 4) || [];
   };
 
-  // Free shipping progress
-  const remainingForFreeShipping = FREE_SHIPPING_THRESHOLD - subtotal;
-  const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+
+
 
   return (
     <header className="sticky top-0 z-50 bg-background shadow-sm">
