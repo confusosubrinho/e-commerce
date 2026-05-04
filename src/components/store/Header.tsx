@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 import { useCategories, useProducts } from '@/hooks/useProducts';
-import { useCart } from '@/contexts/CartContext';
 import { ShopifyCartDrawer } from '@/components/shopify/ShopifyCartDrawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
@@ -18,7 +17,6 @@ import { CartProductSuggestions } from './CartProductSuggestions';
 import { prefetchCategoryPage, prefetchSearchPage, prefetchCartPage, prefetchCheckoutStartPage } from '@/lib/prefetch';
 import { FeedbackPreferencesDialog } from './FeedbackPreferencesDialog';
 import { resolveImageUrl } from '@/lib/imageUrl';
-import { getCartItemUnitPrice } from '@/lib/cartPricing';
 
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   Percent, Star, Sparkles, Heart, Gift, Tag, Flame, Zap, Crown, ShoppingBag,
@@ -133,10 +131,8 @@ export function Header() {
     return allProducts?.filter(p => p.category_id === categoryId)?.slice(0, 4) || [];
   };
 
-  // Free shipping progress
-  const remainingForFreeShipping = FREE_SHIPPING_THRESHOLD - subtotal;
-  const hasFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+
+
 
   return (
     <header className="sticky top-0 z-50 bg-background shadow-sm">
