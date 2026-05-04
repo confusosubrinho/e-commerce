@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 import { useCategories, useProducts } from '@/hooks/useProducts';
-import { useCart } from '@/contexts/CartContext';
 import { ShopifyCartDrawer } from '@/components/shopify/ShopifyCartDrawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
