@@ -93,7 +93,6 @@ export function Header() {
   const highlightIconName = headerSettings?.header_highlight_icon || 'Percent';
   const HighlightIcon = ICON_MAP[highlightIconName] || Percent;
   const menuOrder: string[] = (headerSettings?.header_menu_order as string[]) || [];
-  const FREE_SHIPPING_THRESHOLD = headerSettings?.free_shipping_threshold || 399;
 
   // Fetch products for each category for mega menu
   const { data: allProducts } = useProducts();
