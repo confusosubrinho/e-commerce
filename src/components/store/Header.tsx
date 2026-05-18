@@ -341,17 +341,17 @@ export function Header() {
                       }
                     }}
                   >
-                    {categories?.map((category) => (
+                    {collections.map((category) => (
                       <Link
                         key={category.id}
-                        to={`/categoria/${category.slug}`}
+                        to={`/categoria/${category.handle}`}
                         className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors group"
                         onClick={allCategoriesDD.close}
                       >
-                        {category.image_url && (
-                          <img src={resolveImageUrl(category.image_url, { width: 96 })} alt={category.name} className="w-10 h-10 rounded-md object-cover" />
+                        {category.image?.url && (
+                          <img src={resolveImageUrl(category.image.url, { width: 96 })} alt={category.title} className="w-10 h-10 rounded-md object-cover" />
                         )}
-                        <span className="font-medium group-hover:text-primary transition-colors">{category.name}</span>
+                        <span className="font-medium group-hover:text-primary transition-colors">{category.title}</span>
                       </Link>
                     ))}
                   </div>
@@ -362,31 +362,31 @@ export function Header() {
             {/* Individual category links - centered */}
             <div className="flex-1 flex items-center justify-center">
               {mainCategories.map((category) => {
-                const categoryProducts = getProductsForCategory(category.id);
-                
+                const categoryProducts = (category.products?.edges ?? []).slice(0, 4);
+
                 return (
                   <div
                     key={category.id}
                     className="relative flex-shrink-0"
-                    onMouseEnter={() => handleCatEnter(category.slug)}
+                    onMouseEnter={() => handleCatEnter(category.handle)}
                     onMouseLeave={handleCatLeave}
                   >
                     <Link
-                      to={`/categoria/${category.slug}`}
+                      to={`/categoria/${category.handle}`}
                       className="nav-link flex items-center gap-1 py-4 px-3 hover:bg-muted transition-colors whitespace-nowrap"
                       onMouseEnter={prefetchCategoryPage}
                     >
-                      {category.name}
+                      {category.title}
                     </Link>
-                    
-                    {activeCatSlug === category.slug && (
+
+                    {activeCatSlug === category.handle && (
                       <div
                         className="absolute top-full pt-1 z-50"
                         style={{
                           left: '50%',
                           transform: 'translateX(-50%)',
                         }}
-                        onMouseEnter={() => handleCatEnter(category.slug)}
+                        onMouseEnter={() => handleCatEnter(category.handle)}
                         onMouseLeave={handleCatLeave}
                       >
                         <div
@@ -409,76 +409,41 @@ export function Header() {
                         >
                           <div className="flex gap-6">
                             <div className="w-1/3">
-                              <h3 className="font-bold text-lg mb-3">{category.name}</h3>
-                              {(() => {
-                                const childCategories = (categories || []).filter(
-                                  (c: any) => c.parent_category_id === category.id
-                                ).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0));
-                                if (childCategories.length > 0) {
-                                  return (
-                                    <>
-                                      <ul className="space-y-1.5 mb-4">
-                                        {childCategories.map((child: { id: string; name: string; slug: string; image_url?: string | null }) => (
-                                          <li key={child.id}>
-                                            <Link
-                                              to={`/categoria/${child.slug}`}
-                                              className="flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-md hover:bg-muted text-sm font-medium text-foreground hover:text-primary transition-colors"
-                                              onClick={() => setActiveCatSlug(null)}
-                                            >
-                                              {child.image_url && (
-                                                <img src={resolveImageUrl(child.image_url, { width: 64 })} alt="" className="w-6 h-6 rounded object-cover flex-shrink-0" />
-                                              )}
-                                              {child.name}
-                                            </Link>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                      <Link
-                                        to={`/categoria/${category.slug}`}
-                                        className="inline-flex items-center text-primary font-medium hover:underline text-sm"
-                                        onClick={() => setActiveCatSlug(null)}
-                                      >
-                                        Ver todos os produtos →
-                                      </Link>
-                                    </>
-                                  );
-                                }
-                                return (
-                                  <>
-                                    <p className="text-sm text-muted-foreground mb-4">{category.description}</p>
-                                    <Link
-                                      to={`/categoria/${category.slug}`}
-                                      className="inline-flex items-center text-primary font-medium hover:underline"
-                                      onClick={() => { setActiveCatSlug(null); }}
-                                    >
-                                      Ver todos os produtos →
-                                    </Link>
-                                  </>
-                                );
-                              })()}
+                              <h3 className="font-bold text-lg mb-3">{category.title}</h3>
+                              {category.description && (
+                                <p className="text-sm text-muted-foreground mb-4 line-clamp-3">{category.description}</p>
+                              )}
+                              <Link
+                                to={`/categoria/${category.handle}`}
+                                className="inline-flex items-center text-primary font-medium hover:underline"
+                                onClick={() => { setActiveCatSlug(null); }}
+                              >
+                                Ver todos os produtos →
+                              </Link>
                             </div>
-                            
-                            {/* Products grid in mega menu */}
+
+                            {/* Products grid in mega menu (direto da Shopify) */}
                             <div className="flex-1 grid grid-cols-2 gap-3">
                               {categoryProducts.length > 0 ? (
-                                categoryProducts.map((product) => {
-                                  const primaryImage = product.images?.find(img => img.is_primary) || product.images?.[0];
+                                categoryProducts.map(({ node: product }) => {
+                                  const primaryImage = product.images?.edges?.[0]?.node;
+                                  const price = product.priceRange?.minVariantPrice;
                                   return (
                                     <Link
                                       key={product.id}
-                                      to={`/produto/${product.slug}`}
+                                      to={`/produto/${product.handle}`}
                                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors"
                                       onClick={() => setActiveCatSlug(null)}
                                     >
                                       <img
                                         src={resolveImageUrl(primaryImage?.url, { width: 96 }) || '/placeholder.svg'}
-                                        alt={product.name}
+                                        alt={product.title}
                                         className="w-12 h-12 rounded-lg object-cover"
                                       />
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium line-clamp-1">{product.name}</p>
+                                        <p className="text-sm font-medium line-clamp-1">{product.title}</p>
                                         <p className="text-sm text-primary font-bold">
-                                          {formatPrice(Number(product.sale_price || product.base_price))}
+                                          {price ? formatPrice(Number(price.amount)) : ''}
                                         </p>
                                       </div>
                                     </Link>
@@ -487,8 +452,8 @@ export function Header() {
                               ) : (
                                 <div className="col-span-2 text-center text-muted-foreground py-4">
                                   <img
-                                    src={resolveImageUrl(category.image_url, { width: 96 }) || '/placeholder.svg'}
-                                    alt={category.name}
+                                    src={resolveImageUrl(category.image?.url, { width: 96 }) || '/placeholder.svg'}
+                                    alt={category.title}
                                     className="w-24 h-24 rounded-lg object-cover mx-auto"
                                   />
                                 </div>
