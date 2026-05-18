@@ -162,14 +162,14 @@ export function Header() {
                     {mainCategories.map((category) => (
                       <Link
                         key={category.id}
-                        to={`/categoria/${category.slug}`}
+                        to={`/categoria/${category.handle}`}
                         className="flex items-center gap-3 py-3 px-3 hover:bg-muted rounded-lg transition-colors"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        {category.image_url && (
-                          <img src={resolveImageUrl(category.image_url, { width: 96 })} alt={category.name} className="w-8 h-8 rounded-full object-cover" />
+                        {category.image?.url && (
+                          <img src={resolveImageUrl(category.image.url, { width: 96 })} alt={category.title} className="w-8 h-8 rounded-full object-cover" />
                         )}
-                        <span className="font-medium text-sm">{category.name}</span>
+                        <span className="font-medium text-sm">{category.title}</span>
                       </Link>
                     ))}
                   </div>
