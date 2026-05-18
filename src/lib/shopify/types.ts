@@ -45,3 +45,16 @@ export interface ShopifyProductNode {
 export interface ShopifyProduct {
   node: ShopifyProductNode;
 }
+
+export interface ShopifyCollectionNode {
+  id: string;
+  handle: string;
+  title: string;
+  description?: string;
+  image?: ShopifyImage | null;
+  products?: { edges: ShopifyProduct[] };
+}
+
+export interface ShopifyCollection {
+  node: ShopifyCollectionNode;
+}
