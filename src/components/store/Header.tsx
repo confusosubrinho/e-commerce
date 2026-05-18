@@ -53,10 +53,11 @@ function useDropdown() {
 
 export function Header() {
   const navigate = useNavigate();
-  const { data: categories } = useCategories();
+  const { data: collectionEdges } = useShopifyCollections({ first: 30, productsPerCollection: 4 });
+  const collections = collectionEdges?.map((edge) => edge.node) ?? [];
   const isMobile = useIsMobile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   const megaMenuRef = useRef<HTMLDivElement>(null);
 
   // Dropdown controllers with delay
