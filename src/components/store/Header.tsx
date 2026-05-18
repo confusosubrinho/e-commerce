@@ -5,7 +5,7 @@ import { User, ShoppingBag, Menu, MessageCircle, ChevronDown, Trash2, Plus, Minu
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
-import { useCategories, useProducts } from '@/hooks/useProducts';
+import { useShopifyCollections } from '@/hooks/useShopifyCollections';
 import { ShopifyCartDrawer } from '@/components/shopify/ShopifyCartDrawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
