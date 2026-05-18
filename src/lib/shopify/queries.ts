@@ -87,6 +87,83 @@ export const PRODUCT_BY_HANDLE_QUERY = `
   }
 `;
 
+export const COLLECTIONS_WITH_PRODUCTS_QUERY = `
+  query GetCollectionsWithProducts($first: Int!, $productsPerCollection: Int!) {
+    collections(first: $first, sortKey: TITLE) {
+      edges {
+        node {
+          id
+          handle
+          title
+          description
+          image { url altText }
+          products(first: $productsPerCollection, sortKey: BEST_SELLING) {
+            edges {
+              node {
+                id
+                title
+                handle
+                priceRange { minVariantPrice { amount currencyCode } }
+                images(first: 1) { edges { node { url altText } } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const COLLECTION_BY_HANDLE_QUERY = `
+  query GetCollectionByHandle($handle: String!, $first: Int!) {
+    collection(handle: $handle) {
+      id
+      handle
+      title
+      description
+      image { url altText }
+      products(first: $first, sortKey: BEST_SELLING) {
+        edges {
+          node {
+            id
+            title
+            description
+            handle
+            vendor
+            productType
+            tags
+            availableForSale
+            priceRange {
+              minVariantPrice { amount currencyCode }
+              maxVariantPrice { amount currencyCode }
+            }
+            compareAtPriceRange {
+              minVariantPrice { amount currencyCode }
+              maxVariantPrice { amount currencyCode }
+            }
+            images(first: 5) { edges { node { url altText } } }
+            variants(first: 50) {
+              edges {
+                node {
+                  id
+                  title
+                  availableForSale
+                  quantityAvailable
+                  price { amount currencyCode }
+                  compareAtPrice { amount currencyCode }
+                  selectedOptions { name value }
+                  image { url altText }
+                }
+              }
+            }
+            options { name values }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const CART_QUERY = `
   query Cart($id: ID!) {
     cart(id: $id) {
