@@ -95,14 +95,9 @@ export function Header() {
   const HighlightIcon = ICON_MAP[highlightIconName] || Percent;
   const menuOrder: string[] = (headerSettings?.header_menu_order as string[]) || [];
 
-  // Fetch products for each category for mega menu
-  const { data: allProducts } = useProducts();
-
   const handleSearch = (query: string) => {
     navigate(`/busca?q=${encodeURIComponent(query)}`);
   };
-
-  // formatPrice imported at module level from @/lib/formatters
 
   // Close mega menu when clicking outside
   useEffect(() => {
@@ -116,20 +111,17 @@ export function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [allCategoriesDD]);
 
-  // Order categories by header_menu_order if set
-  const orderedCategories = (() => {
-    const cats = categories || [];
-    if (!menuOrder || menuOrder.length === 0) return cats;
-    const ordered = menuOrder.map(id => cats.find(c => c.id === id)).filter(Boolean) as typeof cats;
-    const remaining = cats.filter(c => !menuOrder.includes(c.id));
+  // Order collections by header_menu_order (matches by handle); rest preserve Shopify order.
+  const orderedCollections = (() => {
+    if (!menuOrder || menuOrder.length === 0) return collections;
+    const ordered = menuOrder
+      .map((handle) => collections.find((c) => c.handle === handle))
+      .filter(Boolean) as typeof collections;
+    const remaining = collections.filter((c) => !menuOrder.includes(c.handle));
     return [...ordered, ...remaining];
   })();
-  const mainCategories = orderedCategories.slice(0, 7);
+  const mainCategories = orderedCollections.slice(0, 7);
 
-  // Get products for a category
-  const getProductsForCategory = (categoryId: string) => {
-    return allProducts?.filter(p => p.category_id === categoryId)?.slice(0, 4) || [];
-  };
 
 
 
