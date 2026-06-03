@@ -20,6 +20,10 @@ const SectionFallback = () => <div className="py-12" />;
 const Index = () => {
   const { data: products, isLoading } = useShopifyProducts({ first: 12 });
   const { data: settings } = useStoreSettingsPublic();
+  const { data: homeSections } = useHomeSections();
+  const shopifySections = (homeSections ?? []).filter(
+    (s) => s.source_type === 'shopify_collection' || s.source_type === 'shopify_manual'
+  );
 
   const storeName = settings?.store_name || 'Vanessa Lima Shoes';
   const seoTitle = `${storeName} — Calçados Femininos em Couro Legítimo`;
