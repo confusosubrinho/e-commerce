@@ -6,6 +6,8 @@ import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
+import { PageSEO } from '@/components/seo/PageSEO';
+import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 
 const Newsletter = lazy(() =>
   import('@/components/store/Newsletter').then((m) => ({ default: m.Newsletter }))
