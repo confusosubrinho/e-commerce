@@ -8,6 +8,8 @@ import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
+import { useHomeSections } from '@/hooks/useHomeSections';
+import { ShopifyShowcaseSection } from '@/components/store/ShopifyShowcaseSection';
 
 const Newsletter = lazy(() =>
   import('@/components/store/Newsletter').then((m) => ({ default: m.Newsletter }))
