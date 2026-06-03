@@ -69,6 +69,7 @@ import { useStoreSettings } from '@/hooks/useProducts';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { hasPermission } from '@/lib/permissions';
+import { isAdminUrlHidden } from '@/config/admin';
 
 import { AdminAuthProvider, useAdminAuthProviderValue, useAdminSessionExpired } from '@/contexts/AdminAuthContext';
 
@@ -205,12 +206,21 @@ const allMenuSections: MenuSection[] = [
 const allMenuItems: MenuItem[] = allMenuSections.flatMap(s => s.items);
 
 // Mobile bottom tab bar items
-const mobileTabItems = [
+const mobileTabItemsFull = [
   { title: 'Home', url: '/admin', icon: LayoutDashboard },
   { title: 'Produtos', url: '/admin/produtos', icon: Package },
   { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingBag },
   { title: 'Analytics', url: '/admin/vendas', icon: TrendingUp },
 ];
+const mobileTabItemsShopify = [
+  { title: 'Home', url: '/admin', icon: LayoutDashboard },
+  { title: 'Aparência', url: '/admin/personalizacao', icon: Palette },
+  { title: 'Páginas', url: '/admin/paginas', icon: FileText },
+  { title: 'Mídia', url: '/admin/galeria', icon: Image },
+];
+const mobileTabItems = mobileTabItemsFull.filter(t => !isAdminUrlHidden(t.url)).length === mobileTabItemsFull.length
+  ? mobileTabItemsFull
+  : mobileTabItemsShopify;
 
 function useFilteredMenu(): MenuSection[] {
   const { role, can } = useAdminRole();
@@ -218,9 +228,12 @@ function useFilteredMenu(): MenuSection[] {
   return useMemo(() => allMenuSections.reduce<MenuSection[]>((sections, section) => {
     const filteredItems = section.items.reduce<MenuItem[]>((acc, item) => {
       if (item.permission && !can(item.permission)) return acc;
+      // Modo Shopify: esconde itens diretos cuja URL está na lista
+      if (item.url && isAdminUrlHidden(item.url)) return acc;
 
       if (item.children) {
         const filteredChildren = item.children.filter(child => {
+          if (isAdminUrlHidden(child.url)) return false;
           if (!child.permission) return true;
           if (child.permission === 'team.read') return role === 'owner';
           if (child.permission === 'settings.read') return role === 'owner' || role === 'manager';
@@ -603,6 +616,13 @@ export default function AdminLayout() {
       setShowWizard(true);
     }
   }, [setupData]);
+
+  // Modo Shopify: redireciona acessos diretos a rotas ocultas para o dashboard
+  useEffect(() => {
+    if (isAdmin && isAdminUrlHidden(location.pathname)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isAdmin, location.pathname, navigate]);
 
   useEffect(() => {
     checkAdmin();
