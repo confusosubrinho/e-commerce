@@ -3,6 +3,7 @@ import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { useShopifyCollection } from '@/hooks/useShopifyCollections';
+import { PageSEO } from '@/components/seo/PageSEO';
 
 /**
  * Página de listagem unificada (Shopify).
@@ -59,6 +60,11 @@ const ProductListingPage = () => {
     const products = collection.products?.edges ?? [];
     return (
       <StoreLayout>
+        <PageSEO
+          title={`${collection.title} | Vanessa Lima Shoes`}
+          description={collection.description || `Confira os produtos da coleção ${collection.title}.`}
+          noindex={searchParams.toString().length > 0}
+        />
         <ShopifyProductGrid
           title={collection.title}
           subtitle={collection.description || undefined}
@@ -71,12 +77,18 @@ const ProductListingPage = () => {
     );
   }
 
+
   const finalTitle = isCategoryRoute && params.slug
     ? params.slug.charAt(0).toUpperCase() + params.slug.slice(1).replace(/-/g, ' ')
     : title;
 
   return (
     <StoreLayout>
+      <PageSEO
+        title={`${finalTitle} | Vanessa Lima Shoes`}
+        description={subtitle || `Confira ${finalTitle.toLowerCase()} na Vanessa Lima Shoes.`}
+        noindex={!!searchParams.get('q')}
+      />
       <ShopifyProductGrid
         title={finalTitle}
         subtitle={subtitle}
@@ -90,3 +102,4 @@ const ProductListingPage = () => {
 };
 
 export default ProductListingPage;
+

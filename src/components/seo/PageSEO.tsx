@@ -1,0 +1,56 @@
+import { Helmet } from 'react-helmet-async';
+
+interface PageSEOProps {
+  title?: string;
+  description?: string;
+  image?: string | null;
+  type?: 'website' | 'article' | 'product';
+  /** Path relativo (ex.: "/produto/abc"). Se ausente, usa o pathname atual. */
+  path?: string;
+  jsonLd?: Record<string, unknown> | null;
+  noindex?: boolean;
+}
+
+const SITE_URL = 'https://vanessalimashoes.com.br';
+
+/**
+ * SEO por rota: title/description/canonical/OG + JSON-LD opcional.
+ * O conteúdo institucional (textos, FAQ, redes) é gerenciado no admin via
+ * page_contents/social_links; aqui só montamos as tags a partir desses dados.
+ */
+export function PageSEO({
+  title,
+  description,
+  image,
+  type = 'website',
+  path,
+  jsonLd,
+  noindex,
+}: PageSEOProps) {
+  const pathname = path ?? (typeof window !== 'undefined' ? window.location.pathname : '/');
+  const url = `${SITE_URL}${pathname}`;
+
+  return (
+    <Helmet>
+      {title && <title>{title}</title>}
+      {description && <meta name="description" content={description} />}
+      <link rel="canonical" href={url} />
+
+      {title && <meta property="og:title" content={title} />}
+      {description && <meta property="og:description" content={description} />}
+      <meta property="og:url" content={url} />
+      <meta property="og:type" content={type === 'product' ? 'product' : type} />
+      {image && <meta property="og:image" content={image} />}
+
+      {title && <meta name="twitter:title" content={title} />}
+      {description && <meta name="twitter:description" content={description} />}
+      {image && <meta name="twitter:image" content={image} />}
+
+      {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+      {jsonLd && (
+        <script type="application/ld+json">{JSON.stringify(jsonLd)}</script>
+      )}
+    </Helmet>
+  );
+}
