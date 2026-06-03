@@ -3,8 +3,9 @@ import { storefrontApiRequest } from '@/lib/shopify/client';
 import {
   COLLECTIONS_WITH_PRODUCTS_QUERY,
   COLLECTION_BY_HANDLE_QUERY,
+  PRODUCTS_QUERY,
 } from '@/lib/shopify/queries';
-import type { ShopifyCollection, ShopifyCollectionNode } from '@/lib/shopify/types';
+import type { ShopifyCollection, ShopifyCollectionNode, ShopifyProduct } from '@/lib/shopify/types';
 
 interface UseShopifyCollectionsOptions {
   first?: number;
