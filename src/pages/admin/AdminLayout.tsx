@@ -206,12 +206,21 @@ const allMenuSections: MenuSection[] = [
 const allMenuItems: MenuItem[] = allMenuSections.flatMap(s => s.items);
 
 // Mobile bottom tab bar items
-const mobileTabItems = [
+const mobileTabItemsFull = [
   { title: 'Home', url: '/admin', icon: LayoutDashboard },
   { title: 'Produtos', url: '/admin/produtos', icon: Package },
   { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingBag },
   { title: 'Analytics', url: '/admin/vendas', icon: TrendingUp },
 ];
+const mobileTabItemsShopify = [
+  { title: 'Home', url: '/admin', icon: LayoutDashboard },
+  { title: 'Aparência', url: '/admin/personalizacao', icon: Palette },
+  { title: 'Páginas', url: '/admin/paginas', icon: FileText },
+  { title: 'Mídia', url: '/admin/galeria', icon: Image },
+];
+const mobileTabItems = mobileTabItemsFull.filter(t => !isAdminUrlHidden(t.url)).length === mobileTabItemsFull.length
+  ? mobileTabItemsFull
+  : mobileTabItemsShopify;
 
 function useFilteredMenu(): MenuSection[] {
   const { role, can } = useAdminRole();
