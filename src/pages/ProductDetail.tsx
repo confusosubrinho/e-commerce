@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
+import { PageSEO } from '@/components/seo/PageSEO';
 
 const ProductDetail = () => {
   const { handle, slug } = useParams<{ handle?: string; slug?: string }>();
