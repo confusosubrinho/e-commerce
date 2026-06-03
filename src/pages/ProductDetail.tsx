@@ -92,13 +92,45 @@ const ProductDetail = () => {
     });
   };
 
+  const plainDescription = (product.descriptionHtml || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+
   return (
     <StoreLayout>
+      <PageSEO
+        title={`${product.title} | Vanessa Lima Shoes`}
+        description={plainDescription || `${product.title} — disponível na Vanessa Lima Shoes.`}
+        image={images[0]?.url ?? null}
+        type="product"
+        path={`/produto/${product.handle}`}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Product',
+          name: product.title,
+          description: plainDescription || undefined,
+          image: images.map((i) => i.url),
+          brand: product.vendor || undefined,
+          offers: selectedVariant
+            ? {
+                '@type': 'Offer',
+                price: selectedVariant.price.amount,
+                priceCurrency: selectedVariant.price.currencyCode,
+                availability: selectedVariant.availableForSale
+                  ? 'https://schema.org/InStock'
+                  : 'https://schema.org/OutOfStock',
+              }
+            : undefined,
+        }}
+      />
       <div className="container-custom py-4">
         <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-primary">
           <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
         </Link>
       </div>
+
 
       <div className="container-custom pb-12 grid md:grid-cols-2 gap-8">
         {/* Galeria */}
