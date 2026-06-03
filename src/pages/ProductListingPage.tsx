@@ -3,6 +3,7 @@ import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { useShopifyCollection } from '@/hooks/useShopifyCollections';
+import { PageSEO } from '@/components/seo/PageSEO';
 
 /**
  * Página de listagem unificada (Shopify).
