@@ -1,14 +1,12 @@
-import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCategories } from '@/hooks/useProducts';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
-import { resolveImageUrl } from '@/lib/imageUrl';
+import { useShopifyCollections } from '@/hooks/useShopifyCollections';
 
 export function CategoryGrid() {
   const scrollRef = useHorizontalScrollAxisLock();
-  const { data: categories, isLoading } = useCategories();
+  const { data: collections, isLoading } = useShopifyCollections({ first: 20, productsPerCollection: 1 });
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -73,28 +71,38 @@ export function CategoryGrid() {
             className="flex gap-6 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory cursor-grab active:cursor-grabbing"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
           >
-            {categories?.map((category) => (
+            {collections?.map(({ node: collection }) => {
+              const previewImage = collection.image ?? collection.products?.edges[0]?.node.images.edges[0]?.node;
+
+              return (
               <Link
-                key={category.id}
-                to={`/categoria/${category.slug}`}
+                key={collection.id}
+                to={`/categoria/${collection.handle}`}
                 className="group text-center flex-shrink-0 snap-start"
               >
                 <div className="w-[90px] h-[90px] sm:w-[120px] sm:h-[120px] md:w-[150px] md:h-[150px] rounded-full overflow-hidden bg-muted mb-2 sm:mb-3 mx-auto ring-2 ring-transparent group-hover:ring-primary transition-all">
-                  <img
-                    src={resolveImageUrl(category.image_url, { width: 320 })}
-                    alt={category.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    loading="lazy"
-                    decoding="async"
-                    width={150}
-                    height={150}
-                  />
+                  {previewImage ? (
+                    <img
+                      src={previewImage.url}
+                      alt={previewImage.altText || collection.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      loading="lazy"
+                      decoding="async"
+                      width={150}
+                      height={150}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center px-3 text-center text-xs text-muted-foreground">
+                      {collection.title}
+                    </div>
+                  )}
                 </div>
                 <h3 className="font-medium text-foreground group-hover:text-primary transition-colors text-xs sm:text-sm md:text-base">
-                  {category.name}
+                  {collection.title}
                 </h3>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

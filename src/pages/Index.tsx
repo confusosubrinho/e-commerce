@@ -3,6 +3,7 @@ import { StoreLayout } from '@/components/store/StoreLayout';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
+import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 
@@ -19,6 +20,10 @@ const Index = () => {
     <StoreLayout>
       <BannerCarousel />
       <FeaturesBar />
+
+      <FadeInOnScroll>
+        <CategoryGrid />
+      </FadeInOnScroll>
 
       <FadeInOnScroll>
         <ShopifyProductGrid
