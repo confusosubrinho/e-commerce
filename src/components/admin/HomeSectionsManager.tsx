@@ -304,14 +304,48 @@ export function HomeSectionsManager() {
               <Select value={formData.source_type} onValueChange={(v) => setFormData({ ...formData, source_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="category">Por Categoria</SelectItem>
-                  <SelectItem value="featured">Destaques (is_featured)</SelectItem>
-                  <SelectItem value="new">Novidades (is_new)</SelectItem>
-                  <SelectItem value="sale">Promoções (com sale_price)</SelectItem>
-                  <SelectItem value="manual">Seleção Manual</SelectItem>
+                  <SelectItem value="shopify_collection">Coleção Shopify (recomendado)</SelectItem>
+                  <SelectItem value="shopify_manual">Vitrine manual (handles Shopify)</SelectItem>
+                  <SelectItem value="category">Por Categoria (legado)</SelectItem>
+                  <SelectItem value="featured">Destaques (legado)</SelectItem>
+                  <SelectItem value="new">Novidades (legado)</SelectItem>
+                  <SelectItem value="sale">Promoções (legado)</SelectItem>
+                  <SelectItem value="manual">Seleção Manual (legado)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Use as opções Shopify para puxar produtos diretamente do catálogo conectado. As opções "legado" usam o banco local e ficam vazias enquanto o catálogo for gerenciado pela Shopify.
+              </p>
             </div>
+
+            {formData.source_type === 'shopify_collection' && (
+              <div className="space-y-2">
+                <Label>Handle da coleção Shopify *</Label>
+                <Input
+                  value={formData.shopify_collection_handle}
+                  onChange={(e) => setFormData({ ...formData, shopify_collection_handle: e.target.value })}
+                  placeholder="ex: botas-femininas"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O handle aparece na URL da coleção no admin Shopify (Coleções → abrir → URL termina em /collections/<b>handle</b>).
+                </p>
+              </div>
+            )}
+
+            {formData.source_type === 'shopify_manual' && (
+              <div className="space-y-2">
+                <Label>Handles dos produtos (um por linha)</Label>
+                <textarea
+                  className="w-full min-h-[120px] rounded-md border bg-background p-2 text-sm font-mono"
+                  value={formData.shopify_product_handles}
+                  onChange={(e) => setFormData({ ...formData, shopify_product_handles: e.target.value })}
+                  placeholder={'bota-texana-camurca\nmocassim-marrom\ntenis-branco'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Os produtos aparecem na vitrine na ordem informada.
+                </p>
+              </div>
+            )}
 
             {formData.source_type === 'category' && (
               <div className="space-y-2">
