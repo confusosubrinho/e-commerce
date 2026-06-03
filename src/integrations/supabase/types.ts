@@ -2012,6 +2012,8 @@ export type Database = {
           max_items: number | null
           product_ids: string[] | null
           section_type: string
+          shopify_collection_handle: string | null
+          shopify_product_handles: string[] | null
           show_view_all: boolean | null
           sort_order: string | null
           source_type: string
@@ -2032,6 +2034,8 @@ export type Database = {
           max_items?: number | null
           product_ids?: string[] | null
           section_type?: string
+          shopify_collection_handle?: string | null
+          shopify_product_handles?: string[] | null
           show_view_all?: boolean | null
           sort_order?: string | null
           source_type?: string
@@ -2052,6 +2056,8 @@ export type Database = {
           max_items?: number | null
           product_ids?: string[] | null
           section_type?: string
+          shopify_collection_handle?: string | null
+          shopify_product_handles?: string[] | null
           show_view_all?: boolean | null
           sort_order?: string | null
           source_type?: string

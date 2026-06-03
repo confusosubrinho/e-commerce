@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = 
   new: { label: 'Novidades', icon: <Sparkles className="h-3 w-3" /> },
   sale: { label: 'Promoções', icon: <ShoppingBag className="h-3 w-3" /> },
   manual: { label: 'Manual', icon: <Hand className="h-3 w-3" /> },
+  shopify_collection: { label: 'Coleção Shopify', icon: <ShoppingBag className="h-3 w-3" /> },
+  shopify_manual: { label: 'Vitrine Shopify', icon: <Hand className="h-3 w-3" /> },
 };
 
 const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -55,13 +57,15 @@ interface FormData {
   dark_bg: boolean;
   card_bg: boolean;
   sort_order: string;
+  shopify_collection_handle: string;
+  shopify_product_handles: string; // textarea: um handle por linha
 }
 
 const defaultForm: FormData = {
   title: '', subtitle: '', section_type: 'carousel', source_type: 'category',
   category_id: '', product_ids: [], max_items: 10, is_active: true,
   show_view_all: true, view_all_link: '', dark_bg: false, card_bg: false,
-  sort_order: 'newest',
+  sort_order: 'newest', shopify_collection_handle: '', shopify_product_handles: '',
 };
 
 export function HomeSectionsManager() {
@@ -116,6 +120,10 @@ export function HomeSectionsManager() {
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const isAutoSource = AUTO_SOURCE_TYPES.includes(data.source_type);
+      const shopifyHandles = data.shopify_product_handles
+        .split(/[\n,]+/)
+        .map(h => h.trim())
+        .filter(Boolean);
       const sectionData: any = {
         title: data.title,
         subtitle: data.subtitle || null,
@@ -131,6 +139,10 @@ export function HomeSectionsManager() {
         card_bg: data.card_bg,
         sort_order: data.sort_order || 'newest',
         display_order: editing?.display_order ?? (sections?.length || 0),
+        shopify_collection_handle:
+          data.source_type === 'shopify_collection' ? (data.shopify_collection_handle || null) : null,
+        shopify_product_handles:
+          data.source_type === 'shopify_manual' ? shopifyHandles : [],
       };
       if (editing) {
         const { error } = await supabase.from('home_sections').update(sectionData).eq('id', editing.id);
@@ -178,6 +190,8 @@ export function HomeSectionsManager() {
         dark_bg: section.dark_bg,
         card_bg: section.card_bg,
         sort_order: section.sort_order || 'newest',
+        shopify_collection_handle: section.shopify_collection_handle || '',
+        shopify_product_handles: (section.shopify_product_handles || []).join('\n'),
       });
     } else {
       setEditing(null);
@@ -290,14 +304,48 @@ export function HomeSectionsManager() {
               <Select value={formData.source_type} onValueChange={(v) => setFormData({ ...formData, source_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="category">Por Categoria</SelectItem>
-                  <SelectItem value="featured">Destaques (is_featured)</SelectItem>
-                  <SelectItem value="new">Novidades (is_new)</SelectItem>
-                  <SelectItem value="sale">Promoções (com sale_price)</SelectItem>
-                  <SelectItem value="manual">Seleção Manual</SelectItem>
+                  <SelectItem value="shopify_collection">Coleção Shopify (recomendado)</SelectItem>
+                  <SelectItem value="shopify_manual">Vitrine manual (handles Shopify)</SelectItem>
+                  <SelectItem value="category">Por Categoria (legado)</SelectItem>
+                  <SelectItem value="featured">Destaques (legado)</SelectItem>
+                  <SelectItem value="new">Novidades (legado)</SelectItem>
+                  <SelectItem value="sale">Promoções (legado)</SelectItem>
+                  <SelectItem value="manual">Seleção Manual (legado)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Use as opções Shopify para puxar produtos diretamente do catálogo conectado. As opções "legado" usam o banco local e ficam vazias enquanto o catálogo for gerenciado pela Shopify.
+              </p>
             </div>
+
+            {formData.source_type === 'shopify_collection' && (
+              <div className="space-y-2">
+                <Label>Handle da coleção Shopify *</Label>
+                <Input
+                  value={formData.shopify_collection_handle}
+                  onChange={(e) => setFormData({ ...formData, shopify_collection_handle: e.target.value })}
+                  placeholder="ex: botas-femininas"
+                />
+                <p className="text-xs text-muted-foreground">
+                  O handle aparece na URL da coleção no admin Shopify (Coleções → abrir → URL termina em /collections/<b>handle</b>).
+                </p>
+              </div>
+            )}
+
+            {formData.source_type === 'shopify_manual' && (
+              <div className="space-y-2">
+                <Label>Handles dos produtos (um por linha)</Label>
+                <textarea
+                  className="w-full min-h-[120px] rounded-md border bg-background p-2 text-sm font-mono"
+                  value={formData.shopify_product_handles}
+                  onChange={(e) => setFormData({ ...formData, shopify_product_handles: e.target.value })}
+                  placeholder={'bota-texana-camurca\nmocassim-marrom\ntenis-branco'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Os produtos aparecem na vitrine na ordem informada.
+                </p>
+              </div>
+            )}
 
             {formData.source_type === 'category' && (
               <div className="space-y-2">
