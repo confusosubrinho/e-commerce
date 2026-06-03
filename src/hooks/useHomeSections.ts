@@ -8,7 +8,7 @@ export interface HomeSection {
   title: string;
   subtitle: string | null;
   section_type: 'carousel' | 'grid';
-  source_type: 'category' | 'featured' | 'sale' | 'new' | 'manual';
+  source_type: 'category' | 'featured' | 'sale' | 'new' | 'manual' | 'shopify_collection' | 'shopify_manual';
   category_id: string | null;
   product_ids: string[];
   max_items: number;
@@ -19,6 +19,8 @@ export interface HomeSection {
   dark_bg: boolean;
   card_bg: boolean;
   sort_order: string;
+  shopify_collection_handle?: string | null;
+  shopify_product_handles?: string[] | null;
 }
 
 const AUTO_LINKS: Record<string, string> = {
