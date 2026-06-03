@@ -17,11 +17,31 @@ const SectionFallback = () => <div className="py-12" />;
 
 const Index = () => {
   const { data: products, isLoading } = useShopifyProducts({ first: 12 });
+  const { data: settings } = useStoreSettingsPublic();
+
+  const storeName = settings?.store_name || 'Vanessa Lima Shoes';
+  const seoTitle = `${storeName} — Calçados Femininos em Couro Legítimo`;
+  const seoDescription =
+    'Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.';
 
   return (
     <StoreLayout>
+      <PageSEO
+        title={seoTitle}
+        description={seoDescription}
+        path="/"
+        image={settings?.logo_url ?? settings?.header_logo_url ?? null}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: storeName,
+          url: 'https://vanessalimashoes.com.br',
+          logo: settings?.logo_url || undefined,
+        }}
+      />
       <BannerCarousel />
       <FeaturesBar />
+
 
       <FadeInOnScroll>
         <CategoryGrid />
