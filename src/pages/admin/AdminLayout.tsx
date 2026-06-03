@@ -617,6 +617,13 @@ export default function AdminLayout() {
     }
   }, [setupData]);
 
+  // Modo Shopify: redireciona acessos diretos a rotas ocultas para o dashboard
+  useEffect(() => {
+    if (isAdmin && isAdminUrlHidden(location.pathname)) {
+      navigate('/admin', { replace: true });
+    }
+  }, [isAdmin, location.pathname, navigate]);
+
   useEffect(() => {
     checkAdmin();
 
