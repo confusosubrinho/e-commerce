@@ -69,6 +69,7 @@ import { useStoreSettings } from '@/hooks/useProducts';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { hasPermission } from '@/lib/permissions';
+import { isAdminUrlHidden } from '@/config/admin';
 
 import { AdminAuthProvider, useAdminAuthProviderValue, useAdminSessionExpired } from '@/contexts/AdminAuthContext';
 
