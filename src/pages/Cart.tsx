@@ -48,7 +48,7 @@ const Cart = () => {
                   )}
                   <div className="flex-1 min-w-0">
                     <Link
-                      to={`/product/${item.product.handle}`}
+                      to={`/produto/${item.product.handle}`}
                       className="font-medium hover:text-primary line-clamp-2"
                     >
                       {item.product.title}

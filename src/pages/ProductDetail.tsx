@@ -10,8 +10,9 @@ import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 
 const ProductDetail = () => {
-  const { handle } = useParams<{ handle: string }>();
-  const { data: product, isLoading, isError } = useShopifyProduct(handle);
+  const { handle, slug } = useParams<{ handle?: string; slug?: string }>();
+  const productHandle = handle ?? slug;
+  const { data: product, isLoading, isError } = useShopifyProduct(productHandle);
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isAdding = useShopifyCartStore((s) => s.isLoading);
 

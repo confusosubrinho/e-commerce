@@ -25,7 +25,7 @@ export function ShopifyProductCard({ product }: Props) {
   const discountPct = hasDiscount ? Math.round((1 - minPrice / compareAtMin) * 100) : 0;
 
   const isOutOfStock = !node.availableForSale;
-  const productUrl = `/product/${node.handle}`;
+  const productUrl = `/produto/${node.handle}`;
 
   const firstAvailableVariant =
     node.variants.edges.find((v) => v.node.availableForSale)?.node || node.variants.edges[0]?.node;
