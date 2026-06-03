@@ -57,13 +57,15 @@ interface FormData {
   dark_bg: boolean;
   card_bg: boolean;
   sort_order: string;
+  shopify_collection_handle: string;
+  shopify_product_handles: string; // textarea: um handle por linha
 }
 
 const defaultForm: FormData = {
   title: '', subtitle: '', section_type: 'carousel', source_type: 'category',
   category_id: '', product_ids: [], max_items: 10, is_active: true,
   show_view_all: true, view_all_link: '', dark_bg: false, card_bg: false,
-  sort_order: 'newest',
+  sort_order: 'newest', shopify_collection_handle: '', shopify_product_handles: '',
 };
 
 export function HomeSectionsManager() {
