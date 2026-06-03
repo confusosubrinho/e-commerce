@@ -182,6 +182,8 @@ export function HomeSectionsManager() {
         dark_bg: section.dark_bg,
         card_bg: section.card_bg,
         sort_order: section.sort_order || 'newest',
+        shopify_collection_handle: section.shopify_collection_handle || '',
+        shopify_product_handles: (section.shopify_product_handles || []).join('\n'),
       });
     } else {
       setEditing(null);
