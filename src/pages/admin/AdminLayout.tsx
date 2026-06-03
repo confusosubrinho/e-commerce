@@ -219,9 +219,12 @@ function useFilteredMenu(): MenuSection[] {
   return useMemo(() => allMenuSections.reduce<MenuSection[]>((sections, section) => {
     const filteredItems = section.items.reduce<MenuItem[]>((acc, item) => {
       if (item.permission && !can(item.permission)) return acc;
+      // Modo Shopify: esconde itens diretos cuja URL está na lista
+      if (item.url && isAdminUrlHidden(item.url)) return acc;
 
       if (item.children) {
         const filteredChildren = item.children.filter(child => {
+          if (isAdminUrlHidden(child.url)) return false;
           if (!child.permission) return true;
           if (child.permission === 'team.read') return role === 'owner';
           if (child.permission === 'settings.read') return role === 'owner' || role === 'manager';
