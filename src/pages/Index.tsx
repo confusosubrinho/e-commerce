@@ -62,9 +62,16 @@ const Index = () => {
         />
       </FadeInOnScroll>
 
+      {shopifySections.map((section) => (
+        <FadeInOnScroll key={section.id}>
+          <ShopifyShowcaseSection section={section} />
+        </FadeInOnScroll>
+      ))}
+
       <Suspense fallback={<SectionFallback />}>
         <Newsletter />
       </Suspense>
+
     </StoreLayout>
   );
 };
