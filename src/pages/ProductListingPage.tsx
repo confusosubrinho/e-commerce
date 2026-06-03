@@ -84,6 +84,11 @@ const ProductListingPage = () => {
 
   return (
     <StoreLayout>
+      <PageSEO
+        title={`${finalTitle} | Vanessa Lima Shoes`}
+        description={subtitle || `Confira ${finalTitle.toLowerCase()} na Vanessa Lima Shoes.`}
+        noindex={!!searchParams.get('q')}
+      />
       <ShopifyProductGrid
         title={finalTitle}
         subtitle={subtitle}
@@ -97,3 +102,4 @@ const ProductListingPage = () => {
 };
 
 export default ProductListingPage;
+
