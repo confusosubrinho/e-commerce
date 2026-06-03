@@ -120,6 +120,10 @@ export function HomeSectionsManager() {
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const isAutoSource = AUTO_SOURCE_TYPES.includes(data.source_type);
+      const shopifyHandles = data.shopify_product_handles
+        .split(/[\n,]+/)
+        .map(h => h.trim())
+        .filter(Boolean);
       const sectionData: any = {
         title: data.title,
         subtitle: data.subtitle || null,
@@ -135,6 +139,10 @@ export function HomeSectionsManager() {
         card_bg: data.card_bg,
         sort_order: data.sort_order || 'newest',
         display_order: editing?.display_order ?? (sections?.length || 0),
+        shopify_collection_handle:
+          data.source_type === 'shopify_collection' ? (data.shopify_collection_handle || null) : null,
+        shopify_product_handles:
+          data.source_type === 'shopify_manual' ? shopifyHandles : [],
       };
       if (editing) {
         const { error } = await supabase.from('home_sections').update(sectionData).eq('id', editing.id);
