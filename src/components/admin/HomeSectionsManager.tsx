@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = 
   new: { label: 'Novidades', icon: <Sparkles className="h-3 w-3" /> },
   sale: { label: 'Promoções', icon: <ShoppingBag className="h-3 w-3" /> },
   manual: { label: 'Manual', icon: <Hand className="h-3 w-3" /> },
+  shopify_collection: { label: 'Coleção Shopify', icon: <ShoppingBag className="h-3 w-3" /> },
+  shopify_manual: { label: 'Vitrine Shopify', icon: <Hand className="h-3 w-3" /> },
 };
 
 const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
