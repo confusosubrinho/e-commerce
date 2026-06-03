@@ -60,6 +60,11 @@ const ProductListingPage = () => {
     const products = collection.products?.edges ?? [];
     return (
       <StoreLayout>
+        <PageSEO
+          title={`${collection.title} | Vanessa Lima Shoes`}
+          description={collection.description || `Confira os produtos da coleção ${collection.title}.`}
+          noindex={searchParams.toString().length > 0}
+        />
         <ShopifyProductGrid
           title={collection.title}
           subtitle={collection.description || undefined}
@@ -71,6 +76,7 @@ const ProductListingPage = () => {
       </StoreLayout>
     );
   }
+
 
   const finalTitle = isCategoryRoute && params.slug
     ? params.slug.charAt(0).toUpperCase() + params.slug.slice(1).replace(/-/g, ' ')
