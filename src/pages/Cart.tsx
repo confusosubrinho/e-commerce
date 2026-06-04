@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
+import { resolveCheckoutUrl } from '@/config/checkout';
 
 const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl } =
@@ -11,9 +12,8 @@ const Cart = () => {
   const totalPrice = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
 
   const handleCheckout = () => {
-    const url = getCheckoutUrl();
-    if (!url) return;
-    window.open(url, '_blank');
+    const url = resolveCheckoutUrl(getCheckoutUrl());
+    window.location.href = url;
   };
 
   return (
