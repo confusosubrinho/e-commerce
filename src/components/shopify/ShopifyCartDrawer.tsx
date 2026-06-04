@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
+import { resolveCheckoutUrl } from '@/config/checkout';
 
 interface Props {
   /** Renderiza o trigger interno (default true). Se false, controle via `open`/`onOpenChange`. */
@@ -28,10 +29,9 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
   }, [isOpen, syncCart]);
 
   const handleCheckout = () => {
-    const url = getCheckoutUrl();
-    if (!url) return;
-    window.open(url, '_blank');
+    const url = resolveCheckoutUrl(getCheckoutUrl());
     setIsOpen(false);
+    window.location.href = url;
   };
 
   return (
