@@ -16,6 +16,7 @@ interface Props {
 
 export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Props) {
   const [internalOpen, setInternalOpen] = useState(false);
+  const navigate = useNavigate();
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
 
