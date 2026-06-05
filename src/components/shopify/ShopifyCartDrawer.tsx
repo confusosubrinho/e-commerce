@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
@@ -15,6 +16,7 @@ interface Props {
 
 export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Props) {
   const [internalOpen, setInternalOpen] = useState(false);
+  const navigate = useNavigate();
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
 
@@ -158,8 +160,19 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
                   </>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/carrinho');
+                }}
+              >
+                Ver carrinho
+              </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                O pagamento é processado em ambiente seguro Shopify
+                Pagamento processado em ambiente seguro
               </p>
             </div>
           </>
