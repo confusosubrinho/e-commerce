@@ -29,7 +29,10 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
   }, [isOpen, syncCart]);
 
   const handleCheckout = () => {
-    const url = resolveCheckoutUrl(getCheckoutUrl());
+    const url = resolveCheckoutUrl(
+      getCheckoutUrl(),
+      items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+    );
     setIsOpen(false);
     window.location.href = url;
   };

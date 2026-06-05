@@ -12,7 +12,10 @@ const Cart = () => {
   const totalPrice = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
 
   const handleCheckout = () => {
-    const url = resolveCheckoutUrl(getCheckoutUrl());
+    const url = resolveCheckoutUrl(
+      getCheckoutUrl(),
+      items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+    );
     window.location.href = url;
   };
 
