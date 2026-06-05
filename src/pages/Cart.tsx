@@ -4,18 +4,24 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
-import { resolveCheckoutUrl } from '@/config/checkout';
+import { startCheckout } from '@/config/checkout';
 
 const Cart = () => {
-  const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl } =
-    useShopifyCartStore();
+  const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
   const totalPrice = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
 
-  const handleCheckout = () => {
-    const url = resolveCheckoutUrl(
-      getCheckoutUrl(),
-      items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+  const handleCheckout = async () => {
+    const url = await startCheckout(
+      items.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.quantity,
+        title: i.product.title,
+        variantTitle: i.variantTitle,
+        price: i.price.amount,
+        requiresShipping: true,
+      }))
     );
+
     window.location.href = url;
   };
 
@@ -119,7 +125,7 @@ const Cart = () => {
                 )}
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Frete e cupons são calculados no checkout seguro Shopify.
+                Frete e cupons são calculados no checkout seguro.
               </p>
             </aside>
           </div>
