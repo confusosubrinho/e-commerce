@@ -160,8 +160,19 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
                   </>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/carrinho');
+                }}
+              >
+                Ver carrinho
+              </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                O pagamento é processado em ambiente seguro Shopify
+                Pagamento processado em ambiente seguro
               </p>
             </div>
           </>
