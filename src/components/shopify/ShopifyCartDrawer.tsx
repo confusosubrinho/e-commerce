@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
-import { resolveCheckoutUrl } from '@/config/checkout';
+import { startCheckout } from '@/config/checkout';
 
 interface Props {
   /** Renderiza o trigger interno (default true). Se false, controle via `open`/`onOpenChange`. */
@@ -20,8 +20,7 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
   const isOpen = open ?? internalOpen;
   const setIsOpen = onOpenChange ?? setInternalOpen;
 
-  const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl, syncCart } =
-    useShopifyCartStore();
+  const { items, isLoading, isSyncing, updateQuantity, removeItem, syncCart } = useShopifyCartStore();
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
@@ -30,11 +29,18 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
     if (isOpen) syncCart();
   }, [isOpen, syncCart]);
 
-  const handleCheckout = () => {
-    const url = resolveCheckoutUrl(
-      getCheckoutUrl(),
-      items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }))
+  const handleCheckout = async () => {
+    const url = await startCheckout(
+      items.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.quantity,
+        title: i.product.title,
+        variantTitle: i.variantTitle,
+        price: i.price.amount,
+        requiresShipping: true,
+      }))
     );
+
     setIsOpen(false);
     window.location.href = url;
   };
