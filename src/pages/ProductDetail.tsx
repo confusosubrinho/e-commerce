@@ -86,6 +86,12 @@ const ProductDetail = () => {
     : 0;
   const hasDiscount = compareAt > price;
 
+  const applyPix = pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasDiscount) : true;
+  const pixPrice = pricingConfig ? getPixPriceForDisplay(price, pricingConfig, hasDiscount) : price;
+  const pixDiscountAmount = pricingConfig ? getPixDiscountAmount(price, pricingConfig, hasDiscount) : 0;
+  const installmentDisplay = pricingConfig ? getInstallmentDisplay(price, pricingConfig, hasDiscount) : null;
+
+
   const handleAdd = async () => {
     if (!selectedVariant) return;
     await addItem({
