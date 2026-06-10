@@ -60,13 +60,11 @@ function CategoryGridSkeleton() {
  */
 function ShopifyProductSectionsBlock() {
   const { data: sections } = useHomeSections();
-  const shopifySections = (sections ?? []).filter(
-    (s) => s.source_type === 'shopify_collection' || s.source_type === 'shopify_manual'
-  );
-  if (shopifySections.length === 0) return null;
+  const active = (sections ?? []).filter((s) => s.is_active !== false);
+  if (active.length === 0) return null;
   return (
     <>
-      {shopifySections.map((section) => (
+      {active.map((section) => (
         <div key={section.id} className="content-lazy">
           <ShopifyShowcaseSection section={section} />
         </div>
