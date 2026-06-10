@@ -25,6 +25,8 @@ const ProductDetail = () => {
   const { data: product, isLoading, isError } = useShopifyProduct(productHandle);
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isAdding = useShopifyCartStore((s) => s.isLoading);
+  const { data: pricingConfig } = usePricingConfig();
+
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
