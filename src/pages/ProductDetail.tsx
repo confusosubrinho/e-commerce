@@ -260,6 +260,7 @@ const ProductDetail = () => {
                 <div className="flex flex-wrap gap-2">
                   {option.values.map((val) => {
                     const isActive = selectedOptions[option.name] === val;
+                    const available = isOptionValueAvailable(option.name, val);
                     return (
                       <button
                         key={val}
@@ -267,10 +268,14 @@ const ProductDetail = () => {
                         onClick={() =>
                           setSelectedOptions((prev) => ({ ...prev, [option.name]: val }))
                         }
-                        className={`min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
+                        title={available ? val : `${val} — esgotado`}
+                        aria-label={available ? val : `${val} esgotado`}
+                        className={`relative min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
                           isActive
                             ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background hover:bg-muted border-border'
+                            : available
+                            ? 'bg-background hover:bg-muted border-border'
+                            : 'bg-muted/40 text-muted-foreground border-dashed border-border line-through opacity-70'
                         }`}
                       >
                         {val}
