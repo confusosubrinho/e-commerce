@@ -8,6 +8,7 @@ import {
 } from '@/lib/shopify/cart';
 import { storefrontApiRequest } from '@/lib/shopify/client';
 import { CART_QUERY } from '@/lib/shopify/queries';
+import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import type { ShopifyMoney, ShopifyProductNode } from '@/lib/shopify/types';
 
 export interface ShopifyCartItem {
@@ -51,6 +52,7 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
       addItem: async (item) => {
         const { items, cartId, clearCart } = get();
         const existing = items.find((i) => i.variantId === item.variantId);
+        let added = false;
         set({ isLoading: true });
         try {
           if (!cartId) {
@@ -64,6 +66,7 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
                 checkoutUrl: result.checkoutUrl,
                 items: [{ ...item, lineId: result.lineId }],
               });
+              added = true;
             }
           } else if (existing) {
             const newQty = existing.quantity + item.quantity;
@@ -75,6 +78,7 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
                   i.variantId === item.variantId ? { ...i, quantity: newQty } : i
                 ),
               });
+              added = true;
             } else if (result.cartNotFound) {
               clearCart();
             }
@@ -87,6 +91,7 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
               set({
                 items: [...get().items, { ...item, lineId: result.lineId ?? null }],
               });
+              added = true;
             } else if (result.cartNotFound) {
               clearCart();
             }
@@ -95,8 +100,10 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
           console.error('Shopify cart addItem failed', err);
         } finally {
           set({ isLoading: false });
+          if (added) useCartDrawerStore.getState().open();
         }
       },
+
 
       updateQuantity: async (variantId, quantity) => {
         if (quantity <= 0) {

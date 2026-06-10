@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
+import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { startCheckout } from '@/config/checkout';
 
@@ -15,10 +16,12 @@ interface Props {
 }
 
 export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Props) {
-  const [internalOpen, setInternalOpen] = useState(false);
   const navigate = useNavigate();
-  const isOpen = open ?? internalOpen;
-  const setIsOpen = onOpenChange ?? setInternalOpen;
+  const globalOpen = useCartDrawerStore((s) => s.isOpen);
+  const globalSetOpen = useCartDrawerStore((s) => s.setOpen);
+  const isOpen = open ?? globalOpen;
+  const setIsOpen = onOpenChange ?? globalSetOpen;
+
 
   const { items, isLoading, isSyncing, updateQuantity, removeItem, syncCart } = useShopifyCartStore();
 
