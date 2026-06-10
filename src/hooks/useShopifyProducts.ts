@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { storefrontApiRequest } from '@/lib/shopify/client';
-import { PRODUCT_BY_HANDLE_QUERY, PRODUCTS_QUERY } from '@/lib/shopify/queries';
+import {
+  PRODUCT_BY_HANDLE_QUERY,
+  PRODUCTS_QUERY,
+  PRODUCT_RECOMMENDATIONS_QUERY,
+} from '@/lib/shopify/queries';
 import type { ShopifyProduct, ShopifyProductNode } from '@/lib/shopify/types';
 
 interface UseShopifyProductsOptions {
@@ -37,5 +41,23 @@ export function useShopifyProduct(handle: string | undefined) {
     },
     enabled: !!handle,
     staleTime: 1000 * 60 * 2,
+  });
+}
+
+/** Produtos recomendados pela Shopify (relacionados). */
+export function useShopifyProductRecommendations(productId: string | undefined) {
+  return useQuery({
+    queryKey: ['shopify-product-recommendations', productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const data = await storefrontApiRequest<{
+        productRecommendations: ShopifyProductNode[] | null;
+      }>(PRODUCT_RECOMMENDATIONS_QUERY, { productId });
+      const list = data?.data?.productRecommendations ?? [];
+      // Normalizar para o mesmo shape de ShopifyProduct ({ node }) usado pelo grid
+      return list.map((node) => ({ node })) as { node: ShopifyProductNode }[];
+    },
+    enabled: !!productId,
+    staleTime: 1000 * 60 * 5,
   });
 }

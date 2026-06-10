@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
-import { useShopifyProduct } from '@/hooks/useShopifyProducts';
+import {
+  useShopifyProduct,
+  useShopifyProductRecommendations,
+} from '@/hooks/useShopifyProducts';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { Button } from '@/components/ui/button';
@@ -17,6 +20,8 @@ import {
 import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
+import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
+import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 
 
 const ProductDetail = () => {
@@ -26,10 +31,29 @@ const ProductDetail = () => {
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isAdding = useShopifyCartStore((s) => s.isLoading);
   const { data: pricingConfig } = usePricingConfig();
+  const { data: relatedProducts, isLoading: isLoadingRelated } =
+    useShopifyProductRecommendations(product?.id);
 
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+
+  const allVariants = useMemo(
+    () => product?.variants.edges.map((v) => v.node) ?? [],
+    [product]
+  );
+
+  /** Verifica se existe alguma variante disponível com (option = value) + outras opções já escolhidas. */
+  const isOptionValueAvailable = (optionName: string, value: string) => {
+    return allVariants.some((v) => {
+      if (!v.availableForSale) return false;
+      return v.selectedOptions.every((o) => {
+        if (o.name === optionName) return o.value === value;
+        const chosen = selectedOptions[o.name];
+        return !chosen || chosen === o.value;
+      });
+    });
+  };
 
   // Variante selecionada conforme opções; default = primeira disponível
   const selectedVariant = useMemo(() => {
@@ -236,6 +260,7 @@ const ProductDetail = () => {
                 <div className="flex flex-wrap gap-2">
                   {option.values.map((val) => {
                     const isActive = selectedOptions[option.name] === val;
+                    const available = isOptionValueAvailable(option.name, val);
                     return (
                       <button
                         key={val}
@@ -243,10 +268,14 @@ const ProductDetail = () => {
                         onClick={() =>
                           setSelectedOptions((prev) => ({ ...prev, [option.name]: val }))
                         }
-                        className={`min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
+                        title={available ? val : `${val} — esgotado`}
+                        aria-label={available ? val : `${val} esgotado`}
+                        className={`relative min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
                           isActive
                             ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-background hover:bg-muted border-border'
+                            : available
+                            ? 'bg-background hover:bg-muted border-border'
+                            : 'bg-muted/40 text-muted-foreground border-dashed border-border line-through opacity-70'
                         }`}
                       >
                         {val}
@@ -288,6 +317,18 @@ const ProductDetail = () => {
           )}
         </div>
       </div>
+
+
+      {(isLoadingRelated || (relatedProducts && relatedProducts.length > 0)) && (
+        <FadeInOnScroll>
+          <ShopifyProductGrid
+            title="Você também pode gostar"
+            subtitle="Produtos relacionados selecionados para você"
+            products={relatedProducts ?? []}
+            isLoading={isLoadingRelated}
+          />
+        </FadeInOnScroll>
+      )}
     </StoreLayout>
   );
 };
