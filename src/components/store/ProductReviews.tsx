@@ -76,18 +76,23 @@ export function ProductReviews({ productId, productName, isShopify = false }: Pr
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      const reviewPayload: any = {
+        tenant_id: tenantId,
+        user_id: user?.id || null,
+        customer_name: name.trim().slice(0, 100),
+        rating,
+        title: title.trim().slice(0, 150) || null,
+        comment: comment.trim().slice(0, 1000),
+        is_verified_purchase: false,
+      };
+      if (isShopify) {
+        reviewPayload.shopify_product_id = productId;
+      } else {
+        reviewPayload.product_id = productId;
+      }
       const { error } = await supabase
         .from('product_reviews')
-        .insert({
-          product_id: productId,
-          tenant_id: tenantId,
-          user_id: user?.id || null,
-          customer_name: name.trim().slice(0, 100),
-          rating,
-          title: title.trim().slice(0, 150) || null,
-          comment: comment.trim().slice(0, 1000),
-          is_verified_purchase: false,
-        });
+        .insert(reviewPayload);
 
       if (error) throw error;
 
