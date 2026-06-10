@@ -31,10 +31,29 @@ const ProductDetail = () => {
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isAdding = useShopifyCartStore((s) => s.isLoading);
   const { data: pricingConfig } = usePricingConfig();
+  const { data: relatedProducts, isLoading: isLoadingRelated } =
+    useShopifyProductRecommendations(product?.id);
 
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+
+  const allVariants = useMemo(
+    () => product?.variants.edges.map((v) => v.node) ?? [],
+    [product]
+  );
+
+  /** Verifica se existe alguma variante disponível com (option = value) + outras opções já escolhidas. */
+  const isOptionValueAvailable = (optionName: string, value: string) => {
+    return allVariants.some((v) => {
+      if (!v.availableForSale) return false;
+      return v.selectedOptions.every((o) => {
+        if (o.name === optionName) return o.value === value;
+        const chosen = selectedOptions[o.name];
+        return !chosen || chosen === o.value;
+      });
+    });
+  };
 
   // Variante selecionada conforme opções; default = primeira disponível
   const selectedVariant = useMemo(() => {
