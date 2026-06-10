@@ -17,6 +17,8 @@ interface Props {
   sidebar?: React.ReactNode;
   /** Toolbar slot rendered above grid (sort, mobile filters). */
   toolbar?: React.ReactNode;
+  /** Renderiza em linha única com scroll horizontal (carrossel). */
+  carousel?: boolean;
 }
 
 export function ShopifyProductGrid({
@@ -28,6 +30,7 @@ export function ShopifyProductGrid({
   emptyDescription = 'Cadastre seus produtos no admin Shopify para que eles apareçam na loja.',
   sidebar,
   toolbar,
+  carousel = false,
 }: Props) {
   // Regra: produtos sem estoque sempre vão para o final.
   const sortedProducts = useMemo(() => {
