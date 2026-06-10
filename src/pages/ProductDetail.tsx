@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
-import { useShopifyProduct } from '@/hooks/useShopifyProducts';
+import {
+  useShopifyProduct,
+  useShopifyProductRecommendations,
+} from '@/hooks/useShopifyProducts';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { Button } from '@/components/ui/button';
@@ -17,6 +20,8 @@ import {
 import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
+import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
+import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 
 
 const ProductDetail = () => {
