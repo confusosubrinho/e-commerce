@@ -8,6 +8,7 @@ import {
 } from '@/lib/shopify/cart';
 import { storefrontApiRequest } from '@/lib/shopify/client';
 import { CART_QUERY } from '@/lib/shopify/queries';
+import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import type { ShopifyMoney, ShopifyProductNode } from '@/lib/shopify/types';
 
 export interface ShopifyCartItem {
