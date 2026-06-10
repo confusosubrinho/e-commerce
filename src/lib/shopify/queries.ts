@@ -1,8 +1,8 @@
 // GraphQL queries & mutations para o Storefront API (versão 2025-07).
 
 export const PRODUCTS_QUERY = `
-  query GetProducts($first: Int!, $query: String) {
-    products(first: $first, query: $query, sortKey: BEST_SELLING) {
+  query GetProducts($first: Int!, $query: String, $sortKey: ProductSortKeys = BEST_SELLING, $reverse: Boolean = false) {
+    products(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {
       edges {
         node {
           id

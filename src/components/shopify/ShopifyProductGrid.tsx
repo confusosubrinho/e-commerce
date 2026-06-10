@@ -17,6 +17,8 @@ interface Props {
   sidebar?: React.ReactNode;
   /** Toolbar slot rendered above grid (sort, mobile filters). */
   toolbar?: React.ReactNode;
+  /** Renderiza em linha única com scroll horizontal (carrossel). */
+  carousel?: boolean;
 }
 
 export function ShopifyProductGrid({
@@ -28,6 +30,7 @@ export function ShopifyProductGrid({
   emptyDescription = 'Cadastre seus produtos no admin Shopify para que eles apareçam na loja.',
   sidebar,
   toolbar,
+  carousel = false,
 }: Props) {
   // Regra: produtos sem estoque sempre vão para o final.
   const sortedProducts = useMemo(() => {
@@ -60,6 +63,20 @@ export function ShopifyProductGrid({
               Abrir admin Shopify
             </a>
           </Button>
+        </div>
+      ) : carousel ? (
+        <div
+          className="flex gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-3 scrollbar-thin"
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          {sortedProducts.map((product) => (
+            <div
+              key={product.node.id}
+              className="snap-start shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%]"
+            >
+              <ShopifyProductCard product={product} />
+            </div>
+          ))}
         </div>
       ) : (
         <div className={`grid grid-cols-2 ${sidebar ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4'} gap-4`}>
