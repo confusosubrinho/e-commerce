@@ -85,6 +85,43 @@ export const PRODUCT_BY_HANDLE_QUERY = `
   }
 `;
 
+export const PRODUCT_RECOMMENDATIONS_QUERY = `
+  query GetProductRecommendations($productId: ID!) {
+    productRecommendations(productId: $productId) {
+      id
+      title
+      handle
+      vendor
+      productType
+      tags
+      availableForSale
+      priceRange {
+        minVariantPrice { amount currencyCode }
+        maxVariantPrice { amount currencyCode }
+      }
+      compareAtPriceRange {
+        minVariantPrice { amount currencyCode }
+        maxVariantPrice { amount currencyCode }
+      }
+      images(first: 3) { edges { node { url altText } } }
+      variants(first: 20) {
+        edges {
+          node {
+            id
+            title
+            availableForSale
+            price { amount currencyCode }
+            compareAtPrice { amount currencyCode }
+            selectedOptions { name value }
+            image { url altText }
+          }
+        }
+      }
+      options { name values }
+    }
+  }
+`;
+
 export const COLLECTIONS_WITH_PRODUCTS_QUERY = `
   query GetCollectionsWithProducts($first: Int!, $productsPerCollection: Int!) {
     collections(first: $first, sortKey: TITLE) {
