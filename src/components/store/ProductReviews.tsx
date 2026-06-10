@@ -14,11 +14,13 @@ import { useTenant } from '@/hooks/useTenant';
 interface ProductReviewsProps {
   productId: string;
   productName: string;
+  /** Quando true, productId é o gid:// da Shopify e usa a coluna shopify_product_id. */
+  isShopify?: boolean;
 }
 
 const PAGE_SIZE = 10;
 
-export function ProductReviews({ productId, productName }: ProductReviewsProps) {
+export function ProductReviews({ productId, productName, isShopify = false }: ProductReviewsProps) {
   const { toast } = useToast();
   const { tenantId } = useTenant();
   const [showForm, setShowForm] = useState(false);
@@ -31,12 +33,13 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
   const [cooldown, setCooldown] = useState(false);
 
   const { data: reviews, refetch } = useQuery({
-    queryKey: ['reviews', productId],
+    queryKey: ['reviews', productId, isShopify],
     queryFn: async () => {
+      const filterCol = isShopify ? 'shopify_product_id' : 'product_id';
       const { data, error } = await supabase
         .from('product_reviews')
         .select('*')
-        .eq('product_id', productId)
+        .eq(filterCol, productId)
         .eq('status', 'published')
         .order('created_at', { ascending: false });
 
@@ -73,18 +76,23 @@ export function ProductReviews({ productId, productName }: ProductReviewsProps) 
     try {
       const { data: { user } } = await supabase.auth.getUser();
 
+      const reviewPayload: any = {
+        tenant_id: tenantId,
+        user_id: user?.id || null,
+        customer_name: name.trim().slice(0, 100),
+        rating,
+        title: title.trim().slice(0, 150) || null,
+        comment: comment.trim().slice(0, 1000),
+        is_verified_purchase: false,
+      };
+      if (isShopify) {
+        reviewPayload.shopify_product_id = productId;
+      } else {
+        reviewPayload.product_id = productId;
+      }
       const { error } = await supabase
         .from('product_reviews')
-        .insert({
-          product_id: productId,
-          tenant_id: tenantId,
-          user_id: user?.id || null,
-          customer_name: name.trim().slice(0, 100),
-          rating,
-          title: title.trim().slice(0, 150) || null,
-          comment: comment.trim().slice(0, 1000),
-          is_verified_purchase: false,
-        });
+        .insert(reviewPayload);
 
       if (error) throw error;
 

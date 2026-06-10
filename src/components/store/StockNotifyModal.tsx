@@ -16,6 +16,8 @@ interface StockNotifyModalProps {
   variantId?: string;
   variantInfo?: string;
   currentPrice?: number;
+  /** Quando true, productId/variantId são tratados como IDs Shopify (gid://). */
+  isShopify?: boolean;
 }
 
 export function StockNotifyModal({
@@ -26,6 +28,7 @@ export function StockNotifyModal({
   variantId,
   variantInfo,
   currentPrice,
+  isShopify = false,
 }: StockNotifyModalProps) {
   const { toast } = useToast();
   const [email, setEmail] = useState('');
@@ -54,14 +57,21 @@ export function StockNotifyModal({
 
     setLoading(true);
     try {
-      const { error } = await supabase.from('stock_notifications').insert({
-        product_id: productId,
-        variant_id: variantId || null,
+      const payload: any = {
         variant_info: variantInfo || null,
         email: email || null,
         whatsapp: whatsapp || null,
         desired_price: desiredPrice ? parseFloat(desiredPrice) : null,
-      } as any);
+      };
+      if (isShopify) {
+        payload.shopify_product_id = productId;
+        payload.shopify_variant_id = variantId || null;
+      } else {
+        payload.product_id = productId;
+        payload.variant_id = variantId || null;
+      }
+
+      const { error } = await supabase.from('stock_notifications').insert(payload);
 
       if (error) {
         if (error.code === '23505') {
