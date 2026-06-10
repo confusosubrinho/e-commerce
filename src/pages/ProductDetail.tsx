@@ -317,6 +317,19 @@ const ProductDetail = () => {
           )}
         </div>
       </div>
+        </div>
+      </div>
+
+      {(isLoadingRelated || (relatedProducts && relatedProducts.length > 0)) && (
+        <FadeInOnScroll>
+          <ShopifyProductGrid
+            title="Você também pode gostar"
+            subtitle="Produtos relacionados selecionados para você"
+            products={relatedProducts ?? []}
+            isLoading={isLoadingRelated}
+          />
+        </FadeInOnScroll>
+      )}
     </StoreLayout>
   );
 };
