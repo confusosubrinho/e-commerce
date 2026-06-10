@@ -3,12 +3,21 @@ import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { useShopifyProduct } from '@/hooks/useShopifyProducts';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency } from '@/lib/pricingEngine';
+import {
+  formatCurrency,
+  getPixPriceForDisplay,
+  getPixDiscountAmount,
+  shouldApplyPixDiscount,
+  getInstallmentDisplay,
+} from '@/lib/pricingEngine';
 import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
+
 
 const ProductDetail = () => {
   const { handle, slug } = useParams<{ handle?: string; slug?: string }>();
