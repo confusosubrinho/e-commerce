@@ -1,18 +1,29 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag } from 'lucide-react';
+import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
-import { formatCurrency } from '@/lib/pricingEngine';
+import {
+  formatCurrency,
+  getPixPriceForDisplay,
+  getPixDiscountAmount,
+  shouldApplyPixDiscount,
+  getInstallmentDisplay,
+} from '@/lib/pricingEngine';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
 import type { ShopifyProduct } from '@/lib/shopify/types';
 
 interface Props {
   product: ShopifyProduct;
 }
 
+const LOW_STOCK_THRESHOLD = 3;
+
 export function ShopifyProductCard({ product }: Props) {
   const node = product.node;
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isLoading = useShopifyCartStore((s) => s.isLoading);
+  const { data: pricingConfig } = usePricingConfig();
 
   const primaryImage = node.images.edges[0]?.node;
   const secondaryImage = node.images.edges[1]?.node;
@@ -25,15 +36,51 @@ export function ShopifyProductCard({ product }: Props) {
   const discountPct = hasDiscount ? Math.round((1 - minPrice / compareAtMin) * 100) : 0;
 
   const isOutOfStock = !node.availableForSale;
-  const productUrl = `/produto/${node.handle}`;
 
+  // Soma de estoque informado pelas variantes (quando Shopify retorna quantityAvailable)
+  const totalStock = useMemo(() => {
+    const variants = node.variants?.edges ?? [];
+    let sum = 0;
+    let anyKnown = false;
+    for (const v of variants) {
+      const q = (v.node as any).quantityAvailable;
+      if (typeof q === 'number') {
+        anyKnown = true;
+        sum += q;
+      }
+    }
+    return anyKnown ? sum : null;
+  }, [node.variants]);
+
+  const isLowStock =
+    !isOutOfStock && totalStock !== null && totalStock > 0 && totalStock <= LOW_STOCK_THRESHOLD;
+
+  // PIX + parcelamento (regras vindas do Supabase)
+  const applyPix = useMemo(
+    () => (pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasDiscount) : true),
+    [pricingConfig, hasDiscount],
+  );
+  const pixPrice = useMemo(
+    () => (pricingConfig ? getPixPriceForDisplay(minPrice, pricingConfig, hasDiscount) : minPrice),
+    [pricingConfig, minPrice, hasDiscount],
+  );
+  const pixDiscountAmount = useMemo(
+    () => (pricingConfig ? getPixDiscountAmount(minPrice, pricingConfig, hasDiscount) : 0),
+    [pricingConfig, minPrice, hasDiscount],
+  );
+  const installmentDisplay = useMemo(
+    () => (pricingConfig ? getInstallmentDisplay(minPrice, pricingConfig, hasDiscount) : null),
+    [pricingConfig, minPrice, hasDiscount],
+  );
+
+  const productUrl = `/produto/${node.handle}`;
   const firstAvailableVariant =
     node.variants.edges.find((v) => v.node.availableForSale)?.node || node.variants.edges[0]?.node;
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!firstAvailableVariant) return;
+    if (!firstAvailableVariant || isOutOfStock) return;
     await addItem({
       product: {
         id: node.id,
@@ -88,6 +135,11 @@ export function ShopifyProductCard({ product }: Props) {
               Sem estoque
             </Badge>
           )}
+          {isLowStock && (
+            <Badge className="text-[10px] truncate bg-primary text-primary-foreground">
+              Últimas unidades
+            </Badge>
+          )}
           {hasDiscount && !isOutOfStock && (
             <Badge className="badge-sale text-[10px] truncate">-{discountPct}%</Badge>
           )}
@@ -105,15 +157,16 @@ export function ShopifyProductCard({ product }: Props) {
           <Heart className="h-4 w-4 text-muted-foreground" />
         </button>
 
-        {!isOutOfStock && firstAvailableVariant && (
+        {firstAvailableVariant && (
           <button
             type="button"
             onClick={handleQuickAdd}
-            disabled={isLoading}
+            disabled={isLoading || isOutOfStock}
             className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press disabled:opacity-50"
-            aria-label={`Adicionar ${node.title} ao carrinho`}
+            aria-label={isOutOfStock ? `Ver detalhes de ${node.title}` : `Adicionar ${node.title} ao carrinho`}
+            title={isOutOfStock ? 'Ver produto' : 'Comprar'}
           >
-            <ShoppingBag className="h-4 w-4" />
+            {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
           </button>
         )}
       </div>
@@ -132,6 +185,16 @@ export function ShopifyProductCard({ product }: Props) {
             </>
           ) : (
             <p className="price-current text-base font-bold">{formatCurrency(minPrice)}</p>
+          )}
+          {applyPix && pixDiscountAmount > 0 && (
+            <p className="text-[11px] font-semibold text-primary">
+              {formatCurrency(pixPrice)} no PIX
+            </p>
+          )}
+          {installmentDisplay && (
+            <p className="text-[11px] font-medium text-foreground/80 pt-0.5">
+              {installmentDisplay.primaryText}
+            </p>
           )}
         </div>
       </div>
