@@ -191,12 +191,35 @@ const ProductDetail = () => {
 
           <div className="space-y-1">
             {hasDiscount && (
-              <p className="line-through text-sm text-muted-foreground">
-                {formatCurrency(compareAt)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="line-through text-sm text-muted-foreground">
+                  {formatCurrency(compareAt)}
+                </p>
+                <Badge className="badge-sale text-[10px]">
+                  -{Math.round((1 - price / compareAt) * 100)}%
+                </Badge>
+              </div>
             )}
             <p className="text-3xl font-bold text-primary">{formatCurrency(price)}</p>
+            {applyPix && pixDiscountAmount > 0 && (
+              <p className="text-sm font-semibold text-primary">
+                ou {formatCurrency(pixPrice)} no PIX
+                <span className="text-muted-foreground font-normal">
+                  {' '}
+                  (economize {formatCurrency(pixDiscountAmount)})
+                </span>
+              </p>
+            )}
+            {installmentDisplay && (
+              <p className="text-sm text-foreground/80">{installmentDisplay.primaryText}</p>
+            )}
+            {selectedVariant && !selectedVariant.availableForSale && (
+              <Badge variant="secondary" className="mt-2 bg-muted-foreground text-background">
+                Sem estoque
+              </Badge>
+            )}
           </div>
+
 
           {product.options.map((option) => {
             // Opções "Title" único (default Shopify para produtos sem variantes reais) → não mostra
