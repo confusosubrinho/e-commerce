@@ -123,6 +123,9 @@ export function ShopifyShowcaseSection({ section }: Props) {
 
   const wrapperClass = section.dark_bg ? 'bg-foreground text-background' : '';
 
+  // Esconde a seção inteira quando, após carregar, não houver produtos.
+  if (!isLoading && products.length === 0) return null;
+
   return (
     <div className={wrapperClass}>
       <ShopifyProductGrid
@@ -131,14 +134,6 @@ export function ShopifyShowcaseSection({ section }: Props) {
         products={products}
         isLoading={isLoading}
         carousel={isCarousel}
-        emptyTitle="Sem produtos nesta vitrine"
-        emptyDescription={
-          isCollection
-            ? 'Adicione produtos a essa coleção no admin Shopify.'
-            : isManual
-            ? 'Adicione handles de produtos válidos no admin.'
-            : 'Cadastre produtos na Shopify para preencher esta vitrine.'
-        }
       />
     </div>
   );
