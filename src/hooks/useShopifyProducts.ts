@@ -43,3 +43,21 @@ export function useShopifyProduct(handle: string | undefined) {
     staleTime: 1000 * 60 * 2,
   });
 }
+
+/** Produtos recomendados pela Shopify (relacionados). */
+export function useShopifyProductRecommendations(productId: string | undefined) {
+  return useQuery({
+    queryKey: ['shopify-product-recommendations', productId],
+    queryFn: async () => {
+      if (!productId) return [];
+      const data = await storefrontApiRequest<{
+        productRecommendations: ShopifyProductNode[] | null;
+      }>(PRODUCT_RECOMMENDATIONS_QUERY, { productId });
+      const list = data?.data?.productRecommendations ?? [];
+      // Normalizar para o mesmo shape de ShopifyProduct ({ node }) usado pelo grid
+      return list.map((node) => ({ node })) as { node: ShopifyProductNode }[];
+    },
+    enabled: !!productId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
