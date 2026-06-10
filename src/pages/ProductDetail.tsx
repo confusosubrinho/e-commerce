@@ -270,61 +270,77 @@ const ProductDetail = () => {
           </div>
 
 
-          {product.options.map((option) => {
-            // Opções "Title" único (default Shopify para produtos sem variantes reais) → não mostra
-            if (option.values.length === 1 && option.values[0] === 'Default Title') return null;
-            return (
-              <div key={option.name}>
-                <p className="text-sm font-medium mb-2">{option.name}</p>
-                <div className="flex flex-wrap gap-2">
-                  {option.values.map((val) => {
-                    const isActive = selectedOptions[option.name] === val;
-                    const available = isOptionValueAvailable(option.name, val);
-                    return (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() =>
-                          setSelectedOptions((prev) => ({ ...prev, [option.name]: val }))
-                        }
-                        title={available ? val : `${val} — esgotado`}
-                        aria-label={available ? val : `${val} esgotado`}
-                        className={`relative min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
-                          isActive
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : available
-                            ? 'bg-background hover:bg-muted border-border'
-                            : 'bg-muted/40 text-muted-foreground border-dashed border-border line-through opacity-70'
-                        }`}
-                      >
-                        {val}
-                      </button>
-                    );
-                  })}
+          <div ref={variantBlockRef}>
+            {product.options.map((option) => {
+              if (option.values.length === 1 && option.values[0] === 'Default Title') return null;
+              return (
+                <div key={option.name} className="mb-4">
+                  <p className="text-sm font-medium mb-2">{option.name}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {option.values.map((val) => {
+                      const isActive = selectedOptions[option.name] === val;
+                      const available = isOptionValueAvailable(option.name, val);
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() =>
+                            setSelectedOptions((prev) => ({ ...prev, [option.name]: val }))
+                          }
+                          title={available ? val : `${val} — esgotado`}
+                          aria-label={available ? val : `${val} esgotado`}
+                          className={`relative min-w-[44px] px-3 h-10 rounded-md border text-sm transition-colors ${
+                            isActive
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : available
+                              ? 'bg-background hover:bg-muted border-border'
+                              : 'bg-muted/40 text-muted-foreground border-dashed border-border line-through opacity-70'
+                          }`}
+                        >
+                          {val}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          <Button
-            onClick={handleAdd}
-            disabled={!selectedVariant || !selectedVariant.availableForSale || isAdding}
-            size="lg"
-            className="w-full"
-          >
-            {isAdding ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : !selectedVariant ? (
-              'Escolha as opções'
-            ) : !selectedVariant.availableForSale ? (
-              'Esgotado'
-            ) : (
-              <>
-                <ShoppingBag className="w-4 h-4 mr-2" />
-                Adicionar ao carrinho
-              </>
+          <div ref={buyButtonRef} className="space-y-2">
+            <Button
+              onClick={handleAdd}
+              disabled={!selectedVariant || !selectedVariant.availableForSale || isAdding}
+              size="lg"
+              className="w-full"
+            >
+              {isAdding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : !selectedVariant ? (
+                'Escolha as opções'
+              ) : !selectedVariant.availableForSale ? (
+                'Esgotado'
+              ) : (
+                <>
+                  <ShoppingBag className="w-4 h-4 mr-2" />
+                  Adicionar ao carrinho
+                </>
+              )}
+            </Button>
+
+            {selectedVariant && !selectedVariant.availableForSale && (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full"
+                onClick={() => setNotifyOpen(true)}
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Avise-me quando voltar
+              </Button>
             )}
-          </Button>
+          </div>
 
           {product.descriptionHtml && (
             <div className="prose prose-sm max-w-none pt-4 border-t">
@@ -337,6 +353,11 @@ const ProductDetail = () => {
         </div>
       </div>
 
+      <FadeInOnScroll>
+        <div className="container-custom pb-12">
+          <ProductReviews productId={product.id} productName={product.title} isShopify />
+        </div>
+      </FadeInOnScroll>
 
       {(isLoadingRelated || (relatedProducts && relatedProducts.length > 0)) && (
         <FadeInOnScroll>
@@ -348,6 +369,41 @@ const ProductDetail = () => {
           />
         </FadeInOnScroll>
       )}
+
+      <StickyAddToCart
+        productName={product.title}
+        currentPrice={price}
+        isInStock={!!selectedVariant?.availableForSale}
+        hasSelectedVariant={!!selectedVariant}
+        needsColor={
+          !selectedOptions['Cor'] &&
+          product.options.some((o) => o.name.toLowerCase() === 'cor')
+        }
+        needsSize={
+          !selectedOptions['Tamanho'] &&
+          product.options.some((o) => o.name.toLowerCase() === 'tamanho')
+        }
+        onAddToCart={handleAdd}
+        onScrollToVariant={() =>
+          variantBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+        visible={stickyVisible}
+      />
+
+      <StockNotifyModal
+        open={notifyOpen}
+        onOpenChange={setNotifyOpen}
+        productId={product.id}
+        productName={product.title}
+        variantId={selectedVariant?.id}
+        variantInfo={
+          selectedVariant
+            ? selectedVariant.selectedOptions.map((o) => `${o.name}: ${o.value}`).join(' • ')
+            : undefined
+        }
+        currentPrice={price}
+        isShopify
+      />
     </StoreLayout>
   );
 };
