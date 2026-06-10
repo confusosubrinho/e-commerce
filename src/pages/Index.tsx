@@ -1,29 +1,102 @@
-import { lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense, ComponentType } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
 import { FeaturesBar } from '@/components/store/FeaturesBar';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
-import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
-import { useShopifyProducts } from '@/hooks/useShopifyProducts';
+import { ShopifyShowcaseSection } from '@/components/store/ShopifyShowcaseSection';
+import { useHomeSections } from '@/hooks/useHomeSections';
+import { useHomePageSections } from '@/hooks/useHomePageSections';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
-import { useHomeSections } from '@/hooks/useHomeSections';
-import { ShopifyShowcaseSection } from '@/components/store/ShopifyShowcaseSection';
+import { trackSession } from '@/lib/utmTracker';
+import { useTenant } from '@/hooks/useTenant';
 
+const HighlightBanners = lazy(() =>
+  import('@/components/store/HighlightBanners').then((m) => ({ default: m.HighlightBanners }))
+);
+const InstagramFeed = lazy(() =>
+  import('@/components/store/InstagramFeed').then((m) => ({ default: m.InstagramFeed }))
+);
+const ShopBySize = lazy(() =>
+  import('@/components/store/ShopBySize').then((m) => ({ default: m.ShopBySize }))
+);
 const Newsletter = lazy(() =>
   import('@/components/store/Newsletter').then((m) => ({ default: m.Newsletter }))
+);
+const CustomerTestimonials = lazy(() =>
+  import('@/components/store/CustomerTestimonials').then((m) => ({ default: m.CustomerTestimonials }))
+);
+const BlogSection = lazy(() =>
+  import('@/components/store/BlogSection').then((m) => ({ default: m.BlogSection }))
 );
 
 const SectionFallback = () => <div className="py-12" />;
 
-const Index = () => {
-  const { data: products, isLoading } = useShopifyProducts({ first: 12 });
-  const { data: settings } = useStoreSettingsPublic();
-  const { data: homeSections } = useHomeSections();
-  const shopifySections = (homeSections ?? []).filter(
+/** Skeleton de categorias para evitar CLS. */
+function CategoryGridSkeleton() {
+  return (
+    <section className="py-12 min-h-[280px]" aria-hidden="true">
+      <div className="container-custom">
+        <div className="h-8 bg-muted rounded w-48 mx-auto mb-8" />
+        <div className="flex gap-6 overflow-hidden justify-center">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex-shrink-0 w-[150px] text-center">
+              <div className="w-[150px] h-[150px] rounded-full bg-muted mx-auto mb-3" />
+              <div className="h-4 bg-muted rounded w-16 mx-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Bloco "product_sections": loop das vitrines configuradas em `home_sections`.
+ * Como o catálogo agora vem da Shopify, só renderizamos seções de origem Shopify
+ * (shopify_collection / shopify_manual). Seções legadas baseadas em produtos do
+ * banco são silenciosamente puladas.
+ */
+function ShopifyProductSectionsBlock() {
+  const { data: sections } = useHomeSections();
+  const shopifySections = (sections ?? []).filter(
     (s) => s.source_type === 'shopify_collection' || s.source_type === 'shopify_manual'
   );
+  if (shopifySections.length === 0) return null;
+  return (
+    <>
+      {shopifySections.map((section) => (
+        <div key={section.id} className="content-lazy">
+          <ShopifyShowcaseSection section={section} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+const SECTION_COMPONENTS: Record<string, ComponentType<any>> = {
+  banner_carousel: BannerCarousel,
+  features_bar: FeaturesBar,
+  category_grid: CategoryGrid,
+  product_sections: ShopifyProductSectionsBlock,
+  highlight_banners: HighlightBanners,
+  shop_by_size: ShopBySize,
+  instagram_feed: InstagramFeed,
+  customer_testimonials: CustomerTestimonials,
+  testimonials: CustomerTestimonials,
+  newsletter: Newsletter,
+  blog: BlogSection,
+};
+
+const Index = () => {
+  const { data: pagesSections, isLoading } = useHomePageSections();
+  const { data: settings } = useStoreSettingsPublic();
+  const { tenantId } = useTenant();
+
+  useEffect(() => {
+    trackSession(tenantId);
+  }, [tenantId]);
 
   const storeName = settings?.store_name || 'Vanessa Lima Shoes';
   const seoTitle = `${storeName} — Calçados Femininos em Couro Legítimo`;
@@ -45,33 +118,46 @@ const Index = () => {
           logo: settings?.logo_url || undefined,
         }}
       />
-      <BannerCarousel />
-      <FeaturesBar />
 
-
-      <FadeInOnScroll>
-        <CategoryGrid />
-      </FadeInOnScroll>
-
-      <FadeInOnScroll>
-        <ShopifyProductGrid
-          title="Nossa coleção"
-          subtitle="Explore nossos produtos mais recentes"
-          products={products ?? []}
-          isLoading={isLoading}
-        />
-      </FadeInOnScroll>
-
-      {shopifySections.map((section) => (
-        <FadeInOnScroll key={section.id}>
-          <ShopifyShowcaseSection section={section} />
-        </FadeInOnScroll>
-      ))}
-
-      <Suspense fallback={<SectionFallback />}>
-        <Newsletter />
-      </Suspense>
-
+      {isLoading ? (
+        <>
+          <SectionFallback />
+          <SectionFallback />
+          <SectionFallback />
+        </>
+      ) : pagesSections && pagesSections.length > 0 ? (
+        pagesSections.map((section, index) => {
+          const Component = SECTION_COMPONENTS[section.section_type];
+          if (!Component) return null;
+          const isCategoryGrid = section.section_type === 'category_grid';
+          return (
+            <FadeInOnScroll key={section.id} delay={index * 50} rootMargin="60px">
+              <Suspense
+                fallback={isCategoryGrid ? <CategoryGridSkeleton /> : <SectionFallback />}
+              >
+                <div
+                  className={
+                    isCategoryGrid
+                      ? 'content-lazy content-lazy-section-category'
+                      : 'content-lazy'
+                  }
+                >
+                  <Component config={section.config} />
+                </div>
+              </Suspense>
+            </FadeInOnScroll>
+          );
+        })
+      ) : (
+        <div className="container-custom py-16 text-center">
+          <p className="text-muted-foreground mb-4">
+            Nenhuma seção configurada para a página inicial.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Acesse o painel admin para configurar banners, categorias e produtos em destaque.
+          </p>
+        </div>
+      )}
     </StoreLayout>
   );
 };
