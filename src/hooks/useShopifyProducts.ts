@@ -7,22 +7,34 @@ import {
 } from '@/lib/shopify/queries';
 import type { ShopifyProduct, ShopifyProductNode } from '@/lib/shopify/types';
 
+export type ShopifyProductSortKey =
+  | 'BEST_SELLING'
+  | 'CREATED_AT'
+  | 'PRICE'
+  | 'TITLE'
+  | 'UPDATED_AT'
+  | 'RELEVANCE';
+
 interface UseShopifyProductsOptions {
   first?: number;
   query?: string;
+  sortKey?: ShopifyProductSortKey;
+  reverse?: boolean;
+  enabled?: boolean;
 }
 
 /** Lista produtos da Shopify (com filtro opcional de busca/tags). */
 export function useShopifyProducts(opts: UseShopifyProductsOptions = {}) {
-  const { first = 24, query } = opts;
+  const { first = 24, query, sortKey = 'BEST_SELLING', reverse = false, enabled = true } = opts;
   return useQuery({
-    queryKey: ['shopify-products', first, query ?? null],
+    queryKey: ['shopify-products', first, query ?? null, sortKey, reverse],
     queryFn: async () => {
       const data = await storefrontApiRequest<{
         products: { edges: ShopifyProduct[] };
-      }>(PRODUCTS_QUERY, { first, query: query ?? null });
+      }>(PRODUCTS_QUERY, { first, query: query ?? null, sortKey, reverse });
       return data?.data?.products?.edges ?? [];
     },
+    enabled,
     staleTime: 1000 * 60 * 2,
   });
 }
