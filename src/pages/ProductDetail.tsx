@@ -317,8 +317,7 @@ const ProductDetail = () => {
           )}
         </div>
       </div>
-        </div>
-      </div>
+
 
       {(isLoadingRelated || (relatedProducts && relatedProducts.length > 0)) && (
         <FadeInOnScroll>
