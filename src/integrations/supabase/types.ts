@@ -3281,9 +3281,10 @@ export type Database = {
           id: string
           is_approved: boolean | null
           is_verified_purchase: boolean | null
-          product_id: string
+          product_id: string | null
           rating: number
           replied_at: string | null
+          shopify_product_id: string | null
           status: string
           tenant_id: string
           title: string | null
@@ -3298,9 +3299,10 @@ export type Database = {
           id?: string
           is_approved?: boolean | null
           is_verified_purchase?: boolean | null
-          product_id: string
+          product_id?: string | null
           rating: number
           replied_at?: string | null
+          shopify_product_id?: string | null
           status?: string
           tenant_id?: string
           title?: string | null
@@ -3315,9 +3317,10 @@ export type Database = {
           id?: string
           is_approved?: boolean | null
           is_verified_purchase?: boolean | null
-          product_id?: string
+          product_id?: string | null
           rating?: number
           replied_at?: string | null
+          shopify_product_id?: string | null
           status?: string
           tenant_id?: string
           title?: string | null
@@ -3776,7 +3779,9 @@ export type Database = {
           id: string
           is_notified: boolean
           notified_at: string | null
-          product_id: string
+          product_id: string | null
+          shopify_product_id: string | null
+          shopify_variant_id: string | null
           status: string
           tenant_id: string
           updated_at: string
@@ -3792,7 +3797,9 @@ export type Database = {
           id?: string
           is_notified?: boolean
           notified_at?: string | null
-          product_id: string
+          product_id?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string
@@ -3808,7 +3815,9 @@ export type Database = {
           id?: string
           is_notified?: boolean
           notified_at?: string | null
-          product_id?: string
+          product_id?: string | null
+          shopify_product_id?: string | null
+          shopify_variant_id?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string
