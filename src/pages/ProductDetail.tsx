@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import {
@@ -17,11 +17,14 @@ import {
   shouldApplyPixDiscount,
   getInstallmentDisplay,
 } from '@/lib/pricingEngine';
-import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
+import { Bell, ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
+import { StickyAddToCart } from '@/components/store/StickyAddToCart';
+import { StockNotifyModal } from '@/components/store/StockNotifyModal';
+import { ProductReviews } from '@/components/store/ProductReviews';
 
 
 const ProductDetail = () => {
@@ -34,9 +37,25 @@ const ProductDetail = () => {
   const { data: relatedProducts, isLoading: isLoadingRelated } =
     useShopifyProductRecommendations(product?.id);
 
-
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [stickyVisible, setStickyVisible] = useState(false);
+  const variantBlockRef = useRef<HTMLDivElement>(null);
+  const buyButtonRef = useRef<HTMLDivElement>(null);
+
+  // Sticky add-to-cart aparece depois que o botão principal saiu da viewport (mobile)
+  useEffect(() => {
+    const target = buyButtonRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setStickyVisible(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [product]);
+
 
   const allVariants = useMemo(
     () => product?.variants.edges.map((v) => v.node) ?? [],
