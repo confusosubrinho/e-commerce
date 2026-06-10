@@ -1,16 +1,105 @@
+import { useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
+import { CategoryFilters, type FilterState } from '@/components/store/CategoryFilters';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { useShopifyCollection } from '@/hooks/useShopifyCollections';
 import { PageSEO } from '@/components/seo/PageSEO';
+import type { ShopifyProduct } from '@/lib/shopify/types';
 
-/**
- * Página de listagem unificada (Shopify).
- * - /categoria/:slug → busca pela COLEÇÃO Shopify cujo handle = slug
- * - /tamanho/:size, /promocoes, /novidades, /mais-vendidos → query por tag/product_type
- * - /busca?q= → busca livre
- */
+const SIZE_OPTION_NAMES = ['tamanho', 'size', 'numeração', 'numeracao'];
+const COLOR_OPTION_NAMES = ['cor', 'color', 'colour'];
+
+function deriveFilterOptions(products: ShopifyProduct[]) {
+  const sizes = new Set<string>();
+  const colors = new Map<string, string | null>();
+  let maxPrice = 0;
+
+  for (const p of products) {
+    const price = parseFloat(p.node.priceRange.maxVariantPrice.amount);
+    if (price > maxPrice) maxPrice = price;
+
+    for (const v of p.node.variants.edges) {
+      for (const opt of v.node.selectedOptions) {
+        const lower = opt.name.toLowerCase();
+        if (SIZE_OPTION_NAMES.includes(lower)) sizes.add(opt.value);
+        if (COLOR_OPTION_NAMES.includes(lower) && !colors.has(opt.value)) {
+          colors.set(opt.value, null);
+        }
+      }
+    }
+  }
+
+  return {
+    availableSizes: Array.from(sizes).sort((a, b) => {
+      const na = parseFloat(a);
+      const nb = parseFloat(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    }),
+    availableColors: Array.from(colors.entries()).map(([name, hex]) => ({ name, hex })),
+    maxPrice: Math.max(Math.ceil(maxPrice), 100),
+  };
+}
+
+function productHasSize(p: ShopifyProduct, sizes: string[]) {
+  if (sizes.length === 0) return true;
+  return p.node.variants.edges.some((v) =>
+    v.node.selectedOptions.some(
+      (o) => SIZE_OPTION_NAMES.includes(o.name.toLowerCase()) && sizes.includes(o.value),
+    ),
+  );
+}
+function productHasColor(p: ShopifyProduct, colors: string[]) {
+  if (colors.length === 0) return true;
+  return p.node.variants.edges.some((v) =>
+    v.node.selectedOptions.some(
+      (o) => COLOR_OPTION_NAMES.includes(o.name.toLowerCase()) && colors.includes(o.value),
+    ),
+  );
+}
+
+function applyFilters(products: ShopifyProduct[], filters: FilterState): ShopifyProduct[] {
+  const filtered = products.filter((p) => {
+    const price = parseFloat(p.node.priceRange.minVariantPrice.amount);
+    if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false;
+
+    if (filters.onSale) {
+      const compare = p.node.compareAtPriceRange?.minVariantPrice?.amount;
+      if (!compare || parseFloat(compare) <= price) return false;
+    }
+    if (filters.isNew) {
+      const tags = (p.node.tags ?? []).map((t) => t.toLowerCase());
+      if (!tags.includes('novidade') && !tags.includes('new') && !tags.includes('lançamento')) return false;
+    }
+    if (!productHasSize(p, filters.sizes)) return false;
+    if (!productHasColor(p, filters.colors)) return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const pa = parseFloat(a.node.priceRange.minVariantPrice.amount);
+    const pb = parseFloat(b.node.priceRange.minVariantPrice.amount);
+    switch (filters.sortBy) {
+      case 'price-asc':
+        return pa - pb;
+      case 'price-desc':
+        return pb - pa;
+      case 'name-asc':
+        return a.node.title.localeCompare(b.node.title);
+      case 'name-desc':
+        return b.node.title.localeCompare(a.node.title);
+      case 'oldest':
+        return a.node.id.localeCompare(b.node.id);
+      case 'newest':
+      default:
+        return b.node.id.localeCompare(a.node.id);
+    }
+  });
+  return sorted;
+}
+
 const ProductListingPage = () => {
   const params = useParams<{ slug?: string; size?: string }>();
   const [searchParams] = useSearchParams();
@@ -18,13 +107,11 @@ const ProductListingPage = () => {
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
 
-  // Coleção Shopify (apenas em /categoria/:slug)
   const { data: collection, isLoading: loadingCollection } = useShopifyCollection(
     isCategoryRoute ? params.slug : undefined,
-    48
+    48,
   );
 
-  // Fallback / outras rotas: query por tag/product_type/busca
   let query: string | undefined;
   let title = 'Produtos';
   let subtitle: string | undefined;
@@ -49,57 +136,91 @@ const ProductListingPage = () => {
     title = `Busca: "${q}"`;
   }
 
-  // Em /categoria/:slug, só carrega o fallback se a coleção não existir.
   const shouldLoadFallback = !isCategoryRoute || (!loadingCollection && !collection);
   const { data: fallbackProducts, isLoading: loadingFallback } = useShopifyProducts({
     first: 48,
     query: isCategoryRoute && shouldLoadFallback ? `tag:${params.slug} OR product_type:${params.slug}` : query,
   });
 
-  if (isCategoryRoute && collection) {
-    const products = collection.products?.edges ?? [];
-    return (
-      <StoreLayout>
-        <PageSEO
-          title={`${collection.title} | Vanessa Lima Shoes`}
-          description={collection.description || `Confira os produtos da coleção ${collection.title}.`}
-          noindex={searchParams.toString().length > 0}
-        />
-        <ShopifyProductGrid
-          title={collection.title}
-          subtitle={collection.description || undefined}
-          products={products}
-          isLoading={loadingCollection}
-          emptyTitle="Nenhum produto nesta coleção"
-          emptyDescription="Adicione produtos a esta coleção no admin Shopify."
-        />
-      </StoreLayout>
-    );
-  }
+  const rawProducts: ShopifyProduct[] = isCategoryRoute && collection
+    ? collection.products?.edges ?? []
+    : fallbackProducts ?? [];
 
+  const { availableSizes, availableColors, maxPrice } = useMemo(
+    () => deriveFilterOptions(rawProducts),
+    [rawProducts],
+  );
 
-  const finalTitle = isCategoryRoute && params.slug
-    ? params.slug.charAt(0).toUpperCase() + params.slug.slice(1).replace(/-/g, ' ')
-    : title;
+  const [filters, setFilters] = useState<FilterState>({
+    priceRange: [0, 5000],
+    sizes: [],
+    colors: [],
+    sortBy: 'newest',
+    onSale: false,
+    isNew: false,
+  });
+
+  // Quando maxPrice é descoberto, ajusta limite superior se ainda estiver no default
+  const effectiveFilters: FilterState = {
+    ...filters,
+    priceRange: [
+      filters.priceRange[0],
+      filters.priceRange[1] === 5000 || filters.priceRange[1] > maxPrice ? maxPrice : filters.priceRange[1],
+    ],
+  };
+
+  const visibleProducts = useMemo(
+    () => applyFilters(rawProducts, effectiveFilters),
+    [rawProducts, effectiveFilters],
+  );
+
+  const pageTitle =
+    isCategoryRoute && collection
+      ? collection.title
+      : isCategoryRoute && params.slug
+        ? params.slug.charAt(0).toUpperCase() + params.slug.slice(1).replace(/-/g, ' ')
+        : title;
+  const pageSubtitle = isCategoryRoute && collection ? collection.description || undefined : subtitle;
+  const isLoading = (isCategoryRoute && loadingCollection) || loadingFallback;
 
   return (
     <StoreLayout>
       <PageSEO
-        title={`${finalTitle} | Vanessa Lima Shoes`}
-        description={subtitle || `Confira ${finalTitle.toLowerCase()} na Vanessa Lima Shoes.`}
-        noindex={!!searchParams.get('q')}
+        title={`${pageTitle} | Vanessa Lima Shoes`}
+        description={pageSubtitle || `Confira ${pageTitle.toLowerCase()} na Vanessa Lima Shoes.`}
+        noindex={!!searchParams.get('q') || searchParams.toString().length > 0}
       />
       <ShopifyProductGrid
-        title={finalTitle}
-        subtitle={subtitle}
-        products={fallbackProducts ?? []}
-        isLoading={loadingFallback || (isCategoryRoute && loadingCollection)}
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        products={visibleProducts}
+        isLoading={isLoading}
         emptyTitle="Nenhum produto encontrado"
-        emptyDescription="Tente outra categoria ou cadastre produtos no admin Shopify."
+        emptyDescription="Ajuste os filtros ou tente outra categoria."
+        sidebar={
+          <CategoryFilters
+            filters={effectiveFilters}
+            onFiltersChange={setFilters}
+            availableSizes={availableSizes}
+            availableColors={availableColors}
+            maxPrice={maxPrice}
+            productCount={visibleProducts.length}
+            isSidebar
+          />
+        }
+        toolbar={
+          <CategoryFilters
+            filters={effectiveFilters}
+            onFiltersChange={setFilters}
+            availableSizes={availableSizes}
+            availableColors={availableColors}
+            maxPrice={maxPrice}
+            productCount={visibleProducts.length}
+          />
+        }
       />
     </StoreLayout>
   );
 };
 
 export default ProductListingPage;
-
