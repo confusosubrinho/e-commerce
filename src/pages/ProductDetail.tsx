@@ -3,12 +3,21 @@ import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { useShopifyProduct } from '@/hooks/useShopifyProducts';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
+import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency } from '@/lib/pricingEngine';
+import {
+  formatCurrency,
+  getPixPriceForDisplay,
+  getPixDiscountAmount,
+  shouldApplyPixDiscount,
+  getInstallmentDisplay,
+} from '@/lib/pricingEngine';
 import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
+
 
 const ProductDetail = () => {
   const { handle, slug } = useParams<{ handle?: string; slug?: string }>();
@@ -16,6 +25,8 @@ const ProductDetail = () => {
   const { data: product, isLoading, isError } = useShopifyProduct(productHandle);
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isAdding = useShopifyCartStore((s) => s.isLoading);
+  const { data: pricingConfig } = usePricingConfig();
+
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -74,6 +85,12 @@ const ProductDetail = () => {
     ? parseFloat(selectedVariant.compareAtPrice.amount)
     : 0;
   const hasDiscount = compareAt > price;
+
+  const applyPix = pricingConfig ? shouldApplyPixDiscount(pricingConfig, hasDiscount) : true;
+  const pixPrice = pricingConfig ? getPixPriceForDisplay(price, pricingConfig, hasDiscount) : price;
+  const pixDiscountAmount = pricingConfig ? getPixDiscountAmount(price, pricingConfig, hasDiscount) : 0;
+  const installmentDisplay = pricingConfig ? getInstallmentDisplay(price, pricingConfig, hasDiscount) : null;
+
 
   const handleAdd = async () => {
     if (!selectedVariant) return;
@@ -180,12 +197,35 @@ const ProductDetail = () => {
 
           <div className="space-y-1">
             {hasDiscount && (
-              <p className="line-through text-sm text-muted-foreground">
-                {formatCurrency(compareAt)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="line-through text-sm text-muted-foreground">
+                  {formatCurrency(compareAt)}
+                </p>
+                <Badge className="badge-sale text-[10px]">
+                  -{Math.round((1 - price / compareAt) * 100)}%
+                </Badge>
+              </div>
             )}
             <p className="text-3xl font-bold text-primary">{formatCurrency(price)}</p>
+            {applyPix && pixDiscountAmount > 0 && (
+              <p className="text-sm font-semibold text-primary">
+                ou {formatCurrency(pixPrice)} no PIX
+                <span className="text-muted-foreground font-normal">
+                  {' '}
+                  (economize {formatCurrency(pixDiscountAmount)})
+                </span>
+              </p>
+            )}
+            {installmentDisplay && (
+              <p className="text-sm text-foreground/80">{installmentDisplay.primaryText}</p>
+            )}
+            {selectedVariant && !selectedVariant.availableForSale && (
+              <Badge variant="secondary" className="mt-2 bg-muted-foreground text-background">
+                Sem estoque
+              </Badge>
+            )}
           </div>
+
 
           {product.options.map((option) => {
             // Opções "Title" único (default Shopify para produtos sem variantes reais) → não mostra
