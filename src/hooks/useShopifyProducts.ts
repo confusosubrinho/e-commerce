@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { storefrontApiRequest } from '@/lib/shopify/client';
-import { PRODUCT_BY_HANDLE_QUERY, PRODUCTS_QUERY } from '@/lib/shopify/queries';
+import {
+  PRODUCT_BY_HANDLE_QUERY,
+  PRODUCTS_QUERY,
+  PRODUCT_RECOMMENDATIONS_QUERY,
+} from '@/lib/shopify/queries';
 import type { ShopifyProduct, ShopifyProductNode } from '@/lib/shopify/types';
 
 interface UseShopifyProductsOptions {
