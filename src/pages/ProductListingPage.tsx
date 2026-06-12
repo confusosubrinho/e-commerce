@@ -234,6 +234,7 @@ const ProductListingPage = () => {
             maxPrice={maxPrice}
             productCount={visibleProducts.length}
             isSidebar
+            onSizeClick={handleSizeNavigate}
           />
         }
         toolbar={
@@ -244,6 +245,7 @@ const ProductListingPage = () => {
             availableColors={availableColors}
             maxPrice={maxPrice}
             productCount={visibleProducts.length}
+            onSizeClick={handleSizeNavigate}
           />
         }
       />
