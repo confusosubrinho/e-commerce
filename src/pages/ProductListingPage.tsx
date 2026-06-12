@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { CategoryFilters, type FilterState } from '@/components/store/CategoryFilters';
@@ -103,6 +103,7 @@ function applyFilters(products: ShopifyProduct[], filters: FilterState): Shopify
 const ProductListingPage = () => {
   const params = useParams<{ slug?: string; size?: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const path = window.location.pathname;
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
@@ -166,10 +167,16 @@ const ProductListingPage = () => {
     );
   }, [baseProducts, params.size]);
 
+  // Em /tamanho/:size derivamos opções a partir de TODOS produtos buscados,
+  // assim o sidebar mostra os outros tamanhos disponíveis para navegar.
   const { availableSizes, availableColors, maxPrice } = useMemo(
-    () => deriveFilterOptions(rawProducts),
-    [rawProducts],
+    () => deriveFilterOptions(params.size ? baseProducts : rawProducts),
+    [baseProducts, rawProducts, params.size],
   );
+
+  const handleSizeNavigate = params.size
+    ? (size: string) => navigate(`/tamanho/${encodeURIComponent(size)}`)
+    : undefined;
 
   const [filters, setFilters] = useState<FilterState>({
     priceRange: [0, 5000],
@@ -227,6 +234,7 @@ const ProductListingPage = () => {
             maxPrice={maxPrice}
             productCount={visibleProducts.length}
             isSidebar
+            onSizeClick={handleSizeNavigate}
           />
         }
         toolbar={
@@ -237,6 +245,7 @@ const ProductListingPage = () => {
             availableColors={availableColors}
             maxPrice={maxPrice}
             productCount={visibleProducts.length}
+            onSizeClick={handleSizeNavigate}
           />
         }
       />

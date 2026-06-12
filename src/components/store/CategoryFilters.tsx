@@ -41,6 +41,8 @@ interface CategoryFiltersProps {
   maxPrice: number;
   productCount: number;
   isSidebar?: boolean;
+  /** Quando definido, substitui o toggle padrão de tamanho (ex.: para navegar entre /tamanho/:size). */
+  onSizeClick?: (size: string) => void;
 }
 
 const sortOptions = [
@@ -60,11 +62,16 @@ export function CategoryFilters({
   maxPrice,
   productCount,
   isSidebar = false,
+  onSizeClick,
 }: CategoryFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
 
   const handleSizeToggle = (size: string) => {
+    if (onSizeClick) {
+      onSizeClick(size);
+      return;
+    }
     const newSizes = filters.sizes.includes(size)
       ? filters.sizes.filter(s => s !== size)
       : [...filters.sizes, size];
