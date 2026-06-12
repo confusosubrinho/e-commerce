@@ -62,6 +62,7 @@ export function CategoryFilters({
   maxPrice,
   productCount,
   isSidebar = false,
+  onSizeClick,
 }: CategoryFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
