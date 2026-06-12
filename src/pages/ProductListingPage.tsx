@@ -128,8 +128,11 @@ const ProductListingPage = () => {
     title = 'Mais vendidos';
     subtitle = 'Os queridinhos da loja';
   } else if (params.size) {
-    query = `tag:tamanho-${params.size}`;
+    // Não filtra por tag — a Shopify raramente tem tag tamanho-X.
+    // Buscamos um lote maior e filtramos pelas variantes disponíveis client-side.
+    query = undefined;
     title = `Tamanho ${params.size}`;
+    subtitle = `Produtos disponíveis no tamanho ${params.size}`;
   } else if (searchParams.get('q')) {
     const q = searchParams.get('q')!;
     query = q;
