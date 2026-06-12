@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { CategoryFilters, type FilterState } from '@/components/store/CategoryFilters';
