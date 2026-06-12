@@ -167,10 +167,16 @@ const ProductListingPage = () => {
     );
   }, [baseProducts, params.size]);
 
+  // Em /tamanho/:size derivamos opções a partir de TODOS produtos buscados,
+  // assim o sidebar mostra os outros tamanhos disponíveis para navegar.
   const { availableSizes, availableColors, maxPrice } = useMemo(
-    () => deriveFilterOptions(rawProducts),
-    [rawProducts],
+    () => deriveFilterOptions(params.size ? baseProducts : rawProducts),
+    [baseProducts, rawProducts, params.size],
   );
+
+  const handleSizeNavigate = params.size
+    ? (size: string) => navigate(`/tamanho/${encodeURIComponent(size)}`)
+    : undefined;
 
   const [filters, setFilters] = useState<FilterState>({
     priceRange: [0, 5000],
