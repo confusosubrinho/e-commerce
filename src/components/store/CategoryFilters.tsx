@@ -41,6 +41,8 @@ interface CategoryFiltersProps {
   maxPrice: number;
   productCount: number;
   isSidebar?: boolean;
+  /** Quando definido, substitui o toggle padrão de tamanho (ex.: para navegar entre /tamanho/:size). */
+  onSizeClick?: (size: string) => void;
 }
 
 const sortOptions = [
