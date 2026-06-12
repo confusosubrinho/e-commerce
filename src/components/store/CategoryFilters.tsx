@@ -68,6 +68,10 @@ export function CategoryFilters({
 
 
   const handleSizeToggle = (size: string) => {
+    if (onSizeClick) {
+      onSizeClick(size);
+      return;
+    }
     const newSizes = filters.sizes.includes(size)
       ? filters.sizes.filter(s => s !== size)
       : [...filters.sizes, size];
