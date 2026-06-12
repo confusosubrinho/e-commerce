@@ -103,6 +103,7 @@ function applyFilters(products: ShopifyProduct[], filters: FilterState): Shopify
 const ProductListingPage = () => {
   const params = useParams<{ slug?: string; size?: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const path = window.location.pathname;
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
