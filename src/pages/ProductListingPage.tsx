@@ -128,8 +128,11 @@ const ProductListingPage = () => {
     title = 'Mais vendidos';
     subtitle = 'Os queridinhos da loja';
   } else if (params.size) {
-    query = `tag:tamanho-${params.size}`;
+    // Não filtra por tag — a Shopify raramente tem tag tamanho-X.
+    // Buscamos um lote maior e filtramos pelas variantes disponíveis client-side.
+    query = undefined;
     title = `Tamanho ${params.size}`;
+    subtitle = `Produtos disponíveis no tamanho ${params.size}`;
   } else if (searchParams.get('q')) {
     const q = searchParams.get('q')!;
     query = q;
@@ -138,13 +141,30 @@ const ProductListingPage = () => {
 
   const shouldLoadFallback = !isCategoryRoute || (!loadingCollection && !collection);
   const { data: fallbackProducts, isLoading: loadingFallback } = useShopifyProducts({
-    first: 48,
+    first: params.size ? 100 : 48,
     query: isCategoryRoute && shouldLoadFallback ? `tag:${params.slug} OR product_type:${params.slug}` : query,
   });
 
-  const rawProducts: ShopifyProduct[] = isCategoryRoute && collection
+  const baseProducts: ShopifyProduct[] = isCategoryRoute && collection
     ? collection.products?.edges ?? []
     : fallbackProducts ?? [];
+
+  // Para rota /tamanho/:size, manter apenas produtos com variante disponível nesse tamanho
+  const rawProducts: ShopifyProduct[] = useMemo(() => {
+    if (!params.size) return baseProducts;
+    const target = params.size.trim().toLowerCase();
+    return baseProducts.filter((p) =>
+      p.node.variants.edges.some(
+        (v) =>
+          v.node.availableForSale &&
+          v.node.selectedOptions.some(
+            (o) =>
+              SIZE_OPTION_NAMES.includes(o.name.toLowerCase()) &&
+              o.value.trim().toLowerCase() === target,
+          ),
+      ),
+    );
+  }, [baseProducts, params.size]);
 
   const { availableSizes, availableColors, maxPrice } = useMemo(
     () => deriveFilterOptions(rawProducts),
@@ -153,7 +173,7 @@ const ProductListingPage = () => {
 
   const [filters, setFilters] = useState<FilterState>({
     priceRange: [0, 5000],
-    sizes: [],
+    sizes: params.size ? [params.size] : [],
     colors: [],
     sortBy: 'newest',
     onSale: false,
@@ -173,6 +193,7 @@ const ProductListingPage = () => {
     () => applyFilters(rawProducts, effectiveFilters),
     [rawProducts, effectiveFilters],
   );
+
 
   const pageTitle =
     isCategoryRoute && collection
