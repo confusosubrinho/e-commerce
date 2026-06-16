@@ -1,10 +1,13 @@
 import { ShopifyProductCard } from './ShopifyProductCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ShoppingBag } from 'lucide-react';
-import { useMemo } from 'react';
+import { ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ShopifyProduct } from '@/lib/shopify/types';
 import { SHOPIFY_ADMIN_URL } from '@/lib/shopify/client';
+import { useDragScroll } from '@/hooks/useDragScroll';
+import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
+import { cn } from '@/lib/utils';
 
 interface Props {
   products: ShopifyProduct[];
