@@ -68,19 +68,7 @@ export function ShopifyProductGrid({
           </Button>
         </div>
       ) : carousel ? (
-        <div
-          className="flex gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-3 scrollbar-thin"
-          style={{ scrollbarWidth: 'thin' }}
-        >
-          {sortedProducts.map((product) => (
-            <div
-              key={product.node.id}
-              className="snap-start shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%]"
-            >
-              <ShopifyProductCard product={product} />
-            </div>
-          ))}
-        </div>
+        <CarouselScroller products={sortedProducts} />
       ) : (
         <div className={`grid grid-cols-2 ${sidebar ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4'} gap-4`}>
           {sortedProducts.map((product) => (
