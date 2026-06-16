@@ -103,3 +103,98 @@ export function ShopifyProductGrid({
     </section>
   );
 }
+
+function CarouselScroller({ products }: { products: ShopifyProduct[] }) {
+  const dragRef = useDragScroll();
+  const axisLockRef = useHorizontalScrollAxisLock();
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+
+  const setRefs = useCallback(
+    (el: HTMLDivElement | null) => {
+      (dragRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      (axisLockRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    },
+    [dragRef, axisLockRef],
+  );
+
+  const elRef = useRef<HTMLDivElement | null>(null);
+
+  const updateButtons = useCallback(() => {
+    const el = elRef.current;
+    if (!el) return;
+    setCanPrev(el.scrollLeft > 2);
+    setCanNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  const attachRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      elRef.current = el;
+      setRefs(el);
+    },
+    [setRefs],
+  );
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    updateButtons();
+    el.addEventListener('scroll', updateButtons, { passive: true });
+    const ro = new ResizeObserver(updateButtons);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateButtons);
+      ro.disconnect();
+    };
+  }, [updateButtons, products.length]);
+
+  const scrollByPage = (dir: 1 | -1) => {
+    const el = elRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.9, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="relative group">
+      <div
+        ref={attachRef}
+        className={cn(
+          'flex gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-3 select-none cursor-grab active:cursor-grabbing',
+          '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+        )}
+      >
+        {products.map((product) => (
+          <div
+            key={product.node.id}
+            className="snap-start shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%]"
+          >
+            <ShopifyProductCard product={product} />
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        aria-label="Anterior"
+        onClick={() => scrollByPage(-1)}
+        className={cn(
+          'hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-md backdrop-blur border border-border/50 transition-opacity hover:bg-background',
+          canPrev ? 'opacity-100' : 'opacity-0 pointer-events-none',
+        )}
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Próximo"
+        onClick={() => scrollByPage(1)}
+        className={cn(
+          'hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 items-center justify-center rounded-full bg-background/90 text-foreground shadow-md backdrop-blur border border-border/50 transition-opacity hover:bg-background',
+          canNext ? 'opacity-100' : 'opacity-0 pointer-events-none',
+        )}
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
