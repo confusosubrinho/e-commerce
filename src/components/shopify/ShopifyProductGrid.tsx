@@ -159,14 +159,14 @@ function CarouselScroller({ products }: { products: ShopifyProduct[] }) {
       <div
         ref={attachRef}
         className={cn(
-          'flex gap-4 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-3 select-none cursor-grab active:cursor-grabbing',
+          'flex gap-4 overflow-x-auto -mx-4 px-4 pb-3 select-none cursor-grab active:cursor-grabbing',
           '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
         )}
       >
         {products.map((product) => (
           <div
             key={product.node.id}
-            className="snap-start shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%]"
+            className="shrink-0 w-[46%] sm:w-[32%] md:w-[24%] lg:w-[19%]"
           >
             <ShopifyProductCard product={product} />
           </div>
