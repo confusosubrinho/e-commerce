@@ -169,7 +169,7 @@ const BRAZILIAN_STATES = [
   if (loading) {
     return (
       <StoreLayout>
-        <Helmet><title>Minha Conta | Vanessa Lima Shoes</title></Helmet>
+        <Helmet><title>Minha Conta | Vanessa Lima Shoes</title><meta name="robots" content="noindex, nofollow" /></Helmet>
         <div className="container-custom py-8 space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
@@ -187,7 +187,7 @@ const BRAZILIAN_STATES = [
 
   return (
     <StoreLayout>
-      <Helmet><title>Minha Conta | Vanessa Lima Shoes</title></Helmet>
+      <Helmet><title>Minha Conta | Vanessa Lima Shoes</title><meta name="robots" content="noindex, nofollow" /></Helmet>
       <div className="container-custom py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
