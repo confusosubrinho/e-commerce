@@ -27,6 +27,7 @@ const Cart = () => {
 
   return (
     <StoreLayout>
+      <PageSEO title="Meu carrinho | Vanessa Lima Shoes" path="/carrinho" noindex />
       <div className="container-custom py-8 max-w-4xl">
         <h1 className="text-2xl md:text-3xl font-bold mb-6">Meu carrinho</h1>
 
