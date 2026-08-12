@@ -1,3 +1,4 @@
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
