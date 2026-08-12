@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vanessa Lima Shoes - Calçados Femininos em Couro Legítimo</title>
-    <meta name="description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
+    <meta data-rh="true" name="description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
     <meta name="author" content="Vanessa Lima Shoes" />
 
     <!-- Preconnect to critical origins -->
@@ -22,15 +22,13 @@
       <link href="https://fonts.googleapis.com/css2?family=Maven+Pro:wght@500;600;700&family=Lato:wght@400;700&display=swap" rel="stylesheet" />
     </noscript>
 
-    <!-- Open Graph -->
-    
-    
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-    <meta property="og:url" content="https://vanessalima.lovable.app" />
+    <!-- Open Graph (fallback sitewide; cada rota sobrescreve via react-helmet-async) -->
+    <meta data-rh="true" property="og:type" content="website" />
+    <meta property="og:site_name" content="Vanessa Lima Shoes" />
+    <meta data-rh="true" property="og:locale" content="pt_BR" />
+    <meta data-rh="true" property="og:url" content="https://vanessalimashoes.com.br/" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
     <!-- Barra de status no mobile: valor inicial neutro; useSiteTheme atualiza com a cor primária do painel -->
     <meta name="theme-color" content="#ffffff" />
@@ -40,10 +38,44 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://js.stripe.com https://checkout.yampi.com.br https://cdn.gpteng.co https://scripts.appmax.com.br; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://*.lovableproject.com https://*.lovableproject.com https://api.stripe.com https://viacep.com.br https://*.yampi.com.br https://api.dooki.com.br https://*.lovable.app https://*.appmax.com.br https://*.myshopify.com; frame-src https://js.stripe.com https://checkout.yampi.com.br https://*.yampi.com.br; media-src 'self' https: data: blob:; object-src 'none'; base-uri 'self';" />
 
     <link rel="icon" type="image/png" href="https://sojrvsbqkrbxoymlwtii.supabase.co/storage/v1/object/public/product-media/favicon-1772464299322.png">
-    <meta property="og:title" content="Vanessa Lima Shoes - Calçados Femininos em Couro Legítimo">
-  <meta name="twitter:title" content="Vanessa Lima Shoes - Calçados Femininos em Couro Legítimo">
-  <meta property="og:description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
-  <meta name="twitter:description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
+    <link rel="apple-touch-icon" href="https://sojrvsbqkrbxoymlwtii.supabase.co/storage/v1/object/public/product-media/favicon-1772464299322.png">
+
+    <meta data-rh="true" property="og:title" content="Vanessa Lima Shoes - Calçados Femininos em Couro Legítimo">
+    <meta data-rh="true" name="twitter:title" content="Vanessa Lima Shoes - Calçados Femininos em Couro Legítimo">
+    <meta data-rh="true" property="og:description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
+    <meta data-rh="true" name="twitter:description" content="Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.">
+
+    <!-- JSON-LD sitewide: identidade da marca + busca interna -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "OnlineStore",
+        "name": "Vanessa Lima Shoes",
+        "url": "https://vanessalimashoes.com.br",
+        "description": "Loja online de calçados e acessórios femininos em couro legítimo.",
+        "logo": "https://sojrvsbqkrbxoymlwtii.supabase.co/storage/v1/object/public/product-media/favicon-1772464299322.png",
+        "areaServed": "BR",
+        "currenciesAccepted": "BRL"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Vanessa Lima Shoes",
+        "url": "https://vanessalimashoes.com.br",
+        "inLanguage": "pt-BR",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://vanessalimashoes.com.br/busca?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+
 
 </head>
 

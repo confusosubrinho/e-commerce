@@ -164,7 +164,7 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Helmet><title>Entrar | Vanessa Lima Shoes</title></Helmet>
+      <Helmet><title>Entrar | Vanessa Lima Shoes</title><meta name="robots" content="noindex, nofollow" /></Helmet>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <img src={logoUrl} alt="Vanessa Lima Shoes" className="h-12 mx-auto mb-4" />

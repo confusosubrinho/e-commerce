@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
+import { PageSEO } from '@/components/seo/PageSEO';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,6 +82,7 @@ export default function RastreioPage() {
 
   return (
     <StoreLayout>
+      <PageSEO title="Rastrear pedido | Vanessa Lima Shoes" path="/rastreio" noindex />
       <div className="container-custom py-12">
         <div className="max-w-2xl mx-auto text-center">
           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">

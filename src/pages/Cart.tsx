@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { startCheckout } from '@/config/checkout';
+import { PageSEO } from '@/components/seo/PageSEO';
 
 const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
@@ -27,6 +28,7 @@ const Cart = () => {
 
   return (
     <StoreLayout>
+      <PageSEO title="Meu carrinho | Vanessa Lima Shoes" path="/carrinho" noindex />
       <div className="container-custom py-8 max-w-4xl">
         <h1 className="text-2xl md:text-3xl font-bold mb-6">Meu carrinho</h1>
 
