@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
+
+const SCOPE = "admin-repair-images";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,13 +11,17 @@ const corsHeaders = {
 
 /**
  * Repair broken Bling images by re-fetching from Bling API and re-uploading to Supabase Storage.
- * 
+ * Requer sessão de admin ou service_role.
+ *
  * POST body: { "dry_run": true/false, "limit": 50 }
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

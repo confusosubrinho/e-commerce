@@ -60,6 +60,12 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Job de limpeza: aceita cron secret / service_role ou um admin autenticado.
+  const auth = await requireAdminOrService(req, "CLEANUP_CRON_SECRET");
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "cron-cleanup-logs");
+
+
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
