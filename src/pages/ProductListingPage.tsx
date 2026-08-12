@@ -194,8 +194,9 @@ const ProductListingPage = () => {
     priceRange: [0, 5000],
     sizes: params.size ? [params.size] : [],
     colors: [],
-    sortBy: 'newest',
-    onSale: false,
+    sortBy: isPromoRoute ? 'discount-desc' : 'newest',
+    // Na aba Promoções, sempre restringimos aos produtos com desconto real.
+    onSale: isPromoRoute,
     isNew: false,
   });
 
