@@ -203,6 +203,7 @@ const ProductListingPage = () => {
   // Quando maxPrice é descoberto, ajusta limite superior se ainda estiver no default
   const effectiveFilters: FilterState = {
     ...filters,
+    onSale: isPromoRoute ? true : filters.onSale,
     priceRange: [
       filters.priceRange[0],
       filters.priceRange[1] === 5000 || filters.priceRange[1] > maxPrice ? maxPrice : filters.priceRange[1],
