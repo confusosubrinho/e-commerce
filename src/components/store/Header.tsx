@@ -159,7 +159,7 @@ export function Header() {
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto py-2">
                   <div className="space-y-0.5 px-2">
-                    {mainCategories.map((category) => (
+                    {orderedCollections.map((category) => (
                       <Link
                         key={category.id}
                         to={`/categoria/${category.handle}`}
