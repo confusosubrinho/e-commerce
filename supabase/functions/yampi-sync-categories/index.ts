@@ -1,3 +1,4 @@
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -29,6 +30,9 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "yampi-sync-categories");
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

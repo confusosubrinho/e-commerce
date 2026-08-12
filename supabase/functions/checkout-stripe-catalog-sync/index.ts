@@ -1,3 +1,4 @@
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 /**
  * Sincroniza produtos e variantes do Supabase com o Catálogo do Stripe.
  * Envia apenas produtos e variantes ativos.
@@ -36,6 +37,9 @@ function stripMetadata(obj: Record<string, string | number | boolean | null | un
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "checkout-stripe-catalog-sync");
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
