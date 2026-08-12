@@ -39,6 +39,7 @@ export default function FavoritesPage() {
       <Helmet>
         <title>Meus Favoritos | Loja</title>
         <meta name="description" content="Veja seus produtos favoritos salvos." />
+        <meta name="robots" content="noindex, nofollow" />
       </Helmet>
       <div className="container-custom py-8">
         <h1 className="text-2xl font-bold mb-6">Meus Favoritos</h1>
