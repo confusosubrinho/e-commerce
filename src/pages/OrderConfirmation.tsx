@@ -355,7 +355,7 @@ export default function OrderConfirmation() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex flex-col">
-      <Helmet><title>Confirmação do Pedido {orderNumber !== 'N/A' ? `#${orderNumber}` : ''} | Vanessa Lima Shoes</title></Helmet>
+      <Helmet><title>Confirmação do Pedido {orderNumber !== 'N/A' ? `#${orderNumber}` : ''} | Vanessa Lima Shoes</title><meta name="robots" content="noindex, nofollow" /></Helmet>
       <header className="bg-background border-b">
         <div className="container-custom py-4 flex items-center justify-center">
           <Link to="/">
