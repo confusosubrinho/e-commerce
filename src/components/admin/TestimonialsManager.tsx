@@ -27,6 +27,10 @@ interface TestimonialConfig {
   cards_per_view: number;
   autoplay: boolean;
   autoplay_speed: number;
+  show_google_summary: boolean | null;
+  google_rating: number | string | null;
+  google_reviews_count: number | null;
+  google_profile_url: string | null;
 }
 
 interface ProductImage {
