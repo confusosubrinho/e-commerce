@@ -46,6 +46,7 @@ interface CategoryFiltersProps {
 }
 
 const sortOptions = [
+  { value: 'discount-desc', label: 'Maior Desconto' },
   { value: 'newest', label: 'Mais Recentes' },
   { value: 'oldest', label: 'Mais Antigos' },
   { value: 'price-asc', label: 'Menor Preço' },
