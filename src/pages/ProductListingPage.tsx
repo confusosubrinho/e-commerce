@@ -60,15 +60,20 @@ function productHasColor(p: ShopifyProduct, colors: string[]) {
   );
 }
 
+/** Percentual de desconto do produto (0 quando não está em promoção). */
+function getDiscountPercent(p: ShopifyProduct): number {
+  const price = parseFloat(p.node.priceRange.minVariantPrice.amount);
+  const compare = parseFloat(p.node.compareAtPriceRange?.minVariantPrice?.amount ?? '0');
+  if (!compare || !price || compare <= price) return 0;
+  return ((compare - price) / compare) * 100;
+}
+
 function applyFilters(products: ShopifyProduct[], filters: FilterState): ShopifyProduct[] {
   const filtered = products.filter((p) => {
     const price = parseFloat(p.node.priceRange.minVariantPrice.amount);
     if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false;
 
-    if (filters.onSale) {
-      const compare = p.node.compareAtPriceRange?.minVariantPrice?.amount;
-      if (!compare || parseFloat(compare) <= price) return false;
-    }
+    if (filters.onSale && getDiscountPercent(p) <= 0) return false;
     if (filters.isNew) {
       const tags = (p.node.tags ?? []).map((t) => t.toLowerCase());
       if (!tags.includes('novidade') && !tags.includes('new') && !tags.includes('lançamento')) return false;
@@ -82,6 +87,10 @@ function applyFilters(products: ShopifyProduct[], filters: FilterState): Shopify
     const pa = parseFloat(a.node.priceRange.minVariantPrice.amount);
     const pb = parseFloat(b.node.priceRange.minVariantPrice.amount);
     switch (filters.sortBy) {
+      case 'discount-desc': {
+        const diff = getDiscountPercent(b) - getDiscountPercent(a);
+        return diff !== 0 ? diff : pa - pb;
+      }
       case 'price-asc':
         return pa - pb;
       case 'price-desc':
@@ -107,6 +116,7 @@ const ProductListingPage = () => {
   const path = window.location.pathname;
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
+  const isPromoRoute = path.startsWith('/promocoes');
 
   const { data: collection, isLoading: loadingCollection } = useShopifyCollection(
     isCategoryRoute ? params.slug : undefined,
@@ -117,10 +127,12 @@ const ProductListingPage = () => {
   let title = 'Produtos';
   let subtitle: string | undefined;
 
-  if (path.startsWith('/promocoes')) {
-    query = 'tag:promocao OR tag:sale';
+  if (isPromoRoute) {
+    // Não dependemos de tags: buscamos um lote maior e detectamos
+    // promoção pelo preço comparativo (compareAtPrice) de cada produto.
+    query = undefined;
     title = 'Promoções';
-    subtitle = 'Ofertas especiais';
+    subtitle = 'Todos os produtos com desconto, do maior para o menor';
   } else if (path.startsWith('/novidades')) {
     query = 'tag:novidade OR tag:new';
     title = 'Novidades';
@@ -142,7 +154,7 @@ const ProductListingPage = () => {
 
   const shouldLoadFallback = !isCategoryRoute || (!loadingCollection && !collection);
   const { data: fallbackProducts, isLoading: loadingFallback } = useShopifyProducts({
-    first: params.size ? 100 : 48,
+    first: params.size || isPromoRoute ? 100 : 48,
     query: isCategoryRoute && shouldLoadFallback ? `tag:${params.slug} OR product_type:${params.slug}` : query,
   });
 
@@ -182,14 +194,16 @@ const ProductListingPage = () => {
     priceRange: [0, 5000],
     sizes: params.size ? [params.size] : [],
     colors: [],
-    sortBy: 'newest',
-    onSale: false,
+    sortBy: isPromoRoute ? 'discount-desc' : 'newest',
+    // Na aba Promoções, sempre restringimos aos produtos com desconto real.
+    onSale: isPromoRoute,
     isNew: false,
   });
 
   // Quando maxPrice é descoberto, ajusta limite superior se ainda estiver no default
   const effectiveFilters: FilterState = {
     ...filters,
+    onSale: isPromoRoute ? true : filters.onSale,
     priceRange: [
       filters.priceRange[0],
       filters.priceRange[1] === 5000 || filters.priceRange[1] > maxPrice ? maxPrice : filters.priceRange[1],
