@@ -2,7 +2,7 @@ import { useParams, Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { useBlogPost, useBlogSettings } from '@/hooks/useBlog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Helmet } from 'react-helmet-async';
+import { PageSEO } from '@/components/seo/PageSEO';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { Calendar, ArrowLeft, User, Share2, Copy, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,20 +58,38 @@ export default function BlogPostPage() {
   }
 
   const metaTitle = post.seo_title || post.title;
-  const metaDescription = post.seo_description || post.excerpt || '';
-  const canonicalUrl = `${window.location.origin}/blog/${post.slug}`;
+  const metaDescription =
+    post.seo_description ||
+    post.excerpt ||
+    `${post.title} — artigo do blog da Vanessa Lima Shoes sobre calçados femininos em couro legítimo.`;
+  const canonicalUrl = `https://vanessalimashoes.com.br/blog/${post.slug}`;
 
   return (
     <StoreLayout>
-      <Helmet>
-        <title>{metaTitle} | Blog</title>
-        {metaDescription && <meta name="description" content={metaDescription} />}
-        {post.featured_image_url && <meta property="og:image" content={post.featured_image_url} />}
-        <meta property="og:title" content={metaTitle} />
-        <meta property="og:type" content="article" />
-        {metaDescription && <meta property="og:description" content={metaDescription} />}
-        <link rel="canonical" href={canonicalUrl} />
-      </Helmet>
+      <PageSEO
+        title={`${metaTitle} | Blog Vanessa Lima Shoes`}
+        description={metaDescription}
+        image={post.featured_image_url || null}
+        type="article"
+        path={`/blog/${post.slug}`}
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: post.title,
+          description: metaDescription,
+          url: canonicalUrl,
+          mainEntityOfPage: canonicalUrl,
+          inLanguage: 'pt-BR',
+          ...(post.featured_image_url ? { image: post.featured_image_url } : {}),
+          ...(post.published_at ? { datePublished: post.published_at } : {}),
+          ...(post.updated_at ? { dateModified: post.updated_at } : {}),
+          author: {
+            '@type': post.author_name ? 'Person' : 'Organization',
+            name: post.author_name || 'Vanessa Lima Shoes',
+          },
+          publisher: { '@type': 'Organization', name: 'Vanessa Lima Shoes' },
+        }}
+      />
 
       <article className="container-custom py-8 md:py-14">
         <div className="max-w-3xl mx-auto">
