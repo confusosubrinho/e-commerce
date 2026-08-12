@@ -89,8 +89,8 @@ export function Header() {
       ? `${logoFromSettings}${headerSettings?.updated_at ? `?v=${encodeURIComponent(headerSettings.updated_at)}` : ''}`
       : defaultLogo;
   const subheadText = headerSettings?.header_subhead_text || 'Frete grátis para compras acima de R$ 399*';
-  const highlightText = headerSettings?.header_highlight_text || 'Bijuterias';
-  const highlightUrl = headerSettings?.header_highlight_url || '/bijuterias';
+  const highlightText = headerSettings?.header_highlight_text || 'Promoções';
+  const highlightUrl = headerSettings?.header_highlight_url || '/promocoes';
   const highlightIconName = headerSettings?.header_highlight_icon || 'Percent';
   const HighlightIcon = ICON_MAP[highlightIconName] || Percent;
   const menuOrder: string[] = (headerSettings?.header_menu_order as string[]) || [];
