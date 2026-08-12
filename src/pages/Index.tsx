@@ -120,6 +120,10 @@ const Index = () => {
         }}
       />
 
+      <h1 className="sr-only">
+        {storeName} — Calçados Femininos em Couro Legítimo
+      </h1>
+
       {isLoading ? (
         <>
           <SectionFallback />

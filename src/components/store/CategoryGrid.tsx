@@ -43,17 +43,21 @@ export function CategoryGrid() {
             variant="outline"
             size="icon"
             onClick={() => scroll('left')}
+            aria-label="Ver categorias anteriores"
+            title="Ver categorias anteriores"
             className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 bg-background shadow-lg rounded-full hidden md:flex"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </Button>
           <Button
             variant="outline"
             size="icon"
             onClick={() => scroll('right')}
+            aria-label="Ver mais categorias"
+            title="Ver mais categorias"
             className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 bg-background shadow-lg rounded-full hidden md:flex"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </Button>
 
           {/* Mobile fade gradients to indicate scrollable content */}

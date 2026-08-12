@@ -105,7 +105,11 @@ export function BannerCarousel() {
                 >
                   <img
                     src={imageUrl}
-                    alt={banner.title || 'Banner promocional'}
+                    alt={
+                      banner.title ||
+                      banner.subtitle ||
+                      `Vanessa Lima Shoes — destaque ${index + 1} de ${displayBanners.length}: calçados femininos em couro legítimo`
+                    }
                     className="w-full h-full object-contain"
                     style={isMobile ? { maxHeight: '550px' } : { maxHeight: '600px' }}
                     loading={isFirst ? 'eager' : 'lazy'}

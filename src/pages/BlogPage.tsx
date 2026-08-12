@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { useBlogPosts, useBlogSettings } from '@/hooks/useBlog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Helmet } from 'react-helmet-async';
+import { PageSEO } from '@/components/seo/PageSEO';
 import { Calendar, ArrowRight, User, BookOpen } from 'lucide-react';
 import NotFound from './NotFound';
 
@@ -44,10 +44,31 @@ export default function BlogPage() {
 
   return (
     <StoreLayout>
-      <Helmet>
-        <title>Blog | Loja</title>
-        <meta name="description" content="Confira nossos artigos e novidades no blog." />
-      </Helmet>
+      <PageSEO
+        title="Blog | Vanessa Lima Shoes"
+        description="Novidades, dicas de estilo e cuidados com calçados femininos em couro legítimo: leia os artigos do blog da Vanessa Lima Shoes."
+        path="/blog"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Blog',
+          name: 'Blog | Vanessa Lima Shoes',
+          description:
+            'Novidades, dicas de estilo e cuidados com calçados femininos em couro legítimo.',
+          url: 'https://vanessalimashoes.com.br/blog',
+          inLanguage: 'pt-BR',
+          publisher: { '@type': 'Organization', name: 'Vanessa Lima Shoes' },
+          blogPost: (posts || []).slice(0, 10).map((p: any) => ({
+            '@type': 'BlogPosting',
+            headline: p.title,
+            url: `https://vanessalimashoes.com.br/blog/${p.slug}`,
+            ...(p.featured_image_url ? { image: p.featured_image_url } : {}),
+            ...(p.published_at ? { datePublished: p.published_at } : {}),
+            ...(p.author_name
+              ? { author: { '@type': 'Person', name: p.author_name } }
+              : {}),
+          })),
+        }}
+      />
 
       <div className="container-custom py-10 md:py-16">
         {/* Header */}
