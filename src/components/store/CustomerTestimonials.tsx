@@ -126,6 +126,12 @@ export function CustomerTestimonials() {
 
   const cardsPerView = config.cards_per_view || 4;
 
+  const parsedGoogleRating = Number(config.google_rating);
+  const googleRating =
+    config.show_google_summary && Number.isFinite(parsedGoogleRating) && parsedGoogleRating > 0
+      ? parsedGoogleRating
+      : null;
+
   const getProductImage = (images: ProductImage[] | null | undefined): string | null => {
     if (!images?.length) return null;
     const primary = images.find(i => i.is_primary);
