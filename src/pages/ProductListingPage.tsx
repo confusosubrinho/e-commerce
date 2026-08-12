@@ -60,15 +60,20 @@ function productHasColor(p: ShopifyProduct, colors: string[]) {
   );
 }
 
+/** Percentual de desconto do produto (0 quando não está em promoção). */
+function getDiscountPercent(p: ShopifyProduct): number {
+  const price = parseFloat(p.node.priceRange.minVariantPrice.amount);
+  const compare = parseFloat(p.node.compareAtPriceRange?.minVariantPrice?.amount ?? '0');
+  if (!compare || !price || compare <= price) return 0;
+  return ((compare - price) / compare) * 100;
+}
+
 function applyFilters(products: ShopifyProduct[], filters: FilterState): ShopifyProduct[] {
   const filtered = products.filter((p) => {
     const price = parseFloat(p.node.priceRange.minVariantPrice.amount);
     if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false;
 
-    if (filters.onSale) {
-      const compare = p.node.compareAtPriceRange?.minVariantPrice?.amount;
-      if (!compare || parseFloat(compare) <= price) return false;
-    }
+    if (filters.onSale && getDiscountPercent(p) <= 0) return false;
     if (filters.isNew) {
       const tags = (p.node.tags ?? []).map((t) => t.toLowerCase());
       if (!tags.includes('novidade') && !tags.includes('new') && !tags.includes('lançamento')) return false;
@@ -82,6 +87,10 @@ function applyFilters(products: ShopifyProduct[], filters: FilterState): Shopify
     const pa = parseFloat(a.node.priceRange.minVariantPrice.amount);
     const pb = parseFloat(b.node.priceRange.minVariantPrice.amount);
     switch (filters.sortBy) {
+      case 'discount-desc': {
+        const diff = getDiscountPercent(b) - getDiscountPercent(a);
+        return diff !== 0 ? diff : pa - pb;
+      }
       case 'price-asc':
         return pa - pb;
       case 'price-desc':
