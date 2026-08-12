@@ -1,4 +1,6 @@
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Aceita qualquer UUID bem formado (inclusive o tenant padrão 0000...0001, que
+// não segue os nibbles de versão/variante do RFC 4122).
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function parseRequestedTenantId(
   req: Request,
