@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
+
+const SCOPE = "seo-generate";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +10,10 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Ferramenta de catálogo (admin): consome créditos de IA, exige sessão de admin.
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
 
   try {
     const { name, description, category, brand, material } = await req.json();

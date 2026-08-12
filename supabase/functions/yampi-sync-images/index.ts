@@ -1,3 +1,4 @@
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
@@ -226,6 +227,9 @@ async function convertAndUploadAsPng(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "yampi-sync-images");
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

@@ -5,6 +5,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
+
+const SCOPE = "checkout-reprocess-stripe-webhook";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,10 +25,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonRes({ error: "Method not allowed" }, 405);
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return jsonRes({ error: "Unauthorized. Use Bearer token." }, 401);
-  }
+  const auth = await requireAdminOrService(req, "CHECKOUT_CRON_SECRET");
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
 
   let body: { event_id?: string };
   try {

@@ -7,8 +7,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 
 const RESERVATION_TTL_MINUTES = 15;
+const SCOPE = "checkout-release-expired-reservations";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
@@ -21,13 +23,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  const auth = await requireAdminOrService(req, "CHECKOUT_CRON_SECRET");
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

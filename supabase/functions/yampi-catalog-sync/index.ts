@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 interface SyncCounters {
@@ -56,6 +57,11 @@ Deno.serve(async (req) => {
   };
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "yampi-catalog-sync");
+
+
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

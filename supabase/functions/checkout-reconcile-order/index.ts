@@ -6,6 +6,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
+
+const SCOPE = "checkout-reconcile-order";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,13 +24,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return new Response(
-      JSON.stringify({ error: "Unauthorized", message: "Use Authorization: Bearer <service_role_key> or admin token" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+  const auth = await requireAdminOrService(req, "CHECKOUT_CRON_SECRET");
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
 
   const correlationId = req.headers.get("x-correlation-id") || crypto.randomUUID();
   console.log(`[${correlationId}] reconcile_order called`);

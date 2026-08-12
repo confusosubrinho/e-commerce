@@ -1,3 +1,4 @@
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -59,6 +60,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Job de limpeza: aceita cron secret / service_role ou um admin autenticado.
+  const auth = await requireAdminOrService(req, "CLEANUP_CRON_SECRET");
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "cron-cleanup-logs");
+
+
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

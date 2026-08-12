@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { requireAdminOrService, authErrorResponse } from "../_shared/auth.ts";
+
+const SCOPE = "integrations-test";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +11,11 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, SCOPE);
+
+
 
   try {
     const supabase = createClient(
