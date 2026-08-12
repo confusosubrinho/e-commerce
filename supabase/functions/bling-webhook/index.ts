@@ -1372,16 +1372,19 @@ Deno.serve(async (req) => {
     const isCronViaBody = payload?.action === "cron_stock_sync";
 
     if (isCronViaParam || isCronViaBody) {
+      // Fail-closed: sem BLING_CRON_SECRET configurado, a única forma de autenticar
+      // é a service_role key. Nunca liberar a chamada por falta de configuração.
       const cronSecret = Deno.env.get("BLING_CRON_SECRET");
-      if (cronSecret) {
-        const providedSecret = url.searchParams.get("secret") ?? payload?.secret ?? "";
-        if (providedSecret !== cronSecret) {
-          console.warn("[cron] Unauthorized: missing or invalid secret");
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      const providedSecret = url.searchParams.get("secret") ?? payload?.secret ?? "";
+      const secretOk = !!cronSecret && providedSecret === cronSecret;
+      const serviceOk = isServiceOrCronRequest(req, "BLING_CRON_SECRET");
+
+      if (!secretOk && !serviceOk) {
+        console.warn("[cron] Unauthorized: missing or invalid cron secret");
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
       const queryTenantId = url.searchParams.get("tenant_id")?.trim() ?? "";
       const tenantId = parseRequestedTenantId(req, payload) ?? (UUID_REGEX.test(queryTenantId) ? queryTenantId : null);
