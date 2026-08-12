@@ -6,6 +6,7 @@ import { getValidTokenSafe } from "../_shared/blingTokenRefresh.ts";
 import { hasRecentLocalMovements } from "../_shared/blingStockPush.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { parseRequestedTenantId } from "../_shared/blingTenant.ts";
+import { isServiceOrCronRequest } from "../_shared/auth.ts";
 import {
   auditBlingSaldosBatch,
   blingIdMissingExplicitInAudit,
