@@ -19,8 +19,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 10%;
 
-    /* #33cc99 - Turquoise/Mint */
-    --primary: 160 60% 50%;
+    /* #829778 - Verde sálvia (identidade da marca) */
+    --primary: 103 13% 53%;
     --primary-foreground: 0 0% 100%;
 
     /* #1a1a1a - Near Black */
@@ -30,13 +30,13 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 160 60% 95%;
-    --accent-foreground: 160 60% 35%;
+    --accent: 100 10% 93%;
+    --accent-foreground: 97 13% 37%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 160 60% 45%;
+    --success: 97 13% 37%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
@@ -44,18 +44,18 @@
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 160 60% 50%;
+    --ring: 103 13% 53%;
 
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 10%;
     --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 160 60% 50%;
+    --sidebar-primary: 103 13% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 160 60% 50%;
+    --sidebar-ring: 103 13% 53%;
 
     /* Custom tokens */
     --header-height: 4rem;
@@ -72,7 +72,7 @@
     --popover: 0 0% 12%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 160 60% 50%;
+    --primary: 103 13% 53%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 98%;
@@ -81,24 +81,24 @@
     --muted: 0 0% 20%;
     --muted-foreground: 0 0% 65%;
 
-    --accent: 160 60% 15%;
-    --accent-foreground: 160 60% 80%;
+    --accent: 97 13% 20%;
+    --accent-foreground: 100 10% 88%;
 
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 0 0% 20%;
     --input: 0 0% 20%;
-    --ring: 160 60% 50%;
+    --ring: 103 13% 53%;
     
     --sidebar-background: 0 0% 8%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 160 60% 50%;
+    --sidebar-primary: 103 13% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 160 60% 50%;
+    --sidebar-ring: 103 13% 53%;
   }
 }
 
