@@ -110,10 +110,13 @@ const Index = () => {
         image={settings?.logo_url ?? settings?.header_logo_url ?? null}
         jsonLd={{
           '@context': 'https://schema.org',
-          '@type': 'Organization',
-          name: storeName,
-          url: 'https://vanessalimashoes.com.br',
-          logo: settings?.logo_url || undefined,
+          '@type': 'WebPage',
+          name: seoTitle,
+          description: seoDescription,
+          url: 'https://vanessalimashoes.com.br/',
+          inLanguage: 'pt-BR',
+          isPartOf: { '@type': 'WebSite', url: 'https://vanessalimashoes.com.br' },
+          publisher: { '@type': 'Organization', name: storeName },
         }}
       />
 
