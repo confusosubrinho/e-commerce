@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { startCheckout } from '@/config/checkout';
+import { PageSEO } from '@/components/seo/PageSEO';
 
 const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
