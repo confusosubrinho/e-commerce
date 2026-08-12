@@ -293,6 +293,63 @@ export function TestimonialsManager() {
               <Input type="number" min={2} max={15} value={config?.autoplay_speed || 5} onChange={(e) => updateConfig.mutate({ autoplay_speed: parseInt(e.target.value) || 5 })} className="h-8" disabled={!config?.autoplay} />
             </div>
           </div>
+
+          {/* Resumo do Google Meu Negócio */}
+          <div className="rounded-lg border p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium">Resumo do Google Meu Negócio</Label>
+                <p className="text-xs text-muted-foreground">
+                  Exibe nota média, total de avaliações e link para o perfil acima dos depoimentos.
+                </p>
+              </div>
+              <Switch
+                checked={config?.show_google_summary ?? false}
+                onCheckedChange={(checked) => updateConfig.mutate({ show_google_summary: checked })}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs">Nota média (ex.: 4.9)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={config?.google_rating ?? ''}
+                  onChange={(e) =>
+                    updateConfig.mutate({ google_rating: e.target.value === '' ? null : Number(e.target.value) })
+                  }
+                  className="h-8"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Total de avaliações</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={config?.google_reviews_count ?? ''}
+                  onChange={(e) =>
+                    updateConfig.mutate({
+                      google_reviews_count: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="h-8"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Link do perfil no Google</Label>
+                <Input
+                  type="url"
+                  placeholder="https://maps.app.goo.gl/..."
+                  value={config?.google_profile_url ?? ''}
+                  onChange={(e) => updateConfig.mutate({ google_profile_url: e.target.value || null })}
+                  className="h-8"
+                />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
