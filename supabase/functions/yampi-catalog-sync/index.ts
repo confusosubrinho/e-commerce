@@ -57,6 +57,11 @@ Deno.serve(async (req) => {
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const auth = await requireAdminOrService(req);
+  if (!auth.ok) return authErrorResponse(auth, corsHeaders, "yampi-catalog-sync");
+
+
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
