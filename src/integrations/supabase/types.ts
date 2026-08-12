@@ -2148,8 +2148,12 @@ export type Database = {
           bg_color: string
           card_color: string
           cards_per_view: number
+          google_profile_url: string | null
+          google_rating: number | null
+          google_reviews_count: number | null
           id: string
           is_active: boolean
+          show_google_summary: boolean
           star_color: string
           subtitle: string
           tenant_id: string
@@ -2163,8 +2167,12 @@ export type Database = {
           bg_color?: string
           card_color?: string
           cards_per_view?: number
+          google_profile_url?: string | null
+          google_rating?: number | null
+          google_reviews_count?: number | null
           id?: string
           is_active?: boolean
+          show_google_summary?: boolean
           star_color?: string
           subtitle?: string
           tenant_id?: string
@@ -2178,8 +2186,12 @@ export type Database = {
           bg_color?: string
           card_color?: string
           cards_per_view?: number
+          google_profile_url?: string | null
+          google_rating?: number | null
+          google_reviews_count?: number | null
           id?: string
           is_active?: boolean
+          show_google_summary?: boolean
           star_color?: string
           subtitle?: string
           tenant_id?: string

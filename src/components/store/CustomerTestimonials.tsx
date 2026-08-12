@@ -15,6 +15,22 @@ interface TestimonialConfig {
   cards_per_view: number;
   autoplay: boolean;
   autoplay_speed: number;
+  show_google_summary: boolean | null;
+  google_rating: number | string | null;
+  google_reviews_count: number | null;
+  google_profile_url: string | null;
+}
+
+/** Logo "G" do Google em SVG (evita depender de imagem externa). */
+function GoogleGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2.5 24 .5 14.6.5 6.5 5.9 2.6 13.7l7.8 6.1C12.3 13.8 17.6 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-2.8-.4-4.1H24v7.8h12.7c-.3 2.1-1.6 5.2-4.7 7.3l7.2 5.6c4.3-4 7.3-9.9 7.3-16.6z" />
+      <path fill="#FBBC05" d="M10.4 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.2 0 20 0 24s1 7.8 2.6 10.7l7.8-6.1z" />
+      <path fill="#34A853" d="M24 47.5c6.2 0 11.5-2 15.3-5.6l-7.2-5.6c-2 1.4-4.6 2.3-8.1 2.3-6.4 0-11.7-4.3-13.6-10.2l-7.8 6.1C6.5 42.1 14.6 47.5 24 47.5z" />
+    </svg>
+  );
 }
 
 interface ProductImage {
@@ -110,6 +126,12 @@ export function CustomerTestimonials() {
 
   const cardsPerView = config.cards_per_view || 4;
 
+  const parsedGoogleRating = Number(config.google_rating);
+  const googleRating =
+    config.show_google_summary && Number.isFinite(parsedGoogleRating) && parsedGoogleRating > 0
+      ? parsedGoogleRating
+      : null;
+
   const getProductImage = (images: ProductImage[] | null | undefined): string | null => {
     if (!images?.length) return null;
     const primary = images.find(i => i.is_primary);
@@ -129,6 +151,51 @@ export function CustomerTestimonials() {
           </p>
           <div className="w-16 h-0.5 bg-current mx-auto mt-4 opacity-40" style={{ color: config.text_color }} />
         </div>
+
+        {/* Resumo do Google Meu Negócio */}
+        {googleRating !== null && (
+          <div className="flex justify-center mb-8">
+            <div
+              className="flex items-center gap-3 sm:gap-4 rounded-full px-4 sm:px-5 py-2.5 shadow-sm"
+              style={{ backgroundColor: config.card_color, color: config.text_color }}
+            >
+              <GoogleGlyph className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+              <div className="flex items-center gap-2">
+                <span className="text-base sm:text-lg font-semibold leading-none">
+                  {googleRating.toFixed(1).replace('.', ',')}
+                </span>
+                <div className="flex gap-0.5" aria-hidden="true">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                      fill={i < Math.round(googleRating) ? config.star_color : 'transparent'}
+                      stroke={i < Math.round(googleRating) ? config.star_color : '#ccc'}
+                    />
+                  ))}
+                </div>
+              </div>
+              {config.google_reviews_count ? (
+                <span className="text-xs sm:text-sm opacity-70 leading-none">
+                  {config.google_reviews_count} avaliações no Google
+                </span>
+              ) : (
+                <span className="text-xs sm:text-sm opacity-70 leading-none">Avaliações no Google</span>
+              )}
+              {config.google_profile_url && (
+                <a
+                  href={config.google_profile_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs sm:text-sm font-medium underline underline-offset-2 hover:opacity-70 transition-opacity whitespace-nowrap"
+                  style={{ color: config.text_color }}
+                >
+                  Ver no Google
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Carousel */}
         <div className="relative">
