@@ -116,6 +116,7 @@ const ProductListingPage = () => {
   const path = window.location.pathname;
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
+  const isPromoRoute = path.startsWith('/promocoes');
 
   const { data: collection, isLoading: loadingCollection } = useShopifyCollection(
     isCategoryRoute ? params.slug : undefined,
@@ -126,10 +127,12 @@ const ProductListingPage = () => {
   let title = 'Produtos';
   let subtitle: string | undefined;
 
-  if (path.startsWith('/promocoes')) {
-    query = 'tag:promocao OR tag:sale';
+  if (isPromoRoute) {
+    // Não dependemos de tags: buscamos um lote maior e detectamos
+    // promoção pelo preço comparativo (compareAtPrice) de cada produto.
+    query = undefined;
     title = 'Promoções';
-    subtitle = 'Ofertas especiais';
+    subtitle = 'Todos os produtos com desconto, do maior para o menor';
   } else if (path.startsWith('/novidades')) {
     query = 'tag:novidade OR tag:new';
     title = 'Novidades';
@@ -151,7 +154,7 @@ const ProductListingPage = () => {
 
   const shouldLoadFallback = !isCategoryRoute || (!loadingCollection && !collection);
   const { data: fallbackProducts, isLoading: loadingFallback } = useShopifyProducts({
-    first: params.size ? 100 : 48,
+    first: params.size || isPromoRoute ? 100 : 48,
     query: isCategoryRoute && shouldLoadFallback ? `tag:${params.slug} OR product_type:${params.slug}` : query,
   });
 
