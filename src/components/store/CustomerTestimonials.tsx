@@ -146,6 +146,51 @@ export function CustomerTestimonials() {
           <div className="w-16 h-0.5 bg-current mx-auto mt-4 opacity-40" style={{ color: config.text_color }} />
         </div>
 
+        {/* Resumo do Google Meu Negócio */}
+        {googleRating !== null && (
+          <div className="flex justify-center mb-8">
+            <div
+              className="flex items-center gap-3 sm:gap-4 rounded-full px-4 sm:px-5 py-2.5 shadow-sm"
+              style={{ backgroundColor: config.card_color, color: config.text_color }}
+            >
+              <GoogleGlyph className="h-5 w-5 sm:h-6 sm:w-6 shrink-0" />
+              <div className="flex items-center gap-2">
+                <span className="text-base sm:text-lg font-semibold leading-none">
+                  {googleRating.toFixed(1).replace('.', ',')}
+                </span>
+                <div className="flex gap-0.5" aria-hidden="true">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                      fill={i < Math.round(googleRating) ? config.star_color : 'transparent'}
+                      stroke={i < Math.round(googleRating) ? config.star_color : '#ccc'}
+                    />
+                  ))}
+                </div>
+              </div>
+              {config.google_reviews_count ? (
+                <span className="text-xs sm:text-sm opacity-70 leading-none">
+                  {config.google_reviews_count} avaliações no Google
+                </span>
+              ) : (
+                <span className="text-xs sm:text-sm opacity-70 leading-none">Avaliações no Google</span>
+              )}
+              {config.google_profile_url && (
+                <a
+                  href={config.google_profile_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs sm:text-sm font-medium underline underline-offset-2 hover:opacity-70 transition-opacity whitespace-nowrap"
+                  style={{ color: config.text_color }}
+                >
+                  Ver no Google
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Carousel */}
         <div className="relative">
           {canScrollLeft && (
