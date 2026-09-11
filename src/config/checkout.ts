@@ -192,8 +192,12 @@ async function resolveYampiCheckoutUrl(lines: CartLineForCheckout[]): Promise<st
 
 export async function startCheckout(lines: CartLineForCheckout[]): Promise<string> {
   if (DEFAULT_CHECKOUT_PROVIDER === YAMPI_CHECKOUT_PROVIDER) {
-    const yampiUrl = await resolveYampiCheckoutUrl(lines);
-    if (yampiUrl) return yampiUrl;
+    try {
+      const yampiUrl = await resolveYampiCheckoutUrl(lines);
+      if (yampiUrl) return yampiUrl;
+    } catch (error) {
+      console.warn('[checkout] Falha ao criar carrinho Yampi, usando fallback:', error);
+    }
   }
 
   return resolveCheckoutUrl(null, lines);
