@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/types/database';
 import { useStoreSettings } from '@/hooks/useProducts';
+import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { getInstallmentDisplay } from '@/lib/pricingEngine';
 import { VariantSelectorModal } from './VariantSelectorModal';
