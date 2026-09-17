@@ -220,7 +220,7 @@ export function Header() {
                 <div className="border-t p-4">
                   {headerSettings?.contact_whatsapp && (
                     <a
-                      href={`https://wa.me/${(headerSettings.contact_whatsapp as string).replace(/\D/g, '')}`}
+                      href={`https://wa.me/${getWhatsAppNumber(headerSettings.contact_whatsapp as string)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2 py-2.5 bg-[#25D366] text-white rounded-full font-medium text-sm"
