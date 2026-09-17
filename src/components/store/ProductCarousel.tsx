@@ -41,7 +41,7 @@ export function ProductCarousel({
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const whatsappNumber = settings?.contact_whatsapp?.replace(/\D/g, '') || '5542991120205';
+  const whatsappNumber = getWhatsAppNumber(settings?.contact_whatsapp) || '5542991120205';
 
   // Track scroll position for mobile dots
   const updateScrollIndicator = useCallback(() => {
