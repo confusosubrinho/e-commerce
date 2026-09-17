@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/formatters';
+import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, ShoppingBag, Menu, MessageCircle, ChevronDown, Trash2, Plus, Minus, HelpCircle, Percent, Truck, Heart, Star, Sparkles, Gift, Tag, Flame, Zap, Crown, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
