@@ -9,7 +9,7 @@ import { useFeedback } from '@/hooks/useFeedback';
 import { supabase } from '@/integrations/supabase/client';
 import defaultLogo from '@/assets/logo.png';
 import { createClient } from '@supabase/supabase-js';
-import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
+import { useStoreSettingsPublic, getWhatsAppNumber } from '@/hooks/useStoreContact';
 import { Helmet } from 'react-helmet-async';
 import type { Database } from '@/integrations/supabase/types';
 import { POLL_MS } from '@/lib/queryRefetch';
@@ -173,7 +173,7 @@ export default function OrderConfirmation() {
   // Fetch store whatsapp
   useEffect(() => {
     supabase.from('store_settings_public').select('contact_whatsapp').limit(1).maybeSingle()
-      .then(({ data }) => { if (data?.contact_whatsapp) setWhatsappNumber(data.contact_whatsapp.replace(/\D/g, '')); });
+      .then(({ data }) => { if (data?.contact_whatsapp) setWhatsappNumber(getWhatsAppNumber(data.contact_whatsapp)); });
   }, []);
 
   // Fetch order data from DB (recovery on refresh)

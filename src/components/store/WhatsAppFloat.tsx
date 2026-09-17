@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStoreSettings } from '@/hooks/useProducts';
+import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 
 function getMessageForRoute(pathname: string): string {
   if (pathname.startsWith('/produto/')) {
@@ -27,7 +28,7 @@ function WhatsAppFloatInner(_props: Record<string, never>, ref: React.ForwardedR
   
   if (location.pathname.startsWith('/admin')) return null;
 
-  const whatsappNumber = settings?.contact_whatsapp?.replace(/\D/g, '') || '5542991120205';
+  const whatsappNumber = getWhatsAppNumber(settings?.contact_whatsapp) || '5542991120205';
   const message = getMessageForRoute(location.pathname);
   const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 

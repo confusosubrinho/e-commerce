@@ -91,13 +91,13 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/categoria/sandalia-de-salto</loc>
-    <lastmod>2026-09-08T18:18:20.000Z</lastmod>
+    <lastmod>2026-09-14T00:24:51.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/categoria/mule</loc>
-    <lastmod>2026-09-08T18:18:20.000Z</lastmod>
+    <lastmod>2026-09-13T16:40:34.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -121,7 +121,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/categoria/papete</loc>
-    <lastmod>2026-09-08T18:18:20.000Z</lastmod>
+    <lastmod>2026-09-13T17:05:06.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -263,7 +263,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/bota-texana-z6082-29836</loc>
-    <lastmod>2026-09-10T17:07:42.000Z</lastmod>
+    <lastmod>2026-09-11T19:00:47.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -313,7 +313,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/slingback-couro-salto-fino-bico-fino-alongado-21587030-c</loc>
-    <lastmod>2026-09-08T18:18:23.000Z</lastmod>
+    <lastmod>2026-09-15T20:58:00.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -333,7 +333,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/bota-over-knee-salto-baixo-madrid-s671-634677</loc>
-    <lastmod>2026-09-08T18:18:23.000Z</lastmod>
+    <lastmod>2026-09-15T21:20:03.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -363,7 +363,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/bota-cano-longo-cow-z5506-28428</loc>
-    <lastmod>2026-09-10T21:21:29.000Z</lastmod>
+    <lastmod>2026-09-15T21:19:37.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -643,7 +643,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/sapatilha-de-tela-detalhes-organicos-s723-634426ef</loc>
-    <lastmod>2026-09-08T18:18:29.000Z</lastmod>
+    <lastmod>2026-09-14T18:28:01.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -663,7 +663,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/slingback-bico-fino-detalhe-fivela-s679-635318</loc>
-    <lastmod>2026-09-10T16:39:47.000Z</lastmod>
+    <lastmod>2026-09-11T18:00:09.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -713,7 +713,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/tenis-knit-detalhes-verde-lima-297-2104</loc>
-    <lastmod>2026-09-08T18:18:30.000Z</lastmod>
+    <lastmod>2026-09-16T12:09:07.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -723,7 +723,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/tenis-couro-camurca-marfim-297-233</loc>
-    <lastmod>2026-09-08T18:18:30.000Z</lastmod>
+    <lastmod>2026-09-16T12:28:10.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -733,7 +733,7 @@
   </url>
   <url>
     <loc>https://vanessalimashoes.com.br/produto/mocassim-couro-veneto-73-1932c</loc>
-    <lastmod>2026-09-08T18:18:30.000Z</lastmod>
+    <lastmod>2026-09-17T13:28:59.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -822,8 +822,18 @@
     </image:image>
   </url>
   <url>
+    <loc>https://vanessalimashoes.com.br/produto/sandalia-de-salto-fino-duas-tiras-caramelo-880-3642</loc>
+    <lastmod>2026-09-13T16:41:14.000Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://cdn.shopify.com/s/files/1/0751/9489/2333/files/20696fcfb5bdeb07a66eca547951e41a_4acb3987-ecc7-43d3-b59e-8f3aede4eaf6.png?v=1786575940</image:loc>
+      <image:title>Sandália Siena</image:title>
+    </image:image>
+  </url>
+  <url>
     <loc>https://vanessalimashoes.com.br/produto/slingback-s-salto-bico-fino-detalhe-fivela-z6092-28708</loc>
-    <lastmod>2026-09-08T19:51:00.000Z</lastmod>
+    <lastmod>2026-09-17T13:29:06.000Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <image:image>
@@ -869,6 +879,36 @@
     <image:image>
       <image:loc>https://cdn.shopify.com/s/files/1/0751/9489/2333/files/5147eb487f3e7ef90376923d86052754_2aff6eae-95ec-4c67-b847-69677f2efbfe.jpg?v=1788887846</image:loc>
       <image:title>Sandália Anabela Trançada</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://vanessalimashoes.com.br/produto/tamanco-couro-croco-salto-dourado-bico-folha-2179-6166-c</loc>
+    <lastmod>2026-09-14T04:38:18.000Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://cdn.shopify.com/s/files/1/0751/9489/2333/files/d9411ef6269db5853620ff31b83ce5af_2b1cc3b7-0060-489b-b412-ba521e1719c2.jpg?v=1789317494</image:loc>
+      <image:title>Mule Couro Croco com Salto Escultural</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://vanessalimashoes.com.br/produto/papete-tiras-aplicacoes-coloridas-5900-1972</loc>
+    <lastmod>2026-09-14T05:03:41.000Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://cdn.shopify.com/s/files/1/0751/9489/2333/files/d82b09c7ca4da540d45ece1849cfe8c2_413bc18b-b94e-4120-8264-4eafd566ab44.jpg?v=1789319014</image:loc>
+      <image:title>Papete Anatômica com Aplicações Coloridas</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://vanessalimashoes.com.br/produto/sandalia-salto-bloco-lenco-4655-0t-12733</loc>
+    <lastmod>2026-09-14T12:23:00.000Z</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://cdn.shopify.com/s/files/1/0751/9489/2333/files/c553a2b7632ab7f0b4d5a13db20e530b_ce53b753-94f4-4444-a78b-ae91e5233f31.png?v=1789345373</image:loc>
+      <image:title>Sandália com Lenço Removível</image:title>
     </image:image>
   </url>
 </urlset>

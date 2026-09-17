@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { formatPrice } from '@/lib/formatters';
+import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, ShoppingBag, Menu, MessageCircle, ChevronDown, Trash2, Plus, Minus, HelpCircle, Percent, Truck, Heart, Star, Sparkles, Gift, Tag, Flame, Zap, Crown, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -220,7 +221,7 @@ export function Header() {
                 <div className="border-t p-4">
                   {headerSettings?.contact_whatsapp && (
                     <a
-                      href={`https://wa.me/${(headerSettings.contact_whatsapp as string).replace(/\D/g, '')}`}
+                      href={`https://wa.me/${getWhatsAppNumber(headerSettings.contact_whatsapp as string)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2 py-2.5 bg-[#25D366] text-white rounded-full font-medium text-sm"

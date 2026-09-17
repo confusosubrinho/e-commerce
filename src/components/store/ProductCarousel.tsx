@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/types/database';
 import { useStoreSettings } from '@/hooks/useProducts';
+import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import { getInstallmentDisplay } from '@/lib/pricingEngine';
 import { VariantSelectorModal } from './VariantSelectorModal';
@@ -41,7 +42,7 @@ export function ProductCarousel({
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  const whatsappNumber = settings?.contact_whatsapp?.replace(/\D/g, '') || '5542991120205';
+  const whatsappNumber = getWhatsAppNumber(settings?.contact_whatsapp) || '5542991120205';
 
   // Track scroll position for mobile dots
   const updateScrollIndicator = useCallback(() => {
