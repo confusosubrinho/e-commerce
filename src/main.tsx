@@ -1,3 +1,5 @@
+// Deve ser o primeiro import: fixa o conteúdo da loja antes do cliente do banco carregar.
+import "./lib/staticContent";
 import { createRoot } from "react-dom/client";
 import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
