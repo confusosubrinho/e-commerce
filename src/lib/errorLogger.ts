@@ -1,5 +1,3 @@
-import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
 import { appLogger } from './appLogger';
 
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
@@ -14,7 +12,6 @@ interface LogErrorParams {
   pageUrl?: string;
 }
 
-type ErrorLogInsert = Database['public']['Tables']['error_logs']['Insert'];
 
 // In-memory buffer for rate limiting
 const recentErrors = new Map<string, number>();
@@ -39,10 +36,8 @@ export async function logError(params: LogErrorParams) {
   const {
     type,
     message,
-    stack,
     context = {},
     severity = 'error',
-    pageUrl = typeof window !== 'undefined' ? window.location.href : '',
   } = params;
 
   // Rate limit: skip duplicate errors
@@ -61,23 +56,7 @@ export async function logError(params: LogErrorParams) {
     appLogger.info(`[${type.toUpperCase()}] ${message}`, context);
   }
 
-  // Try to save to database (fire-and-forget)
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const row: ErrorLogInsert = {
-      error_type: type,
-      error_message: message.substring(0, 1000),
-      error_stack: stack?.substring(0, 5000) ?? null,
-      error_context: context as Database['public']['Tables']['error_logs']['Row']['error_context'],
-      page_url: pageUrl,
-      user_id: session?.user?.id ?? null,
-      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-      severity,
-    };
-    await supabase.from('error_logs').insert(row);
-  } catch (e) {
-    appLogger.warn('ErrorLogger: failed to persist error log', e);
-  }
+  // Diagnóstico somente no console; o painel de logs local foi aposentado.
 }
 
 // Log unhandled errors

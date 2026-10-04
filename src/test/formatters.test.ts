@@ -10,7 +10,6 @@ import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_BADGE_COLORS,
   ORDER_STATUS_CHART_COLORS,
-  getProviderLabel,
 } from '@/lib/formatters';
 
 describe('formatters', () => {
@@ -67,17 +66,5 @@ describe('formatters', () => {
     });
   });
 
-  describe('getProviderLabel', () => {
-    it('retorna label para stripe, appmax, yampi', () => {
-      expect(getProviderLabel('stripe')).toBe('Stripe');
-      expect(getProviderLabel('appmax')).toBe('Appmax');
-      expect(getProviderLabel('yampi')).toBe('Yampi');
-    });
 
-    it('retorna "Site" para null, undefined ou desconhecido', () => {
-      expect(getProviderLabel(null)).toBe('Site');
-      expect(getProviderLabel(undefined)).toBe('Site');
-      expect(getProviderLabel('outro')).toBe('Site');
-    });
-  });
 });

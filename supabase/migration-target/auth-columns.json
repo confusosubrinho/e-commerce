@@ -1,0 +1,222 @@
+[
+  {
+    "column_name": "provider_id",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "user_id",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "identity_data",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "provider",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "last_sign_in_at",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "created_at",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "updated_at",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "email",
+    "is_generated": "ALWAYS",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "id",
+    "is_generated": "NEVER",
+    "table_name": "identities"
+  },
+  {
+    "column_name": "instance_id",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "id",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "aud",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "role",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "encrypted_password",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_confirmed_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "invited_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "confirmation_token",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "confirmation_sent_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "recovery_token",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "recovery_sent_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_change_token_new",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_change",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_change_sent_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "last_sign_in_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "raw_app_meta_data",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "raw_user_meta_data",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "is_super_admin",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "created_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "updated_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "phone",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "phone_confirmed_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "phone_change",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "phone_change_token",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "phone_change_sent_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "confirmed_at",
+    "is_generated": "ALWAYS",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_change_token_current",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "email_change_confirm_status",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "banned_until",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "reauthentication_token",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "reauthentication_sent_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "is_sso_user",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "deleted_at",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  },
+  {
+    "column_name": "is_anonymous",
+    "is_generated": "NEVER",
+    "table_name": "users"
+  }
+]

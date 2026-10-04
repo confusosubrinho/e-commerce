@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { useStoreSettings } from '@/hooks/useProducts';
+import { useStoreSettings } from '@/hooks/useStoreContent';
 import { getWhatsAppNumber } from '@/hooks/useStoreContact';
 
 function getMessageForRoute(pathname: string): string {

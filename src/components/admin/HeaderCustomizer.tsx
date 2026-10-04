@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToWebP } from '@/lib/imageCompressor';
 import { Upload, Save, GripVertical, Trash2, X, Plus, Megaphone } from 'lucide-react';
-import { useCategories } from '@/hooks/useProducts';
+import { useShopifyCollections } from '@/hooks/useShopifyCollections';
 
 const AVAILABLE_ICONS = [
   { value: 'Percent', label: '% Porcentagem' },
@@ -37,7 +37,8 @@ interface HeaderSettings {
 export function HeaderCustomizer() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: categories } = useCategories();
+  const { data: collectionEdges } = useShopifyCollections({ first: 100, productsPerCollection: 1 });
+  const categories = collectionEdges?.map(({ node }) => ({ id: node.handle, name: node.title, slug: node.handle, show_in_menu: true, image_url: node.image?.url ?? null }));
   const [uploading, setUploading] = useState(false);
 
   const { data: settings, isLoading } = useQuery({

@@ -6,20 +6,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { CartProvider } from "@/contexts/CartContext";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "@/components/store/ErrorBoundary";
 import { ScrollToTop } from "@/components/store/ScrollToTop";
 import { VersionChecker } from "@/components/store/VersionChecker";
 import { ThemeProvider } from "@/components/store/ThemeProvider";
-import { AppmaxScriptLoader } from "@/components/store/AppmaxScriptLoader";
 import { useShopifyCartSync } from "@/hooks/useShopifyCartSync";
 import { APP_VERSION } from "@/lib/appVersion";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
 // Retry wrapper for lazy imports that may fail due to stale cache
-function lazyRetry<T extends { default: React.ComponentType<any> }>(
+function lazyRetry<T extends { default: React.ComponentType }>(
   factory: () => Promise<T>,
 ): Promise<T> {
   return factory().catch((err) => {
@@ -41,7 +39,6 @@ const Cart = lazy(() => lazyRetry(() => import("./pages/Cart")));
 const Checkout = lazy(() => lazyRetry(() => import("./pages/Checkout")));
 const MyAccount = lazy(() => lazyRetry(() => import("./pages/MyAccount")));
 const RastreioPage = lazy(() => lazyRetry(() => import("./pages/RastreioPage")));
-const OrderConfirmation = lazy(() => lazyRetry(() => import("./pages/OrderConfirmation")));
 const FavoritesPage = lazy(() => lazyRetry(() => import("./pages/FavoritesPage")));
 const SearchPage = lazy(() => lazyRetry(() => import("./pages/SearchPage")));
 
@@ -58,37 +55,20 @@ const AtendimentoPage = lazy(() => lazyRetry(() => import("./pages/AtendimentoPa
 const AdminLayout = lazy(() => lazyRetry(() => import("./pages/admin/AdminLayout")));
 const AdminLogin = lazy(() => lazyRetry(() => import("./pages/admin/AdminLogin")));
 const Dashboard = lazy(() => lazyRetry(() => import("./pages/admin/Dashboard")));
-const Products = lazy(() => lazyRetry(() => import("./pages/admin/Products")));
-const Categories = lazy(() => lazyRetry(() => import("./pages/admin/Categories")));
-const Orders = lazy(() => lazyRetry(() => import("./pages/admin/Orders")));
-const Customers = lazy(() => lazyRetry(() => import("./pages/admin/Customers")));
-const Coupons = lazy(() => lazyRetry(() => import("./pages/admin/Coupons")));
 const Banners = lazy(() => lazyRetry(() => import("./pages/admin/Banners")));
 const Personalization = lazy(() => lazyRetry(() => import("./pages/admin/Personalization")));
 const HighlightBanners = lazy(() => lazyRetry(() => import("./pages/admin/HighlightBanners")));
 const Settings = lazy(() => lazyRetry(() => import("./pages/admin/Settings")));
 const CodeSettings = lazy(() => lazyRetry(() => import("./pages/admin/CodeSettings")));
 const Integrations = lazy(() => lazyRetry(() => import("./pages/admin/Integrations")));
-const SalesDashboard = lazy(() => lazyRetry(() => import("./pages/admin/SalesDashboard")));
-const ManualRegistration = lazy(() => lazyRetry(() => import("./pages/admin/ManualRegistration")));
-const ConversionManual = lazy(() => lazyRetry(() => import("./pages/admin/ConversionManual")));
-const AbandonedCarts = lazy(() => lazyRetry(() => import("./pages/admin/AbandonedCarts")));
-const EmailAutomations = lazy(() => lazyRetry(() => import("./pages/admin/EmailAutomations")));
-const TrafficDashboard = lazy(() => lazyRetry(() => import("./pages/admin/TrafficDashboard")));
 const MediaGallery = lazy(() => lazyRetry(() => import("./pages/admin/MediaGallery")));
 const PricingSettings = lazy(() => lazyRetry(() => import("./pages/admin/PricingSettings")));
 const HelpEditor = lazy(() => lazyRetry(() => import("./pages/admin/HelpEditor")));
 const SocialLinks = lazy(() => lazyRetry(() => import("./pages/admin/SocialLinks")));
 const PagesAdmin = lazy(() => lazyRetry(() => import("./pages/admin/PagesAdmin")));
-const SystemAndLogs = lazy(() => lazyRetry(() => import("./pages/admin/SystemAndLogs")));
 const ThemeEditor = lazy(() => lazyRetry(() => import("./pages/admin/ThemeEditor")));
-const AppmaxCallback = lazy(() => lazyRetry(() => import("./pages/admin/AppmaxCallback")));
 const Notifications = lazy(() => lazyRetry(() => import("./pages/admin/Notifications")));
-const Reviews = lazy(() => lazyRetry(() => import("./pages/admin/Reviews")));
 const Team = lazy(() => lazyRetry(() => import("./pages/admin/Team")));
-const CheckoutSettings = lazy(() => lazyRetry(() => import("./pages/admin/CheckoutSettings")));
-const PaymentInconsistencies = lazy(() => lazyRetry(() => import("./pages/admin/PaymentInconsistencies")));
-const CommerceHealth = lazy(() => lazyRetry(() => import("./pages/admin/CommerceHealth")));
 const SuperAdmin = lazy(() => lazyRetry(() => import("./pages/admin/SuperAdmin")));
 const BlogAdmin = lazy(() => lazyRetry(() => import("./pages/admin/BlogAdmin")));
 const CheckoutStart = lazy(() => lazyRetry(() => import("./pages/CheckoutStart")));
@@ -103,8 +83,8 @@ const CookieConsent = lazy(() => lazyRetry(() => import("./components/store/Cook
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: (failureCount, error: any) => {
-        if (error?.message?.includes('JWT expired')) return false;
+      retry: (failureCount, error) => {
+        if (error instanceof Error && error.message.includes('JWT expired')) return false;
         return failureCount < 2;
       },
       staleTime: 1000 * 60 * 5,
@@ -168,6 +148,24 @@ function PageFallback() {
   );
 }
 
+function AppQueryProvider({ children }: { children: React.ReactNode }) {
+  if (!persister) return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60 * 24,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => query.queryKey[0] !== 'store-settings-public',
+        },
+      }}
+    >
+      {children}
+    </PersistQueryClientProvider>
+  );
+}
+
 const App = () => {
   useShopifyCartSync();
   useEffect(() => {
@@ -175,32 +173,16 @@ const App = () => {
     // Clean up persist cache from old versions & stale retry flags
     cleanupOldPersistKeys();
     // Clean old retry flags (non-versioned legacy)
-    try { sessionStorage.removeItem('lazy-retry-reloaded'); } catch {}
+    try { sessionStorage.removeItem('lazy-retry-reloaded'); } catch { /* Storage indisponível. */ }
   }, []);
 
-  const Provider = persister ? PersistQueryClientProvider : QueryClientProvider;
-  const providerProps = persister
-    ? {
-        client: queryClient,
-        persistOptions: {
-          persister,
-          maxAge: 1000 * 60 * 60 * 24,
-          dehydrateOptions: {
-            shouldDehydrateQuery: (query: { queryKey: unknown[] }) =>
-              query.queryKey[0] !== 'store-settings-public',
-          },
-        },
-      }
-    : { client: queryClient };
   return (
-  <Provider {...providerProps}>
-    <CartProvider>
+  <AppQueryProvider>
       <TooltipProvider>
         <ThemeProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AppmaxScriptLoader />
           <Suspense fallback={null}>
             <WhatsAppFloat />
             <CookieConsent />
@@ -244,8 +226,8 @@ const App = () => {
               <Route path="/blog/:slug" element={<BlogPostPage />} />
 
               <Route path="/rastreio" element={<RastreioPage />} />
-              <Route path="/pedido-confirmado/:orderId" element={<OrderConfirmation />} />
-              <Route path="/pedido-confirmado" element={<OrderConfirmation />} />
+              <Route path="/pedido-confirmado/:orderId" element={<Navigate to="/rastreio" replace />} />
+              <Route path="/pedido-confirmado" element={<Navigate to="/rastreio" replace />} />
               <Route path="/favoritos" element={<FavoritesPage />} />
               <Route path="/busca" element={<SearchPage />} />
               
@@ -253,40 +235,23 @@ const App = () => {
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
-                <Route path="produtos" element={<Products />} />
-                <Route path="categorias" element={<Categories />} />
-                <Route path="pedidos" element={<Orders />} />
-                <Route path="clientes" element={<Customers />} />
-                <Route path="cupons" element={<Coupons />} />
                 <Route path="banners" element={<Banners />} />
                 <Route path="personalizacao" element={<Personalization />} />
                 <Route path="banners-destaque" element={<HighlightBanners />} />
                 <Route path="integracoes" element={<Integrations />} />
-                <Route path="vendas" element={<SalesDashboard />} />
-                <Route path="registro-manual" element={<ManualRegistration />} />
                 <Route path="configuracoes" element={<Settings />} />
                 <Route path="configuracoes/codigo" element={<CodeSettings />} />
-                <Route path="configuracoes/conversoes" element={<ConversionManual />} />
-                <Route path="carrinhos-abandonados" element={<AbandonedCarts />} />
-                <Route path="email-automations" element={<EmailAutomations />} />
-                <Route path="trafego" element={<TrafficDashboard />} />
                 <Route path="galeria" element={<MediaGallery />} />
                 <Route path="precos" element={<PricingSettings />} />
                 <Route path="ajuda" element={<HelpEditor />} />
                 <Route path="redes-sociais" element={<SocialLinks />} />
                 <Route path="paginas" element={<PagesAdmin />} />
-                <Route path="sistema" element={<SystemAndLogs />} />
                 <Route path="tema" element={<ThemeEditor />} />
                 <Route path="notificacoes" element={<Notifications />} />
-                <Route path="avaliacoes" element={<Reviews />} />
                 <Route path="equipe" element={<Team />} />
-                <Route path="checkout-transparente" element={<CheckoutSettings />} />
-                <Route path="inconsistencias-pagamento" element={<PaymentInconsistencies />} />
-                <Route path="commerce-health" element={<CommerceHealth />} />
                 <Route path="super" element={<SuperAdmin />} />
                 <Route path="blog" element={<BlogAdmin />} />
               </Route>
-              <Route path="/admin/integrations/appmax/callback" element={<AppmaxCallback />} />
               
               <Route path="*" element={<NotFound />} />
             </Routes>
@@ -295,8 +260,7 @@ const App = () => {
         </BrowserRouter>
         </ThemeProvider>
       </TooltipProvider>
-    </CartProvider>
-  </Provider>
+  </AppQueryProvider>
   );
 };
 

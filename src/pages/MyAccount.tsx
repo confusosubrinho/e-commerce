@@ -68,18 +68,6 @@ const BRAZILIAN_STATES = [
     enabled: !!user?.id,
   });
 
-  const { data: orders } = useQuery({
-    queryKey: ['my-orders', user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false });
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -201,14 +189,10 @@ const BRAZILIAN_STATES = [
         </div>
 
         <Tabs defaultValue="profile">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Meus Dados
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Pedidos
             </TabsTrigger>
             <TabsTrigger value="addresses" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
@@ -252,85 +236,6 @@ const BRAZILIAN_STATES = [
                     {updateProfile.isPending ? 'Salvando...' : 'Salvar Dados'}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Meus Pedidos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {!orders || orders.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Você ainda não fez nenhum pedido.</p>
-                    <Button asChild className="mt-4 rounded-full">
-                      <a href="/">Explorar Produtos</a>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {orders.map((order: any) => (
-                      <Collapsible
-                        key={order.id}
-                        open={expandedOrders.has(order.id)}
-                        onOpenChange={() => toggleOrder(order.id)}
-                      >
-                        <div className="border rounded-lg p-4">
-                          <CollapsibleTrigger className="w-full text-left">
-                            <div className="flex items-center justify-between mb-1">
-                              <div>
-                                <p className="font-medium">Pedido #{order.order_number}</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="text-right">
-                                  <Badge className={statusColors[order.status] || ''}>
-                                    {statusLabels[order.status] || order.status}
-                                  </Badge>
-                                  <p className="font-bold mt-1">{formatPrice(order.total_amount)}</p>
-                                </div>
-                                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expandedOrders.has(order.id) ? 'rotate-180' : ''}`} />
-                              </div>
-                            </div>
-                            {order.tracking_code && (
-                              <p className="text-sm text-primary">Rastreio: {order.tracking_code}</p>
-                            )}
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {order.order_items?.length || 0} {order.order_items?.length === 1 ? 'item' : 'itens'} — Clique para ver detalhes
-                            </p>
-                          </CollapsibleTrigger>
-
-                          <CollapsibleContent>
-                            <div className="mt-3 pt-3 border-t space-y-2">
-                              {order.order_items?.map((item: any) => (
-                              <div key={item.id} className="flex items-center gap-3 text-sm py-1.5">
-                                  {item.image_snapshot && (
-                                    <img src={item.image_snapshot} alt={item.product_name} className="w-10 h-10 rounded object-cover shrink-0 bg-muted" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">{item.product_name}</p>
-                                    {item.variant_info && (
-                                      <p className="text-xs text-muted-foreground">{item.variant_info}</p>
-                                    )}
-                                  </div>
-                                  <div className="text-right ml-4 shrink-0">
-                                    <p className="text-muted-foreground">{item.quantity}x {formatPrice(item.unit_price)}</p>
-                                    <p className="font-medium">{formatPrice(item.total_price)}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>

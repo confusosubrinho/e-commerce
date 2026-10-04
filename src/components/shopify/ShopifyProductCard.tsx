@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useShopifyFavoritesStore } from '@/stores/shopifyFavoritesStore';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import {
   formatCurrency,
@@ -21,6 +22,8 @@ const LOW_STOCK_THRESHOLD = 3;
 
 export function ShopifyProductCard({ product }: Props) {
   const node = product.node;
+  const favorite = useShopifyFavoritesStore((s) => s.handles.includes(node.handle));
+  const toggleFavorite = useShopifyFavoritesStore((s) => s.toggle);
   const addItem = useShopifyCartStore((s) => s.addItem);
   const isLoading = useShopifyCartStore((s) => s.isLoading);
   const { data: pricingConfig } = usePricingConfig();
@@ -147,14 +150,16 @@ export function ShopifyProductCard({ product }: Props) {
 
         <button
           type="button"
-          aria-label="Favoritar"
+          aria-label={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+          aria-pressed={favorite}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            toggleFavorite(node.handle);
           }}
           className="absolute top-2 right-2 bg-background/80 p-1.5 rounded-full hover:bg-background transition-all shadow-sm"
         >
-          <Heart className="h-4 w-4 text-muted-foreground" />
+          <Heart className={`h-4 w-4 ${favorite ? 'fill-primary text-primary' : 'text-muted-foreground'}`} />
         </button>
 
         {firstAvailableVariant && (

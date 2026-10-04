@@ -77,7 +77,7 @@ export function InstagramFeed() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('instagram_videos')
-        .select('*, product:products(id, name, slug, images:product_images(url, is_primary))')
+        .select('*')
         .eq('is_active', true)
         .order('display_order', { ascending: true });
 

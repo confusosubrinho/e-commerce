@@ -61,12 +61,3 @@ export const ORDER_STATUS_CHART_COLORS: Record<string, string> = {
   refunded: '#f97316',
   failed: '#dc2626',
 };
-
-// ─── Provider ───
-
-export const getProviderLabel = (provider: string | null | undefined): string => {
-  if (provider === 'stripe') return 'Stripe';
-  if (provider === 'appmax') return 'Appmax';
-  if (provider === 'yampi') return 'Yampi';
-  return 'Site';
-};

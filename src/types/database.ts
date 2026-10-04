@@ -44,11 +44,6 @@ export interface Product {
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string | null;
-  // Bling integration (admin)
-  bling_product_id?: number | null;
-  bling_sync_status?: string | null;
-  bling_last_synced_at?: string | null;
-  bling_last_error?: string | null;
   // Relations
   category?: Category | { id: string; name: string; slug?: string };
   images?: ProductImage[];
@@ -82,7 +77,6 @@ export interface Product {
    created_at: string;
    custom_attribute_name?: string | null;
    custom_attribute_value?: string | null;
-   bling_variant_id?: number | null;
  }
  
 export interface Banner {
@@ -161,8 +155,6 @@ export interface Banner {
   installments?: number | null;
   created_at: string;
   updated_at: string;
-  yampi_created_at?: string | null;
-  yampi_order_number?: string | null;
   items?: OrderItem[];
   customer?: Customer;
 }
@@ -209,7 +201,6 @@ export interface Banner {
     tiktok_pixel_id?: string | null;
     public_base_url?: string | null;
     appmax_callback_path?: string | null;
-    bling_access_token?: string | null;
     app_version?: string | null;
     melhor_envio_token?: string | null;
     melhor_envio_sandbox?: boolean | null;

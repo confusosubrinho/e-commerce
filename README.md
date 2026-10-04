@@ -1,3 +1,5 @@
+> Estado atual: veja [limpeza da operação Shopify](docs/SHOPIFY_OPERATION_CLEANUP.md). Referências abaixo a Bling e módulos comerciais locais são históricas.
+
 # Vanessa Lima Shoes – Plataforma de E-commerce
 
 Plataforma de e-commerce completa para a loja **Vanessa Lima Shoes**, construída com React, Vite, TypeScript, Tailwind CSS e Supabase.

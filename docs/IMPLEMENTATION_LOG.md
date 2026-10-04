@@ -1,3 +1,15 @@
+## 2026-10-04 — Yampi somente no redirecionamento
+
+Por nova autorização do usuário, removidos catálogo, sincronização, importação de pedidos, webhooks e controle local Yampi. Removida a cadeia local de checkout Stripe/Appmax e administração de pedidos/clientes; Stripe Billing preservado sem operações comerciais. Redirecionamento do carrinho intacto. Migration de retirada de controles e manifesto de endpoints remotos preparados, sem execução remota. Consulte SHOPIFY_OPERATION_CLEANUP.md para o estado atual.
+
+## 2026-10-04 — segunda etapa da retirada da operação local
+
+Carrinho e componentes locais aposentados; busca, favoritos e configuração de menu passaram à Shopify. Removidos importador Tray e painéis locais de gateways/frete. Preparada migration de arquivamento privado e retirada do schema exclusivo Bling; sem execução remota. Yampi e backend compartilhado preservados. Detalhes em [SHOPIFY_OPERATION_CLEANUP.md](SHOPIFY_OPERATION_CLEANUP.md).
+
+## 2026-10-04 — Aposentadoria da operação comercial local e do Bling
+
+Removidos endpoints/helpers exclusivos do Bling, CRUD local de catálogo/estoque e painéis operacionais antigos. Dashboard e busca focam em conteúdo e Shopify. Yampi preservada, com contrato Bling inerte para evitar imports quebrados. Migration nova desativa flags/jobs Bling sem apagar dados; não aplicada remotamente. Detalhes em [SHOPIFY_OPERATION_CLEANUP.md](SHOPIFY_OPERATION_CLEANUP.md).
+
 # Log de Implementação
 
 Registro detalhado de todas as mudanças realizadas no projeto.

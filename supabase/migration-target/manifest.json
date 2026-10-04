@@ -1,0 +1,1699 @@
+{
+  "tables": [
+    "admin_audit_log",
+    "admin_members",
+    "announcement_bar",
+    "banners",
+    "blog_posts",
+    "blog_settings",
+    "categories",
+    "cleanup_runs",
+    "features_bar",
+    "help_articles",
+    "highlight_banners",
+    "home_page_sections",
+    "home_sections",
+    "homepage_testimonials",
+    "homepage_testimonials_config",
+    "instagram_videos",
+    "log_daily_stats",
+    "login_attempts",
+    "page_contents",
+    "payment_methods_display",
+    "payment_pricing_audit_log",
+    "payment_pricing_config",
+    "profiles",
+    "security_seals",
+    "site_theme",
+    "social_links",
+    "store_settings",
+    "store_setup",
+    "stripe_webhook_events",
+    "tenant_plans",
+    "tenants",
+    "user_roles",
+    "user_tenants",
+    "app_logs",
+    "error_logs",
+    "rate_limit_log"
+  ],
+  "columns": [
+    {
+      "table": "help_articles",
+      "column": "id"
+    },
+    {
+      "table": "help_articles",
+      "column": "created_at"
+    },
+    {
+      "table": "help_articles",
+      "column": "updated_at"
+    },
+    {
+      "table": "help_articles",
+      "column": "tenant_id"
+    },
+    {
+      "table": "store_settings",
+      "column": "id"
+    },
+    {
+      "table": "store_settings",
+      "column": "free_shipping_threshold"
+    },
+    {
+      "table": "store_settings",
+      "column": "max_installments"
+    },
+    {
+      "table": "store_settings",
+      "column": "created_at"
+    },
+    {
+      "table": "store_settings",
+      "column": "updated_at"
+    },
+    {
+      "table": "store_settings",
+      "column": "pix_discount"
+    },
+    {
+      "table": "store_settings",
+      "column": "cash_discount"
+    },
+    {
+      "table": "store_settings",
+      "column": "installment_interest_rate"
+    },
+    {
+      "table": "store_settings",
+      "column": "min_installment_value"
+    },
+    {
+      "table": "store_settings",
+      "column": "installments_without_interest"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_store_pickup_enabled"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_free_enabled"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_free_min_value"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_regions"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_allowed_services"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_menu_order"
+    },
+    {
+      "table": "store_settings",
+      "column": "show_variants_on_grid"
+    },
+    {
+      "table": "store_settings",
+      "column": "tenant_id"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "id"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "is_active"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "max_installments"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "interest_free_installments"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "card_cash_rate"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "pix_discount"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "cash_discount"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "monthly_rate_fixed"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "monthly_rate_by_installment"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "min_installment_value"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "created_at"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "updated_at"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "updated_by"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "transparent_checkout_fee_percent"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "transparent_checkout_fee_enabled"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "gateway_fee_1x_percent"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "gateway_fee_additional_per_installment_percent"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "gateway_fee_starts_at_installment"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "pix_discount_applies_to_sale_products"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "interest_free_installments_sale"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "tenant_id"
+    },
+    {
+      "table": "store_setup",
+      "column": "id"
+    },
+    {
+      "table": "store_setup",
+      "column": "setup_completed"
+    },
+    {
+      "table": "store_setup",
+      "column": "current_step"
+    },
+    {
+      "table": "store_setup",
+      "column": "completed_steps"
+    },
+    {
+      "table": "store_setup",
+      "column": "updated_at"
+    },
+    {
+      "table": "store_setup",
+      "column": "tenant_id"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "id"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "is_active"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "messages"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "autoplay"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "autoplay_speed"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "closeable"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "updated_at"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "tenant_id"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "id"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "stat_date"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "total_count"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "error_count"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "warning_count"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "info_count"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "created_at"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "tenant_id"
+    },
+    {
+      "table": "features_bar",
+      "column": "id"
+    },
+    {
+      "table": "features_bar",
+      "column": "display_order"
+    },
+    {
+      "table": "features_bar",
+      "column": "is_active"
+    },
+    {
+      "table": "features_bar",
+      "column": "created_at"
+    },
+    {
+      "table": "features_bar",
+      "column": "updated_at"
+    },
+    {
+      "table": "features_bar",
+      "column": "tenant_id"
+    },
+    {
+      "table": "login_attempts",
+      "column": "id"
+    },
+    {
+      "table": "login_attempts",
+      "column": "attempted_at"
+    },
+    {
+      "table": "login_attempts",
+      "column": "success"
+    },
+    {
+      "table": "login_attempts",
+      "column": "tenant_id"
+    },
+    {
+      "table": "rate_limit_log",
+      "column": "id"
+    },
+    {
+      "table": "rate_limit_log",
+      "column": "created_at"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "id"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "started_at"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "finished_at"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "duration_ms"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "records_deleted"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "records_consolidated"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "bytes_freed"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "details"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "created_at"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "tenant_id"
+    },
+    {
+      "table": "site_theme",
+      "column": "id"
+    },
+    {
+      "table": "site_theme",
+      "column": "updated_at"
+    },
+    {
+      "table": "site_theme",
+      "column": "tenant_id"
+    },
+    {
+      "table": "banners",
+      "column": "id"
+    },
+    {
+      "table": "banners",
+      "column": "display_order"
+    },
+    {
+      "table": "banners",
+      "column": "is_active"
+    },
+    {
+      "table": "banners",
+      "column": "created_at"
+    },
+    {
+      "table": "banners",
+      "column": "updated_at"
+    },
+    {
+      "table": "banners",
+      "column": "show_on_desktop"
+    },
+    {
+      "table": "banners",
+      "column": "show_on_mobile"
+    },
+    {
+      "table": "banners",
+      "column": "tenant_id"
+    },
+    {
+      "table": "blog_posts",
+      "column": "id"
+    },
+    {
+      "table": "blog_posts",
+      "column": "published_at"
+    },
+    {
+      "table": "blog_posts",
+      "column": "display_order"
+    },
+    {
+      "table": "blog_posts",
+      "column": "created_at"
+    },
+    {
+      "table": "blog_posts",
+      "column": "updated_at"
+    },
+    {
+      "table": "blog_posts",
+      "column": "tenant_id"
+    },
+    {
+      "table": "error_logs",
+      "column": "id"
+    },
+    {
+      "table": "error_logs",
+      "column": "error_context"
+    },
+    {
+      "table": "error_logs",
+      "column": "user_id"
+    },
+    {
+      "table": "error_logs",
+      "column": "is_resolved"
+    },
+    {
+      "table": "error_logs",
+      "column": "resolved_at"
+    },
+    {
+      "table": "error_logs",
+      "column": "resolved_by"
+    },
+    {
+      "table": "error_logs",
+      "column": "created_at"
+    },
+    {
+      "table": "error_logs",
+      "column": "tenant_id"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "id"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "config_id"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "before_data"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "after_data"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "changed_by"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "changed_at"
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "column": "tenant_id"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "id"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "product_id"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "display_order"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "is_active"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "created_at"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "updated_at"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "tenant_id"
+    },
+    {
+      "table": "blog_settings",
+      "column": "id"
+    },
+    {
+      "table": "blog_settings",
+      "column": "is_active"
+    },
+    {
+      "table": "blog_settings",
+      "column": "posts_per_page"
+    },
+    {
+      "table": "blog_settings",
+      "column": "created_at"
+    },
+    {
+      "table": "blog_settings",
+      "column": "updated_at"
+    },
+    {
+      "table": "blog_settings",
+      "column": "tenant_id"
+    },
+    {
+      "table": "social_links",
+      "column": "id"
+    },
+    {
+      "table": "social_links",
+      "column": "sort_order"
+    },
+    {
+      "table": "social_links",
+      "column": "is_active"
+    },
+    {
+      "table": "social_links",
+      "column": "created_at"
+    },
+    {
+      "table": "social_links",
+      "column": "updated_at"
+    },
+    {
+      "table": "social_links",
+      "column": "tenant_id"
+    },
+    {
+      "table": "page_contents",
+      "column": "id"
+    },
+    {
+      "table": "page_contents",
+      "column": "created_at"
+    },
+    {
+      "table": "page_contents",
+      "column": "updated_at"
+    },
+    {
+      "table": "page_contents",
+      "column": "tenant_id"
+    },
+    {
+      "table": "categories",
+      "column": "id"
+    },
+    {
+      "table": "categories",
+      "column": "display_order"
+    },
+    {
+      "table": "categories",
+      "column": "is_active"
+    },
+    {
+      "table": "categories",
+      "column": "created_at"
+    },
+    {
+      "table": "categories",
+      "column": "updated_at"
+    },
+    {
+      "table": "categories",
+      "column": "parent_category_id"
+    },
+    {
+      "table": "categories",
+      "column": "tenant_id"
+    },
+    {
+      "table": "tenants",
+      "column": "id"
+    },
+    {
+      "table": "tenants",
+      "column": "active"
+    },
+    {
+      "table": "tenants",
+      "column": "created_at"
+    },
+    {
+      "table": "tenants",
+      "column": "plan_id"
+    },
+    {
+      "table": "tenants",
+      "column": "trial_ends_at"
+    },
+    {
+      "table": "tenants",
+      "column": "plan_expires_at"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "id"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "is_active"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "cards_per_view"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "autoplay"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "autoplay_speed"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "updated_at"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "tenant_id"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "show_google_summary"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "google_rating"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "google_reviews_count"
+    },
+    {
+      "table": "app_logs",
+      "column": "id"
+    },
+    {
+      "table": "app_logs",
+      "column": "meta"
+    },
+    {
+      "table": "app_logs",
+      "column": "user_id"
+    },
+    {
+      "table": "app_logs",
+      "column": "created_at"
+    },
+    {
+      "table": "app_logs",
+      "column": "tenant_id"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "id"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "features"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "limits"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "sort_order"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "created_at"
+    },
+    {
+      "table": "user_tenants",
+      "column": "user_id"
+    },
+    {
+      "table": "user_tenants",
+      "column": "tenant_id"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "id"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "rating"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "display_order"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "is_active"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "created_at"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "updated_at"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "product_id"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "tenant_id"
+    },
+    {
+      "table": "user_roles",
+      "column": "id"
+    },
+    {
+      "table": "user_roles",
+      "column": "user_id"
+    },
+    {
+      "table": "user_roles",
+      "column": "role"
+    },
+    {
+      "table": "admin_members",
+      "column": "id"
+    },
+    {
+      "table": "admin_members",
+      "column": "user_id"
+    },
+    {
+      "table": "admin_members",
+      "column": "is_active"
+    },
+    {
+      "table": "admin_members",
+      "column": "invited_by"
+    },
+    {
+      "table": "admin_members",
+      "column": "invited_at"
+    },
+    {
+      "table": "admin_members",
+      "column": "last_access"
+    },
+    {
+      "table": "admin_members",
+      "column": "created_at"
+    },
+    {
+      "table": "admin_members",
+      "column": "tenant_id"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "id"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "user_id"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "old_values"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "new_values"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "created_at"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "tenant_id"
+    },
+    {
+      "table": "security_seals",
+      "column": "id"
+    },
+    {
+      "table": "security_seals",
+      "column": "display_order"
+    },
+    {
+      "table": "security_seals",
+      "column": "is_active"
+    },
+    {
+      "table": "security_seals",
+      "column": "created_at"
+    },
+    {
+      "table": "security_seals",
+      "column": "updated_at"
+    },
+    {
+      "table": "security_seals",
+      "column": "tenant_id"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "id"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "is_active"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "display_order"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "config"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "created_at"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "updated_at"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "is_native"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "tenant_id"
+    },
+    {
+      "table": "home_sections",
+      "column": "id"
+    },
+    {
+      "table": "home_sections",
+      "column": "category_id"
+    },
+    {
+      "table": "home_sections",
+      "column": "product_ids"
+    },
+    {
+      "table": "home_sections",
+      "column": "max_items"
+    },
+    {
+      "table": "home_sections",
+      "column": "display_order"
+    },
+    {
+      "table": "home_sections",
+      "column": "is_active"
+    },
+    {
+      "table": "home_sections",
+      "column": "show_view_all"
+    },
+    {
+      "table": "home_sections",
+      "column": "dark_bg"
+    },
+    {
+      "table": "home_sections",
+      "column": "card_bg"
+    },
+    {
+      "table": "home_sections",
+      "column": "created_at"
+    },
+    {
+      "table": "home_sections",
+      "column": "updated_at"
+    },
+    {
+      "table": "home_sections",
+      "column": "tenant_id"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "id"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "display_order"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "is_active"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "created_at"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "updated_at"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "tenant_id"
+    },
+    {
+      "table": "profiles",
+      "column": "id"
+    },
+    {
+      "table": "profiles",
+      "column": "user_id"
+    },
+    {
+      "table": "profiles",
+      "column": "created_at"
+    },
+    {
+      "table": "profiles",
+      "column": "updated_at"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "id"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "display_order"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "is_active"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "created_at"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "updated_at"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "tenant_id"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "id"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "created_at"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "payload"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "processed"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "processed_at"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "tenant_id"
+    },
+    {
+      "table": "features_bar",
+      "column": "title"
+    },
+    {
+      "table": "features_bar",
+      "column": "subtitle"
+    },
+    {
+      "table": "features_bar",
+      "column": "icon_url"
+    },
+    {
+      "table": "social_links",
+      "column": "name"
+    },
+    {
+      "table": "social_links",
+      "column": "url"
+    },
+    {
+      "table": "social_links",
+      "column": "icon_type"
+    },
+    {
+      "table": "social_links",
+      "column": "icon_image_url"
+    },
+    {
+      "table": "login_attempts",
+      "column": "email"
+    },
+    {
+      "table": "login_attempts",
+      "column": "ip_hash"
+    },
+    {
+      "table": "admin_members",
+      "column": "email"
+    },
+    {
+      "table": "admin_members",
+      "column": "full_name"
+    },
+    {
+      "table": "admin_members",
+      "column": "role"
+    },
+    {
+      "table": "rate_limit_log",
+      "column": "identifier"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "title"
+    },
+    {
+      "table": "page_contents",
+      "column": "page_slug"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "user_email"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "action"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "resource_type"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "resource_id"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "resource_name"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "ip_address"
+    },
+    {
+      "table": "admin_audit_log",
+      "column": "user_agent"
+    },
+    {
+      "table": "page_contents",
+      "column": "page_title"
+    },
+    {
+      "table": "page_contents",
+      "column": "content"
+    },
+    {
+      "table": "page_contents",
+      "column": "meta_description"
+    },
+    {
+      "table": "security_seals",
+      "column": "title"
+    },
+    {
+      "table": "security_seals",
+      "column": "image_url"
+    },
+    {
+      "table": "security_seals",
+      "column": "html_code"
+    },
+    {
+      "table": "security_seals",
+      "column": "link_url"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "subtitle"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "bg_color"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "card_color"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "job_type"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "section_key"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "section_type"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "label"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "mode"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "star_color"
+    },
+    {
+      "table": "home_page_sections",
+      "column": "icon"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "text_color"
+    },
+    {
+      "table": "home_sections",
+      "column": "title"
+    },
+    {
+      "table": "home_sections",
+      "column": "subtitle"
+    },
+    {
+      "table": "home_sections",
+      "column": "section_type"
+    },
+    {
+      "table": "home_sections",
+      "column": "source_type"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "errors"
+    },
+    {
+      "table": "cleanup_runs",
+      "column": "status"
+    },
+    {
+      "table": "categories",
+      "column": "name"
+    },
+    {
+      "table": "categories",
+      "column": "slug"
+    },
+    {
+      "table": "site_theme",
+      "column": "primary_color"
+    },
+    {
+      "table": "home_sections",
+      "column": "view_all_link"
+    },
+    {
+      "table": "site_theme",
+      "column": "primary_color_dark"
+    },
+    {
+      "table": "site_theme",
+      "column": "primary_color_light"
+    },
+    {
+      "table": "site_theme",
+      "column": "accent_color"
+    },
+    {
+      "table": "site_theme",
+      "column": "background_color"
+    },
+    {
+      "table": "home_sections",
+      "column": "sort_order"
+    },
+    {
+      "table": "site_theme",
+      "column": "text_color"
+    },
+    {
+      "table": "home_sections",
+      "column": "shopify_collection_handle"
+    },
+    {
+      "table": "home_sections",
+      "column": "shopify_product_handles"
+    },
+    {
+      "table": "site_theme",
+      "column": "font_family"
+    },
+    {
+      "table": "site_theme",
+      "column": "font_heading"
+    },
+    {
+      "table": "site_theme",
+      "column": "border_radius"
+    },
+    {
+      "table": "site_theme",
+      "column": "shadow_intensity"
+    },
+    {
+      "table": "categories",
+      "column": "description"
+    },
+    {
+      "table": "categories",
+      "column": "image_url"
+    },
+    {
+      "table": "banners",
+      "column": "title"
+    },
+    {
+      "table": "banners",
+      "column": "subtitle"
+    },
+    {
+      "table": "banners",
+      "column": "image_url"
+    },
+    {
+      "table": "banners",
+      "column": "cta_text"
+    },
+    {
+      "table": "banners",
+      "column": "cta_url"
+    },
+    {
+      "table": "categories",
+      "column": "seo_title"
+    },
+    {
+      "table": "banners",
+      "column": "mobile_image_url"
+    },
+    {
+      "table": "categories",
+      "column": "seo_description"
+    },
+    {
+      "table": "categories",
+      "column": "seo_keywords"
+    },
+    {
+      "table": "categories",
+      "column": "banner_image_url"
+    },
+    {
+      "table": "blog_posts",
+      "column": "title"
+    },
+    {
+      "table": "blog_posts",
+      "column": "slug"
+    },
+    {
+      "table": "blog_posts",
+      "column": "excerpt"
+    },
+    {
+      "table": "blog_posts",
+      "column": "content"
+    },
+    {
+      "table": "blog_posts",
+      "column": "featured_image_url"
+    },
+    {
+      "table": "blog_posts",
+      "column": "status"
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "column": "google_profile_url"
+    },
+    {
+      "table": "blog_posts",
+      "column": "seo_title"
+    },
+    {
+      "table": "blog_posts",
+      "column": "seo_description"
+    },
+    {
+      "table": "blog_posts",
+      "column": "author_name"
+    },
+    {
+      "table": "blog_posts",
+      "column": "category_tag"
+    },
+    {
+      "table": "blog_posts",
+      "column": "tags"
+    },
+    {
+      "table": "error_logs",
+      "column": "error_type"
+    },
+    {
+      "table": "error_logs",
+      "column": "error_message"
+    },
+    {
+      "table": "error_logs",
+      "column": "error_stack"
+    },
+    {
+      "table": "error_logs",
+      "column": "page_url"
+    },
+    {
+      "table": "error_logs",
+      "column": "user_agent"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "name"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "image_url"
+    },
+    {
+      "table": "payment_methods_display",
+      "column": "link_url"
+    },
+    {
+      "table": "error_logs",
+      "column": "severity"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "customer_name"
+    },
+    {
+      "table": "profiles",
+      "column": "full_name"
+    },
+    {
+      "table": "profiles",
+      "column": "phone"
+    },
+    {
+      "table": "profiles",
+      "column": "address"
+    },
+    {
+      "table": "profiles",
+      "column": "city"
+    },
+    {
+      "table": "profiles",
+      "column": "state"
+    },
+    {
+      "table": "profiles",
+      "column": "zip_code"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "testimonial"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "image_url"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "link_url"
+    },
+    {
+      "table": "highlight_banners",
+      "column": "title"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "name"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "slug"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "event_id"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "event_type"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "stripe_price_id_monthly"
+    },
+    {
+      "table": "tenant_plans",
+      "column": "stripe_price_id_yearly"
+    },
+    {
+      "table": "stripe_webhook_events",
+      "column": "error_message"
+    },
+    {
+      "table": "help_articles",
+      "column": "key"
+    },
+    {
+      "table": "help_articles",
+      "column": "title"
+    },
+    {
+      "table": "help_articles",
+      "column": "content"
+    },
+    {
+      "table": "help_articles",
+      "column": "audience"
+    },
+    {
+      "table": "store_settings",
+      "column": "store_name"
+    },
+    {
+      "table": "store_settings",
+      "column": "logo_url"
+    },
+    {
+      "table": "store_settings",
+      "column": "contact_email"
+    },
+    {
+      "table": "store_settings",
+      "column": "contact_phone"
+    },
+    {
+      "table": "store_settings",
+      "column": "contact_whatsapp"
+    },
+    {
+      "table": "store_settings",
+      "column": "address"
+    },
+    {
+      "table": "store_settings",
+      "column": "instagram_url"
+    },
+    {
+      "table": "store_settings",
+      "column": "facebook_url"
+    },
+    {
+      "table": "tenants",
+      "column": "name"
+    },
+    {
+      "table": "tenants",
+      "column": "slug"
+    },
+    {
+      "table": "tenants",
+      "column": "domain"
+    },
+    {
+      "table": "store_settings",
+      "column": "head_code"
+    },
+    {
+      "table": "store_settings",
+      "column": "body_code"
+    },
+    {
+      "table": "store_settings",
+      "column": "google_analytics_id"
+    },
+    {
+      "table": "store_settings",
+      "column": "facebook_pixel_id"
+    },
+    {
+      "table": "store_settings",
+      "column": "tiktok_pixel_id"
+    },
+    {
+      "table": "homepage_testimonials",
+      "column": "photo_url"
+    },
+    {
+      "table": "tenants",
+      "column": "billing_status"
+    },
+    {
+      "table": "tenants",
+      "column": "stripe_customer_id"
+    },
+    {
+      "table": "tenants",
+      "column": "stripe_subscription_id"
+    },
+    {
+      "table": "store_settings",
+      "column": "cnpj"
+    },
+    {
+      "table": "store_settings",
+      "column": "full_address"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_store_pickup_label"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_store_pickup_address"
+    },
+    {
+      "table": "store_settings",
+      "column": "shipping_free_label"
+    },
+    {
+      "table": "store_settings",
+      "column": "app_version"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_logo_url"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_subhead_text"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_highlight_text"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_highlight_url"
+    },
+    {
+      "table": "store_settings",
+      "column": "header_highlight_icon"
+    },
+    {
+      "table": "store_settings",
+      "column": "public_base_url"
+    },
+    {
+      "table": "store_settings",
+      "column": "favicon_url"
+    },
+    {
+      "table": "app_logs",
+      "column": "level"
+    },
+    {
+      "table": "app_logs",
+      "column": "scope"
+    },
+    {
+      "table": "app_logs",
+      "column": "message"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "interest_mode"
+    },
+    {
+      "table": "app_logs",
+      "column": "correlation_id"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "rounding_mode"
+    },
+    {
+      "table": "payment_pricing_config",
+      "column": "gateway_fee_mode"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "video_url"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "thumbnail_url"
+    },
+    {
+      "table": "instagram_videos",
+      "column": "username"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "bg_color"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "text_color"
+    },
+    {
+      "table": "announcement_bar",
+      "column": "font_size"
+    },
+    {
+      "table": "log_daily_stats",
+      "column": "log_source"
+    }
+  ],
+  "excludedColumns": "^(bling_|yampi_|appmax_|rede_|melhor_envio_)"
+}

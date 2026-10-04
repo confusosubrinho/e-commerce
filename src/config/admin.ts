@@ -1,23 +1,5 @@
-/**
- * Modo "Shopify gerencia a venda": quando true, o painel admin esconde
- * telas de catálogo, pedidos, checkout e integrações de pagamento — a
- * Shopify passa a ser a única fonte da verdade para esses dados.
- *
- * O admin local fica focado em:
- *  - Aparência (tema, banners, home builder, announcement bar)
- *  - Conteúdo institucional & SEO (páginas, FAQ, redes sociais)
- *  - Vitrines curadas que apontam para coleções/produtos da Shopify
- *
- * Para reativar tudo, basta colocar `false` aqui — as telas continuam
- * presentes no código, só estão ocultas no menu.
- */
-export const ADMIN_SHOPIFY_MODE = true;
-
-/**
- * URLs (prefixos) que ficam ocultas quando ADMIN_SHOPIFY_MODE é true.
- * Comparação é por prefixo: '/admin/pedidos' esconde também
- * '/admin/pedidos/123'.
- */
+/** Rotas antigas aposentadas. Não há opção de reativar a operação local.
+ * A operação comercial é gerenciada pela Shopify. */
 export const ADMIN_SHOPIFY_HIDDEN_URLS: readonly string[] = [
   // Catálogo local (Shopify é dona)
   '/admin/produtos',
@@ -39,12 +21,13 @@ export const ADMIN_SHOPIFY_HIDDEN_URLS: readonly string[] = [
   '/admin/precos',
   '/admin/integracoes',
   '/admin/commerce-health',
+  '/admin/sistema',
   '/admin/configuracoes/conversoes',
 ];
 
-/** Retorna true se a URL está oculta no modo Shopify. */
+/** Bloqueia as rotas locais aposentadas e preserva as restrições de acesso existentes. */
 export function isAdminUrlHidden(url?: string): boolean {
-  if (!ADMIN_SHOPIFY_MODE || !url) return false;
+  if (!url) return false;
   return ADMIN_SHOPIFY_HIDDEN_URLS.some(
     (hidden) => url === hidden || url.startsWith(`${hidden}/`)
   );

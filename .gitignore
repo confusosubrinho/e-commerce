@@ -39,3 +39,10 @@ dist-ssr
 test-results
 playwright-report
 playwright/.cache
+
+# Local package installation cache
+.npm-cache/
+
+# Private migration exports (users, credentials and source data)
+.migration-private/
+supabase/.temp/

@@ -1,3 +1,5 @@
+> Estado atual: veja [limpeza da operação Shopify](SHOPIFY_OPERATION_CLEANUP.md). Referências abaixo a Bling e módulos comerciais locais são históricas.
+
 # Observabilidade e Monitoramento
 
 Estratégia de logs, métricas e alertas da plataforma.

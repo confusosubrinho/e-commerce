@@ -1,3 +1,5 @@
+> Estado atual: veja [limpeza da operação Shopify](SHOPIFY_OPERATION_CLEANUP.md). Referências abaixo a Bling e módulos comerciais locais são históricas.
+
 # Inventário de APIs e Integrações
 
 Catálogo completo de todas as integrações externas e endpoints internos da plataforma.

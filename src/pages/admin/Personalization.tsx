@@ -397,14 +397,6 @@ function InstagramVideosSection() {
     },
   });
 
-  const { data: products } = useQuery({
-    queryKey: ['admin-products-simple'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('products').select('id, name').eq('is_active', true).order('name');
-      if (error) throw error;
-      return data as ProductOption[];
-    },
-  });
 
   const handleVideoUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -585,16 +577,6 @@ function InstagramVideosSection() {
                 {fieldErrors.thumbnail_url && <p className="mt-1 text-xs text-destructive">{fieldErrors.thumbnail_url}</p>}
               </div>
               <div><Label>Username Instagram</Label><Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} placeholder="@usuario" className="mt-1" /></div>
-              <div>
-                <Label>Produto Vinculado</Label>
-                <Select value={formData.product_id} onValueChange={(v) => setFormData({ ...formData, product_id: v === 'none' ? '' : v })}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecionar produto..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {products?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="flex items-center gap-2"><Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} /><Label>Ativo</Label></div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
@@ -661,142 +643,8 @@ function InstagramVideosSection() {
 // ─── Categories Order Section ───
 
 function CategoriesOrderSection() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const getErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) return error.message;
-    return 'Erro inesperado';
-  };
-
-  const { data: categories, isLoading } = useQuery({
-    queryKey: ['admin-categories-order'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, slug, image_url, is_active, display_order, parent_category_id')
-        .order('display_order', { ascending: true });
-      if (error) throw error;
-      return (data || []) as Array<{
-        id: string; name: string; slug: string; image_url: string | null;
-        is_active: boolean; display_order: number; parent_category_id: string | null;
-      }>;
-    },
-  });
-
-  // Only show root categories (no parent) for home ordering
-  const rootCategories = categories?.filter(c => !c.parent_category_id) || [];
-
-  const reorderMutation = useMutation({
-    mutationFn: async (reordered: typeof rootCategories) => {
-      const updates = reordered.map((c, i) =>
-        supabase.from('categories').update({ display_order: i }).eq('id', c.id)
-      );
-      await Promise.all(updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories-order'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({ title: 'Ordem salva!' });
-    },
-    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
-  });
-
-  const { getDragProps } = useDragReorder({
-    items: rootCategories,
-    onReorder: (reordered) => {
-      // Update cache optimistically
-      queryClient.setQueryData(['admin-categories-order'], (old: unknown) => {
-        if (!old) return reordered;
-        const oldCategories = Array.isArray(old)
-          ? old as Array<{ parent_category_id: string | null }>
-          : [];
-        const childCategories = oldCategories.filter((c) => c.parent_category_id);
-        return [...reordered, ...childCategories];
-      });
-      reorderMutation.mutate(reordered);
-    },
-  });
-
-  const toggleVisibility = useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase.from('categories').update({ is_active }).eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-categories-order'] });
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-    },
-    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
-  });
-
-  if (isLoading) return <p className="text-sm text-muted-foreground py-4">Carregando...</p>;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">Categorias da Home</h3>
-        <p className="text-sm text-muted-foreground">Arraste para reordenar. Desative categorias que não quer exibir na home.</p>
-      </div>
-
-      {rootCategories.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            <p>Nenhuma categoria cadastrada.</p>
-            <p className="text-xs mt-1">Crie categorias na página de Categorias primeiro.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-2">
-          {rootCategories.map((cat, index) => {
-            const childCount = categories?.filter(c => c.parent_category_id === cat.id).length || 0;
-            return (
-              <Card
-                key={cat.id}
-                className={`transition-opacity ${!cat.is_active ? 'opacity-40' : ''}`}
-                {...getDragProps(index)}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center gap-3">
-                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab flex-shrink-0" />
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                      <img
-                        src={cat.image_url || '/placeholder.svg'}
-                        alt={cat.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{cat.name}</p>
-                      <p className="text-xs text-muted-foreground">/{cat.slug}{childCount > 0 ? ` · ${childCount} sub` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          checked={cat.is_active}
-                          onCheckedChange={(checked) => toggleVisibility.mutate({ id: cat.id, is_active: checked })}
-                          className="scale-90"
-                        />
-                        <span className="text-xs text-muted-foreground hidden sm:inline">
-                          {cat.is_active ? 'Visível' : 'Oculta'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      <p className="text-xs text-muted-foreground">
-        💡 Apenas categorias raiz são exibidas na home. Subcategorias aparecem dentro das páginas de categoria.
-      </p>
-    </div>
-  );
+  return <div className="space-y-4"><p>As categorias são coleções da Shopify. Configure os links e a ordem do menu no cabeçalho.</p><HeaderCustomizer /></div>;
 }
-
-// ─── Main Page ───
 
 export default function Personalization() {
   return (

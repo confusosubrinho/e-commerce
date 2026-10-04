@@ -1,0 +1,2022 @@
+{
+  "enums": [
+    {
+      "enumlabel": "admin",
+      "enumsortorder": 1,
+      "typname": "app_role"
+    },
+    {
+      "enumlabel": "user",
+      "enumsortorder": 2,
+      "typname": "app_role"
+    },
+    {
+      "enumlabel": "percentage",
+      "enumsortorder": 1,
+      "typname": "discount_type"
+    },
+    {
+      "enumlabel": "fixed",
+      "enumsortorder": 2,
+      "typname": "discount_type"
+    },
+    {
+      "enumlabel": "pending",
+      "enumsortorder": 1,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "processing",
+      "enumsortorder": 2,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "shipped",
+      "enumsortorder": 3,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "delivered",
+      "enumsortorder": 4,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "cancelled",
+      "enumsortorder": 5,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "paid",
+      "enumsortorder": 6,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "failed",
+      "enumsortorder": 7,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "refunded",
+      "enumsortorder": 8,
+      "typname": "order_status"
+    },
+    {
+      "enumlabel": "disputed",
+      "enumsortorder": 9,
+      "typname": "order_status"
+    }
+  ],
+  "functions": [
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.get_current_tenant_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT COALESCE(\n    (SELECT tenant_id FROM public.user_tenants WHERE user_id = auth.uid() LIMIT 1),\n    '00000000-0000-0000-0000-000000000001'::uuid\n  );\n$function$\n",
+      "name": "get_current_tenant_id"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nBEGIN\n    INSERT INTO public.profiles (user_id)\n    VALUES (NEW.id);\n    RETURN NEW;\nEND;\n$function$\n",
+      "name": "handle_new_user"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1 FROM public.user_roles\n    WHERE user_id = _user_id AND role = _role\n  )\n$function$\n",
+      "name": "has_role"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.is_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1\n    FROM public.user_roles\n    WHERE user_id = auth.uid()\n      AND role = 'admin'\n  )\n$function$\n",
+      "name": "is_admin"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.is_owner()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1 FROM public.admin_members\n    WHERE user_id = auth.uid()\n      AND role = 'owner'\n      AND is_active = true\n  )\n$function$\n",
+      "name": "is_owner"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.is_super_admin()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1 FROM public.admin_members\n    WHERE user_id = auth.uid()\n      AND role IN ('super_admin', 'owner')\n      AND is_active = true\n  );\n$function$\n",
+      "name": "is_super_admin"
+    },
+    {
+      "definition": "CREATE OR REPLACE FUNCTION public.update_updated_at_column()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n    NEW.updated_at = now();\n    RETURN NEW;\nEND;\n$function$\n",
+      "name": "update_updated_at_column"
+    }
+  ],
+  "indexes": [
+    {
+      "indexdef": "CREATE UNIQUE INDEX orders_order_number_key ON public.orders USING btree (order_number)",
+      "indexname": "orders_order_number_key",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)",
+      "indexname": "orders_pkey",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_appmax_order_id ON public.orders USING btree (appmax_order_id)",
+      "indexname": "idx_orders_appmax_order_id",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_status ON public.orders USING btree (status)",
+      "indexname": "idx_orders_status",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_user_id ON public.orders USING btree (user_id)",
+      "indexname": "idx_orders_user_id",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at DESC)",
+      "indexname": "idx_orders_created_at",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_access_token ON public.orders USING btree (access_token) WHERE (access_token IS NOT NULL)",
+      "indexname": "idx_orders_access_token",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_customer_email ON public.orders USING btree (customer_email)",
+      "indexname": "idx_orders_customer_email",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_orders_idempotency_key ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)",
+      "indexname": "idx_orders_idempotency_key",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX orders_stripe_charge_id_key ON public.orders USING btree (stripe_charge_id)",
+      "indexname": "orders_stripe_charge_id_key",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_orders_cart_id_unique ON public.orders USING btree (cart_id) WHERE (cart_id IS NOT NULL)",
+      "indexname": "idx_orders_cart_id_unique",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_orders_idempotency_key_unique ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)",
+      "indexname": "idx_orders_idempotency_key_unique",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_tenant_id ON public.orders USING btree (tenant_id)",
+      "indexname": "idx_orders_tenant_id",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_payment_status ON public.orders USING btree (payment_status) WHERE (payment_status IS NOT NULL)",
+      "indexname": "idx_orders_payment_status",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_orders_bling_order_id ON public.orders USING btree (bling_order_id) WHERE (bling_order_id IS NOT NULL)",
+      "indexname": "idx_orders_bling_order_id",
+      "schemaname": "public",
+      "tablename": "orders",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX inventory_movements_pkey ON public.inventory_movements USING btree (id)",
+      "indexname": "inventory_movements_pkey",
+      "schemaname": "public",
+      "tablename": "inventory_movements",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX checkout_sessions_pkey ON public.checkout_sessions USING btree (id)",
+      "indexname": "checkout_sessions_pkey",
+      "schemaname": "public",
+      "tablename": "checkout_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_checkout_sessions_order_id ON public.checkout_sessions USING btree (order_id) WHERE (order_id IS NOT NULL)",
+      "indexname": "idx_checkout_sessions_order_id",
+      "schemaname": "public",
+      "tablename": "checkout_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_checkout_sessions_expires_pending ON public.checkout_sessions USING btree (expires_at) WHERE (status = 'pending'::text)",
+      "indexname": "idx_checkout_sessions_expires_pending",
+      "schemaname": "public",
+      "tablename": "checkout_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_checkout_sessions_status ON public.checkout_sessions USING btree (status)",
+      "indexname": "idx_checkout_sessions_status",
+      "schemaname": "public",
+      "tablename": "checkout_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_sync_runs_tenant_id ON public.bling_sync_runs USING btree (tenant_id)",
+      "indexname": "idx_bling_sync_runs_tenant_id",
+      "schemaname": "public",
+      "tablename": "bling_sync_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX bling_sync_runs_pkey ON public.bling_sync_runs USING btree (id)",
+      "indexname": "bling_sync_runs_pkey",
+      "schemaname": "public",
+      "tablename": "bling_sync_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_sync_runs_started ON public.bling_sync_runs USING btree (started_at DESC)",
+      "indexname": "idx_bling_sync_runs_started",
+      "schemaname": "public",
+      "tablename": "bling_sync_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX admin_members_pkey ON public.admin_members USING btree (id)",
+      "indexname": "admin_members_pkey",
+      "schemaname": "public",
+      "tablename": "admin_members",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_admin_members_tenant_id ON public.admin_members USING btree (tenant_id)",
+      "indexname": "idx_admin_members_tenant_id",
+      "schemaname": "public",
+      "tablename": "admin_members",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_admin_audit_log_tenant_id ON public.admin_audit_log USING btree (tenant_id)",
+      "indexname": "idx_admin_audit_log_tenant_id",
+      "schemaname": "public",
+      "tablename": "admin_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX admin_audit_log_pkey ON public.admin_audit_log USING btree (id)",
+      "indexname": "admin_audit_log_pkey",
+      "schemaname": "public",
+      "tablename": "admin_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_audit_log_created ON public.admin_audit_log USING btree (created_at DESC)",
+      "indexname": "idx_audit_log_created",
+      "schemaname": "public",
+      "tablename": "admin_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_audit_log_resource ON public.admin_audit_log USING btree (resource_type, resource_id)",
+      "indexname": "idx_audit_log_resource",
+      "schemaname": "public",
+      "tablename": "admin_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX stock_notifications_pkey ON public.stock_notifications USING btree (id)",
+      "indexname": "stock_notifications_pkey",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX unique_email_product_variant ON public.stock_notifications USING btree (email, product_id, variant_id) NULLS NOT DISTINCT",
+      "indexname": "unique_email_product_variant",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stock_notifications_product ON public.stock_notifications USING btree (product_id, is_notified)",
+      "indexname": "idx_stock_notifications_product",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stock_notifications_variant ON public.stock_notifications USING btree (variant_id, is_notified)",
+      "indexname": "idx_stock_notifications_variant",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stock_notifications_tenant_id ON public.stock_notifications USING btree (tenant_id)",
+      "indexname": "idx_stock_notifications_tenant_id",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX uniq_stock_notif_shopify_email ON public.stock_notifications USING btree (lower(email), COALESCE(shopify_product_id, ''::text), COALESCE(shopify_variant_id, ''::text)) WHERE ((shopify_product_id IS NOT NULL) AND (email IS NOT NULL))",
+      "indexname": "uniq_stock_notif_shopify_email",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stock_notif_shopify_product_id ON public.stock_notifications USING btree (shopify_product_id)",
+      "indexname": "idx_stock_notif_shopify_product_id",
+      "schemaname": "public",
+      "tablename": "stock_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX security_seals_pkey ON public.security_seals USING btree (id)",
+      "indexname": "security_seals_pkey",
+      "schemaname": "public",
+      "tablename": "security_seals",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_security_seals_tenant_id ON public.security_seals USING btree (tenant_id)",
+      "indexname": "idx_security_seals_tenant_id",
+      "schemaname": "public",
+      "tablename": "security_seals",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX home_page_sections_pkey ON public.home_page_sections USING btree (id)",
+      "indexname": "home_page_sections_pkey",
+      "schemaname": "public",
+      "tablename": "home_page_sections",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX home_page_sections_section_key_key ON public.home_page_sections USING btree (section_key)",
+      "indexname": "home_page_sections_section_key_key",
+      "schemaname": "public",
+      "tablename": "home_page_sections",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_home_page_sections_tenant_id ON public.home_page_sections USING btree (tenant_id)",
+      "indexname": "idx_home_page_sections_tenant_id",
+      "schemaname": "public",
+      "tablename": "home_page_sections",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX home_sections_pkey ON public.home_sections USING btree (id)",
+      "indexname": "home_sections_pkey",
+      "schemaname": "public",
+      "tablename": "home_sections",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_home_sections_tenant_id ON public.home_sections USING btree (tenant_id)",
+      "indexname": "idx_home_sections_tenant_id",
+      "schemaname": "public",
+      "tablename": "home_sections",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (id)",
+      "indexname": "payments_pkey",
+      "schemaname": "public",
+      "tablename": "payments",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_payments_provider_transaction_id ON public.payments USING btree (provider, transaction_id) WHERE (transaction_id IS NOT NULL)",
+      "indexname": "idx_payments_provider_transaction_id",
+      "schemaname": "public",
+      "tablename": "payments",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_payments_tenant_id ON public.payments USING btree (tenant_id)",
+      "indexname": "idx_payments_tenant_id",
+      "schemaname": "public",
+      "tablename": "payments",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX email_automation_logs_pkey ON public.email_automation_logs USING btree (id)",
+      "indexname": "email_automation_logs_pkey",
+      "schemaname": "public",
+      "tablename": "email_automation_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_email_automation_logs_tenant_id ON public.email_automation_logs USING btree (tenant_id)",
+      "indexname": "idx_email_automation_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "email_automation_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX integrations_checkout_test_logs_pkey ON public.integrations_checkout_test_logs USING btree (id)",
+      "indexname": "integrations_checkout_test_logs_pkey",
+      "schemaname": "public",
+      "tablename": "integrations_checkout_test_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_integrations_checkout_test_logs_tenant_id ON public.integrations_checkout_test_logs USING btree (tenant_id)",
+      "indexname": "idx_integrations_checkout_test_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "integrations_checkout_test_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX order_items_pkey ON public.order_items USING btree (id)",
+      "indexname": "order_items_pkey",
+      "schemaname": "public",
+      "tablename": "order_items",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_checkout_settings_tenant_id ON public.checkout_settings USING btree (tenant_id)",
+      "indexname": "idx_checkout_settings_tenant_id",
+      "schemaname": "public",
+      "tablename": "checkout_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX checkout_settings_pkey ON public.checkout_settings USING btree (id)",
+      "indexname": "checkout_settings_pkey",
+      "schemaname": "public",
+      "tablename": "checkout_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_logs_tenant_id ON public.bling_webhook_logs USING btree (tenant_id)",
+      "indexname": "idx_bling_webhook_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "bling_webhook_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_logs_result ON public.bling_webhook_logs USING btree (result)",
+      "indexname": "idx_bling_webhook_logs_result",
+      "schemaname": "public",
+      "tablename": "bling_webhook_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX bling_webhook_logs_pkey ON public.bling_webhook_logs USING btree (id)",
+      "indexname": "bling_webhook_logs_pkey",
+      "schemaname": "public",
+      "tablename": "bling_webhook_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_logs_received ON public.bling_webhook_logs USING btree (received_at DESC)",
+      "indexname": "idx_bling_webhook_logs_received",
+      "schemaname": "public",
+      "tablename": "bling_webhook_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_logs_created_at ON public.bling_webhook_logs USING btree (created_at)",
+      "indexname": "idx_bling_webhook_logs_created_at",
+      "schemaname": "public",
+      "tablename": "bling_webhook_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX integrations_checkout_pkey ON public.integrations_checkout USING btree (id)",
+      "indexname": "integrations_checkout_pkey",
+      "schemaname": "public",
+      "tablename": "integrations_checkout",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX payment_methods_display_pkey ON public.payment_methods_display USING btree (id)",
+      "indexname": "payment_methods_display_pkey",
+      "schemaname": "public",
+      "tablename": "payment_methods_display",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_payment_methods_display_tenant_id ON public.payment_methods_display USING btree (tenant_id)",
+      "indexname": "idx_payment_methods_display_tenant_id",
+      "schemaname": "public",
+      "tablename": "payment_methods_display",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)",
+      "indexname": "profiles_pkey",
+      "schemaname": "public",
+      "tablename": "profiles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX profiles_user_id_key ON public.profiles USING btree (user_id)",
+      "indexname": "profiles_user_id_key",
+      "schemaname": "public",
+      "tablename": "profiles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_newsletter_subscribers_tenant_id ON public.newsletter_subscribers USING btree (tenant_id)",
+      "indexname": "idx_newsletter_subscribers_tenant_id",
+      "schemaname": "public",
+      "tablename": "newsletter_subscribers",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX newsletter_subscribers_pkey ON public.newsletter_subscribers USING btree (id)",
+      "indexname": "newsletter_subscribers_pkey",
+      "schemaname": "public",
+      "tablename": "newsletter_subscribers",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX newsletter_subscribers_email_key ON public.newsletter_subscribers USING btree (email)",
+      "indexname": "newsletter_subscribers_email_key",
+      "schemaname": "public",
+      "tablename": "newsletter_subscribers",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX highlight_banners_pkey ON public.highlight_banners USING btree (id)",
+      "indexname": "highlight_banners_pkey",
+      "schemaname": "public",
+      "tablename": "highlight_banners",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_highlight_banners_tenant_id ON public.highlight_banners USING btree (tenant_id)",
+      "indexname": "idx_highlight_banners_tenant_id",
+      "schemaname": "public",
+      "tablename": "highlight_banners",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX stripe_webhook_events_pkey ON public.stripe_webhook_events USING btree (id)",
+      "indexname": "stripe_webhook_events_pkey",
+      "schemaname": "public",
+      "tablename": "stripe_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX stripe_webhook_events_event_id_key ON public.stripe_webhook_events USING btree (event_id)",
+      "indexname": "stripe_webhook_events_event_id_key",
+      "schemaname": "public",
+      "tablename": "stripe_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stripe_webhook_events_event_id ON public.stripe_webhook_events USING btree (event_id)",
+      "indexname": "idx_stripe_webhook_events_event_id",
+      "schemaname": "public",
+      "tablename": "stripe_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_stripe_webhook_events_tenant_id ON public.stripe_webhook_events USING btree (tenant_id)",
+      "indexname": "idx_stripe_webhook_events_tenant_id",
+      "schemaname": "public",
+      "tablename": "stripe_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_tenant_id ON public.bling_webhook_events USING btree (tenant_id)",
+      "indexname": "idx_bling_webhook_events_tenant_id",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX bling_webhook_events_pkey ON public.bling_webhook_events USING btree (id)",
+      "indexname": "bling_webhook_events_pkey",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_status ON public.bling_webhook_events USING btree (status) WHERE (status = 'pending'::text)",
+      "indexname": "idx_bling_webhook_events_status",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_event_id ON public.bling_webhook_events USING btree (event_id)",
+      "indexname": "idx_bling_webhook_events_event_id",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_created ON public.bling_webhook_events USING btree (created_at)",
+      "indexname": "idx_bling_webhook_events_created",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_created_at ON public.bling_webhook_events USING btree (created_at)",
+      "indexname": "idx_bling_webhook_events_created_at",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_bling_webhook_events_tenant_event_id ON public.bling_webhook_events USING btree (tenant_id, event_id)",
+      "indexname": "idx_bling_webhook_events_tenant_event_id",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_webhook_events_tenant_status_created ON public.bling_webhook_events USING btree (tenant_id, status, created_at DESC)",
+      "indexname": "idx_bling_webhook_events_tenant_status_created",
+      "schemaname": "public",
+      "tablename": "bling_webhook_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_installations_tenant_id ON public.appmax_installations USING btree (tenant_id)",
+      "indexname": "idx_appmax_installations_tenant_id",
+      "schemaname": "public",
+      "tablename": "appmax_installations",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_installations_pkey ON public.appmax_installations USING btree (id)",
+      "indexname": "appmax_installations_pkey",
+      "schemaname": "public",
+      "tablename": "appmax_installations",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_installations_external_key_environment_key ON public.appmax_installations USING btree (external_key, environment)",
+      "indexname": "appmax_installations_external_key_environment_key",
+      "schemaname": "public",
+      "tablename": "appmax_installations",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX help_articles_pkey ON public.help_articles USING btree (id)",
+      "indexname": "help_articles_pkey",
+      "schemaname": "public",
+      "tablename": "help_articles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX help_articles_key_key ON public.help_articles USING btree (key)",
+      "indexname": "help_articles_key_key",
+      "schemaname": "public",
+      "tablename": "help_articles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_help_articles_tenant_id ON public.help_articles USING btree (tenant_id)",
+      "indexname": "idx_help_articles_tenant_id",
+      "schemaname": "public",
+      "tablename": "help_articles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX store_settings_pkey ON public.store_settings USING btree (id)",
+      "indexname": "store_settings_pkey",
+      "schemaname": "public",
+      "tablename": "store_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX payment_pricing_config_pkey ON public.payment_pricing_config USING btree (id)",
+      "indexname": "payment_pricing_config_pkey",
+      "schemaname": "public",
+      "tablename": "payment_pricing_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_payment_pricing_config_tenant_id ON public.payment_pricing_config USING btree (tenant_id)",
+      "indexname": "idx_payment_pricing_config_tenant_id",
+      "schemaname": "public",
+      "tablename": "payment_pricing_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX store_setup_pkey ON public.store_setup USING btree (id)",
+      "indexname": "store_setup_pkey",
+      "schemaname": "public",
+      "tablename": "store_setup",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_store_setup_tenant_id ON public.store_setup USING btree (tenant_id)",
+      "indexname": "idx_store_setup_tenant_id",
+      "schemaname": "public",
+      "tablename": "store_setup",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_announcement_bar_tenant_id ON public.announcement_bar USING btree (tenant_id)",
+      "indexname": "idx_announcement_bar_tenant_id",
+      "schemaname": "public",
+      "tablename": "announcement_bar",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX announcement_bar_pkey ON public.announcement_bar USING btree (id)",
+      "indexname": "announcement_bar_pkey",
+      "schemaname": "public",
+      "tablename": "announcement_bar",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX log_daily_stats_pkey ON public.log_daily_stats USING btree (id)",
+      "indexname": "log_daily_stats_pkey",
+      "schemaname": "public",
+      "tablename": "log_daily_stats",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX log_daily_stats_stat_date_log_source_key ON public.log_daily_stats USING btree (stat_date, log_source)",
+      "indexname": "log_daily_stats_stat_date_log_source_key",
+      "schemaname": "public",
+      "tablename": "log_daily_stats",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_log_daily_stats_date ON public.log_daily_stats USING btree (stat_date DESC)",
+      "indexname": "idx_log_daily_stats_date",
+      "schemaname": "public",
+      "tablename": "log_daily_stats",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_log_daily_stats_tenant_id ON public.log_daily_stats USING btree (tenant_id)",
+      "indexname": "idx_log_daily_stats_tenant_id",
+      "schemaname": "public",
+      "tablename": "log_daily_stats",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX features_bar_pkey ON public.features_bar USING btree (id)",
+      "indexname": "features_bar_pkey",
+      "schemaname": "public",
+      "tablename": "features_bar",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_features_bar_tenant_id ON public.features_bar USING btree (tenant_id)",
+      "indexname": "idx_features_bar_tenant_id",
+      "schemaname": "public",
+      "tablename": "features_bar",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_settings_tenant_id ON public.appmax_settings USING btree (tenant_id)",
+      "indexname": "idx_appmax_settings_tenant_id",
+      "schemaname": "public",
+      "tablename": "appmax_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_settings_pkey ON public.appmax_settings USING btree (id)",
+      "indexname": "appmax_settings_pkey",
+      "schemaname": "public",
+      "tablename": "appmax_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_settings_environment_key ON public.appmax_settings USING btree (environment)",
+      "indexname": "appmax_settings_environment_key",
+      "schemaname": "public",
+      "tablename": "appmax_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX variation_value_map_pkey ON public.variation_value_map USING btree (id)",
+      "indexname": "variation_value_map_pkey",
+      "schemaname": "public",
+      "tablename": "variation_value_map",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX variation_value_map_type_value_key ON public.variation_value_map USING btree (type, value)",
+      "indexname": "variation_value_map_type_value_key",
+      "schemaname": "public",
+      "tablename": "variation_value_map",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_variation_value_map_tenant_id ON public.variation_value_map USING btree (tenant_id)",
+      "indexname": "idx_variation_value_map_tenant_id",
+      "schemaname": "public",
+      "tablename": "variation_value_map",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX login_attempts_pkey ON public.login_attempts USING btree (id)",
+      "indexname": "login_attempts_pkey",
+      "schemaname": "public",
+      "tablename": "login_attempts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_login_attempts_email_time ON public.login_attempts USING btree (email, attempted_at DESC)",
+      "indexname": "idx_login_attempts_email_time",
+      "schemaname": "public",
+      "tablename": "login_attempts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_login_attempts_attempted_at ON public.login_attempts USING btree (attempted_at)",
+      "indexname": "idx_login_attempts_attempted_at",
+      "schemaname": "public",
+      "tablename": "login_attempts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_login_attempts_tenant_id ON public.login_attempts USING btree (tenant_id)",
+      "indexname": "idx_login_attempts_tenant_id",
+      "schemaname": "public",
+      "tablename": "login_attempts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX rate_limit_log_pkey ON public.rate_limit_log USING btree (id)",
+      "indexname": "rate_limit_log_pkey",
+      "schemaname": "public",
+      "tablename": "rate_limit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_rate_limit_log_identifier_created_at ON public.rate_limit_log USING btree (identifier, created_at)",
+      "indexname": "idx_rate_limit_log_identifier_created_at",
+      "schemaname": "public",
+      "tablename": "rate_limit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX traffic_sessions_pkey ON public.traffic_sessions USING btree (id)",
+      "indexname": "traffic_sessions_pkey",
+      "schemaname": "public",
+      "tablename": "traffic_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_traffic_sessions_created_at ON public.traffic_sessions USING btree (created_at)",
+      "indexname": "idx_traffic_sessions_created_at",
+      "schemaname": "public",
+      "tablename": "traffic_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_traffic_sessions_tenant_id ON public.traffic_sessions USING btree (tenant_id)",
+      "indexname": "idx_traffic_sessions_tenant_id",
+      "schemaname": "public",
+      "tablename": "traffic_sessions",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_contact_messages_tenant_id ON public.contact_messages USING btree (tenant_id)",
+      "indexname": "idx_contact_messages_tenant_id",
+      "schemaname": "public",
+      "tablename": "contact_messages",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX contact_messages_pkey ON public.contact_messages USING btree (id)",
+      "indexname": "contact_messages_pkey",
+      "schemaname": "public",
+      "tablename": "contact_messages",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_cleanup_runs_tenant_id ON public.cleanup_runs USING btree (tenant_id)",
+      "indexname": "idx_cleanup_runs_tenant_id",
+      "schemaname": "public",
+      "tablename": "cleanup_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX cleanup_runs_pkey ON public.cleanup_runs USING btree (id)",
+      "indexname": "cleanup_runs_pkey",
+      "schemaname": "public",
+      "tablename": "cleanup_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_cleanup_runs_job_type ON public.cleanup_runs USING btree (job_type, started_at DESC)",
+      "indexname": "idx_cleanup_runs_job_type",
+      "schemaname": "public",
+      "tablename": "cleanup_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX site_theme_pkey ON public.site_theme USING btree (id)",
+      "indexname": "site_theme_pkey",
+      "schemaname": "public",
+      "tablename": "site_theme",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_site_theme_tenant_id ON public.site_theme USING btree (tenant_id)",
+      "indexname": "idx_site_theme_tenant_id",
+      "schemaname": "public",
+      "tablename": "site_theme",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX banners_pkey ON public.banners USING btree (id)",
+      "indexname": "banners_pkey",
+      "schemaname": "public",
+      "tablename": "banners",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_blog_posts_tenant_id ON public.blog_posts USING btree (tenant_id)",
+      "indexname": "idx_blog_posts_tenant_id",
+      "schemaname": "public",
+      "tablename": "blog_posts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX blog_posts_pkey ON public.blog_posts USING btree (id)",
+      "indexname": "blog_posts_pkey",
+      "schemaname": "public",
+      "tablename": "blog_posts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX blog_posts_slug_key ON public.blog_posts USING btree (slug)",
+      "indexname": "blog_posts_slug_key",
+      "schemaname": "public",
+      "tablename": "blog_posts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_blog_posts_slug ON public.blog_posts USING btree (slug)",
+      "indexname": "idx_blog_posts_slug",
+      "schemaname": "public",
+      "tablename": "blog_posts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_blog_posts_status ON public.blog_posts USING btree (status, published_at DESC)",
+      "indexname": "idx_blog_posts_status",
+      "schemaname": "public",
+      "tablename": "blog_posts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX error_logs_pkey ON public.error_logs USING btree (id)",
+      "indexname": "error_logs_pkey",
+      "schemaname": "public",
+      "tablename": "error_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_error_logs_tenant_id ON public.error_logs USING btree (tenant_id)",
+      "indexname": "idx_error_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "error_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_error_logs_created_at ON public.error_logs USING btree (created_at)",
+      "indexname": "idx_error_logs_created_at",
+      "schemaname": "public",
+      "tablename": "error_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)",
+      "indexname": "products_pkey",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX products_slug_key ON public.products USING btree (slug)",
+      "indexname": "products_slug_key",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_bling_id ON public.products USING btree (bling_product_id) WHERE (bling_product_id IS NOT NULL)",
+      "indexname": "idx_products_bling_id",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_slug ON public.products USING btree (slug)",
+      "indexname": "idx_products_slug",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_category_id ON public.products USING btree (category_id) WHERE (is_active = true)",
+      "indexname": "idx_products_category_id",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_featured ON public.products USING btree (is_featured) WHERE ((is_active = true) AND (is_featured = true))",
+      "indexname": "idx_products_featured",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_new ON public.products USING btree (is_new) WHERE ((is_active = true) AND (is_new = true))",
+      "indexname": "idx_products_new",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_sale ON public.products USING btree (sale_price) WHERE ((is_active = true) AND (sale_price IS NOT NULL))",
+      "indexname": "idx_products_sale",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_products_tenant_id ON public.products USING btree (tenant_id)",
+      "indexname": "idx_products_tenant_id",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_products_tenant_bling_product_unique ON public.products USING btree (tenant_id, bling_product_id) WHERE (bling_product_id IS NOT NULL)",
+      "indexname": "idx_products_tenant_bling_product_unique",
+      "schemaname": "public",
+      "tablename": "products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX payment_pricing_audit_log_pkey ON public.payment_pricing_audit_log USING btree (id)",
+      "indexname": "payment_pricing_audit_log_pkey",
+      "schemaname": "public",
+      "tablename": "payment_pricing_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_payment_pricing_audit_log_tenant_id ON public.payment_pricing_audit_log USING btree (tenant_id)",
+      "indexname": "idx_payment_pricing_audit_log_tenant_id",
+      "schemaname": "public",
+      "tablename": "payment_pricing_audit_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_change_log_pkey ON public.product_change_log USING btree (id)",
+      "indexname": "product_change_log_pkey",
+      "schemaname": "public",
+      "tablename": "product_change_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_change_log_product ON public.product_change_log USING btree (product_id)",
+      "indexname": "idx_product_change_log_product",
+      "schemaname": "public",
+      "tablename": "product_change_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_change_log_bulk ON public.product_change_log USING btree (bulk_edit_id) WHERE (bulk_edit_id IS NOT NULL)",
+      "indexname": "idx_product_change_log_bulk",
+      "schemaname": "public",
+      "tablename": "product_change_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_change_log_date ON public.product_change_log USING btree (changed_at DESC)",
+      "indexname": "idx_product_change_log_date",
+      "schemaname": "public",
+      "tablename": "product_change_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_change_log_tenant_id ON public.product_change_log USING btree (tenant_id)",
+      "indexname": "idx_product_change_log_tenant_id",
+      "schemaname": "public",
+      "tablename": "product_change_log",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX buy_together_products_pkey ON public.buy_together_products USING btree (id)",
+      "indexname": "buy_together_products_pkey",
+      "schemaname": "public",
+      "tablename": "buy_together_products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX buy_together_products_product_id_related_product_id_key ON public.buy_together_products USING btree (product_id, related_product_id)",
+      "indexname": "buy_together_products_product_id_related_product_id_key",
+      "schemaname": "public",
+      "tablename": "buy_together_products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_buy_together_products_tenant_id ON public.buy_together_products USING btree (tenant_id)",
+      "indexname": "idx_buy_together_products_tenant_id",
+      "schemaname": "public",
+      "tablename": "buy_together_products",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX order_events_pkey ON public.order_events USING btree (id)",
+      "indexname": "order_events_pkey",
+      "schemaname": "public",
+      "tablename": "order_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX order_events_event_hash_key ON public.order_events USING btree (event_hash)",
+      "indexname": "order_events_event_hash_key",
+      "schemaname": "public",
+      "tablename": "order_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_events_appmax_order_id ON public.order_events USING btree (appmax_order_id)",
+      "indexname": "idx_order_events_appmax_order_id",
+      "schemaname": "public",
+      "tablename": "order_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_events_received_at ON public.order_events USING btree (received_at)",
+      "indexname": "idx_order_events_received_at",
+      "schemaname": "public",
+      "tablename": "order_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_order_events_tenant_id ON public.order_events USING btree (tenant_id)",
+      "indexname": "idx_order_events_tenant_id",
+      "schemaname": "public",
+      "tablename": "order_events",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX instagram_videos_pkey ON public.instagram_videos USING btree (id)",
+      "indexname": "instagram_videos_pkey",
+      "schemaname": "public",
+      "tablename": "instagram_videos",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_instagram_videos_tenant_id ON public.instagram_videos USING btree (tenant_id)",
+      "indexname": "idx_instagram_videos_tenant_id",
+      "schemaname": "public",
+      "tablename": "instagram_videos",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX coupons_code_key ON public.coupons USING btree (code)",
+      "indexname": "coupons_code_key",
+      "schemaname": "public",
+      "tablename": "coupons",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX coupons_pkey ON public.coupons USING btree (id)",
+      "indexname": "coupons_pkey",
+      "schemaname": "public",
+      "tablename": "coupons",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_blog_settings_tenant_id ON public.blog_settings USING btree (tenant_id)",
+      "indexname": "idx_blog_settings_tenant_id",
+      "schemaname": "public",
+      "tablename": "blog_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX blog_settings_pkey ON public.blog_settings USING btree (id)",
+      "indexname": "blog_settings_pkey",
+      "schemaname": "public",
+      "tablename": "blog_settings",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX social_links_pkey ON public.social_links USING btree (id)",
+      "indexname": "social_links_pkey",
+      "schemaname": "public",
+      "tablename": "social_links",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_social_links_tenant_id ON public.social_links USING btree (tenant_id)",
+      "indexname": "idx_social_links_tenant_id",
+      "schemaname": "public",
+      "tablename": "social_links",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX page_contents_pkey ON public.page_contents USING btree (id)",
+      "indexname": "page_contents_pkey",
+      "schemaname": "public",
+      "tablename": "page_contents",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX page_contents_page_slug_key ON public.page_contents USING btree (page_slug)",
+      "indexname": "page_contents_page_slug_key",
+      "schemaname": "public",
+      "tablename": "page_contents",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_page_contents_tenant_id ON public.page_contents USING btree (tenant_id)",
+      "indexname": "idx_page_contents_tenant_id",
+      "schemaname": "public",
+      "tablename": "page_contents",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_logs_tenant_id ON public.appmax_logs USING btree (tenant_id)",
+      "indexname": "idx_appmax_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "appmax_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_logs_pkey ON public.appmax_logs USING btree (id)",
+      "indexname": "appmax_logs_pkey",
+      "schemaname": "public",
+      "tablename": "appmax_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_logs_created_at ON public.appmax_logs USING btree (created_at)",
+      "indexname": "idx_appmax_logs_created_at",
+      "schemaname": "public",
+      "tablename": "appmax_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX categories_pkey ON public.categories USING btree (id)",
+      "indexname": "categories_pkey",
+      "schemaname": "public",
+      "tablename": "categories",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX categories_slug_key ON public.categories USING btree (slug)",
+      "indexname": "categories_slug_key",
+      "schemaname": "public",
+      "tablename": "categories",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_categories_slug ON public.categories USING btree (slug)",
+      "indexname": "idx_categories_slug",
+      "schemaname": "public",
+      "tablename": "categories",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_categories_parent ON public.categories USING btree (parent_category_id) WHERE (is_active = true)",
+      "indexname": "idx_categories_parent",
+      "schemaname": "public",
+      "tablename": "categories",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_categories_tenant_id ON public.categories USING btree (tenant_id)",
+      "indexname": "idx_categories_tenant_id",
+      "schemaname": "public",
+      "tablename": "categories",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_images_pkey ON public.product_images USING btree (id)",
+      "indexname": "product_images_pkey",
+      "schemaname": "public",
+      "tablename": "product_images",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_images_product_id ON public.product_images USING btree (product_id, display_order)",
+      "indexname": "idx_product_images_product_id",
+      "schemaname": "public",
+      "tablename": "product_images",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_images_product_variant_id ON public.product_images USING btree (product_variant_id) WHERE (product_variant_id IS NOT NULL)",
+      "indexname": "idx_product_images_product_variant_id",
+      "schemaname": "public",
+      "tablename": "product_images",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_reviews_pkey ON public.product_reviews USING btree (id)",
+      "indexname": "product_reviews_pkey",
+      "schemaname": "public",
+      "tablename": "product_reviews",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_reviews_product_id ON public.product_reviews USING btree (product_id)",
+      "indexname": "idx_product_reviews_product_id",
+      "schemaname": "public",
+      "tablename": "product_reviews",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_reviews_status ON public.product_reviews USING btree (status)",
+      "indexname": "idx_product_reviews_status",
+      "schemaname": "public",
+      "tablename": "product_reviews",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_reviews_tenant_id ON public.product_reviews USING btree (tenant_id)",
+      "indexname": "idx_product_reviews_tenant_id",
+      "schemaname": "public",
+      "tablename": "product_reviews",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_reviews_shopify_product_id ON public.product_reviews USING btree (shopify_product_id)",
+      "indexname": "idx_product_reviews_shopify_product_id",
+      "schemaname": "public",
+      "tablename": "product_reviews",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX tenants_pkey ON public.tenants USING btree (id)",
+      "indexname": "tenants_pkey",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX tenants_slug_key ON public.tenants USING btree (slug)",
+      "indexname": "tenants_slug_key",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX tenants_domain_key ON public.tenants USING btree (domain)",
+      "indexname": "tenants_domain_key",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_tenants_stripe_customer_id ON public.tenants USING btree (stripe_customer_id) WHERE (stripe_customer_id IS NOT NULL)",
+      "indexname": "idx_tenants_stripe_customer_id",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_tenants_stripe_subscription_id ON public.tenants USING btree (stripe_subscription_id) WHERE (stripe_subscription_id IS NOT NULL)",
+      "indexname": "idx_tenants_stripe_subscription_id",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_tenants_plan_id ON public.tenants USING btree (plan_id)",
+      "indexname": "idx_tenants_plan_id",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_tenants_billing_status ON public.tenants USING btree (billing_status)",
+      "indexname": "idx_tenants_billing_status",
+      "schemaname": "public",
+      "tablename": "tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX coupon_uses_pkey ON public.coupon_uses USING btree (id)",
+      "indexname": "coupon_uses_pkey",
+      "schemaname": "public",
+      "tablename": "coupon_uses",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_coupon_uses_coupon_id ON public.coupon_uses USING btree (coupon_id)",
+      "indexname": "idx_coupon_uses_coupon_id",
+      "schemaname": "public",
+      "tablename": "coupon_uses",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_coupon_uses_email ON public.coupon_uses USING btree (coupon_id, user_email)",
+      "indexname": "idx_coupon_uses_email",
+      "schemaname": "public",
+      "tablename": "coupon_uses",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_coupon_uses_tenant ON public.coupon_uses USING btree (tenant_id)",
+      "indexname": "idx_coupon_uses_tenant",
+      "schemaname": "public",
+      "tablename": "coupon_uses",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX homepage_testimonials_config_pkey ON public.homepage_testimonials_config USING btree (id)",
+      "indexname": "homepage_testimonials_config_pkey",
+      "schemaname": "public",
+      "tablename": "homepage_testimonials_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_homepage_testimonials_config_tenant_id ON public.homepage_testimonials_config USING btree (tenant_id)",
+      "indexname": "idx_homepage_testimonials_config_tenant_id",
+      "schemaname": "public",
+      "tablename": "homepage_testimonials_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_handshake_logs_tenant_id ON public.appmax_handshake_logs USING btree (tenant_id)",
+      "indexname": "idx_appmax_handshake_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "appmax_handshake_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_handshake_logs_pkey ON public.appmax_handshake_logs USING btree (id)",
+      "indexname": "appmax_handshake_logs_pkey",
+      "schemaname": "public",
+      "tablename": "appmax_handshake_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_handshake_logs_created_at ON public.appmax_handshake_logs USING btree (created_at DESC)",
+      "indexname": "idx_appmax_handshake_logs_created_at",
+      "schemaname": "public",
+      "tablename": "appmax_handshake_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_handshake_logs_stage_created ON public.appmax_handshake_logs USING btree (stage, created_at DESC)",
+      "indexname": "idx_appmax_handshake_logs_stage_created",
+      "schemaname": "public",
+      "tablename": "appmax_handshake_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_handshake_logs_extkey_created ON public.appmax_handshake_logs USING btree (external_key, created_at DESC)",
+      "indexname": "idx_appmax_handshake_logs_extkey_created",
+      "schemaname": "public",
+      "tablename": "appmax_handshake_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_bling_sync_config_tenant_id ON public.bling_sync_config USING btree (tenant_id)",
+      "indexname": "idx_bling_sync_config_tenant_id",
+      "schemaname": "public",
+      "tablename": "bling_sync_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX bling_sync_config_pkey ON public.bling_sync_config USING btree (id)",
+      "indexname": "bling_sync_config_pkey",
+      "schemaname": "public",
+      "tablename": "bling_sync_config",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_app_logs_tenant_id ON public.app_logs USING btree (tenant_id)",
+      "indexname": "idx_app_logs_tenant_id",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX app_logs_pkey ON public.app_logs USING btree (id)",
+      "indexname": "app_logs_pkey",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_app_logs_scope ON public.app_logs USING btree (scope)",
+      "indexname": "idx_app_logs_scope",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_app_logs_level ON public.app_logs USING btree (level)",
+      "indexname": "idx_app_logs_level",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_app_logs_created_at ON public.app_logs USING btree (created_at DESC)",
+      "indexname": "idx_app_logs_created_at",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_app_logs_correlation_id ON public.app_logs USING btree (correlation_id) WHERE (correlation_id IS NOT NULL)",
+      "indexname": "idx_app_logs_correlation_id",
+      "schemaname": "public",
+      "tablename": "app_logs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX email_automations_pkey ON public.email_automations USING btree (id)",
+      "indexname": "email_automations_pkey",
+      "schemaname": "public",
+      "tablename": "email_automations",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_email_automations_tenant_id ON public.email_automations USING btree (tenant_id)",
+      "indexname": "idx_email_automations_tenant_id",
+      "schemaname": "public",
+      "tablename": "email_automations",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_catalog_sync_runs_tenant_id ON public.catalog_sync_runs USING btree (tenant_id)",
+      "indexname": "idx_catalog_sync_runs_tenant_id",
+      "schemaname": "public",
+      "tablename": "catalog_sync_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX catalog_sync_runs_pkey ON public.catalog_sync_runs USING btree (id)",
+      "indexname": "catalog_sync_runs_pkey",
+      "schemaname": "public",
+      "tablename": "catalog_sync_runs",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX favorites_pkey ON public.favorites USING btree (id)",
+      "indexname": "favorites_pkey",
+      "schemaname": "public",
+      "tablename": "favorites",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX favorites_user_id_product_id_key ON public.favorites USING btree (user_id, product_id)",
+      "indexname": "favorites_user_id_product_id_key",
+      "schemaname": "public",
+      "tablename": "favorites",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_favorites_tenant_id ON public.favorites USING btree (tenant_id)",
+      "indexname": "idx_favorites_tenant_id",
+      "schemaname": "public",
+      "tablename": "favorites",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX tenant_plans_pkey ON public.tenant_plans USING btree (id)",
+      "indexname": "tenant_plans_pkey",
+      "schemaname": "public",
+      "tablename": "tenant_plans",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX tenant_plans_slug_key ON public.tenant_plans USING btree (slug)",
+      "indexname": "tenant_plans_slug_key",
+      "schemaname": "public",
+      "tablename": "tenant_plans",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_characteristics_pkey ON public.product_characteristics USING btree (id)",
+      "indexname": "product_characteristics_pkey",
+      "schemaname": "public",
+      "tablename": "product_characteristics",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_characteristics_tenant_id ON public.product_characteristics USING btree (tenant_id)",
+      "indexname": "idx_product_characteristics_tenant_id",
+      "schemaname": "public",
+      "tablename": "product_characteristics",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX user_tenants_pkey ON public.user_tenants USING btree (user_id)",
+      "indexname": "user_tenants_pkey",
+      "schemaname": "public",
+      "tablename": "user_tenants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_abandoned_carts_tenant_id ON public.abandoned_carts USING btree (tenant_id)",
+      "indexname": "idx_abandoned_carts_tenant_id",
+      "schemaname": "public",
+      "tablename": "abandoned_carts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX abandoned_carts_pkey ON public.abandoned_carts USING btree (id)",
+      "indexname": "abandoned_carts_pkey",
+      "schemaname": "public",
+      "tablename": "abandoned_carts",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX homepage_testimonials_pkey ON public.homepage_testimonials USING btree (id)",
+      "indexname": "homepage_testimonials_pkey",
+      "schemaname": "public",
+      "tablename": "homepage_testimonials",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_homepage_testimonials_tenant_id ON public.homepage_testimonials USING btree (tenant_id)",
+      "indexname": "idx_homepage_testimonials_tenant_id",
+      "schemaname": "public",
+      "tablename": "homepage_testimonials",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_appmax_tokens_cache_tenant_id ON public.appmax_tokens_cache USING btree (tenant_id)",
+      "indexname": "idx_appmax_tokens_cache_tenant_id",
+      "schemaname": "public",
+      "tablename": "appmax_tokens_cache",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_tokens_cache_pkey ON public.appmax_tokens_cache USING btree (id)",
+      "indexname": "appmax_tokens_cache_pkey",
+      "schemaname": "public",
+      "tablename": "appmax_tokens_cache",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX appmax_tokens_cache_environment_key ON public.appmax_tokens_cache USING btree (environment)",
+      "indexname": "appmax_tokens_cache_environment_key",
+      "schemaname": "public",
+      "tablename": "appmax_tokens_cache",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_admin_notifications_tenant_id ON public.admin_notifications USING btree (tenant_id)",
+      "indexname": "idx_admin_notifications_tenant_id",
+      "schemaname": "public",
+      "tablename": "admin_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX admin_notifications_pkey ON public.admin_notifications USING btree (id)",
+      "indexname": "admin_notifications_pkey",
+      "schemaname": "public",
+      "tablename": "admin_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_admin_notifications_is_read ON public.admin_notifications USING btree (is_read)",
+      "indexname": "idx_admin_notifications_is_read",
+      "schemaname": "public",
+      "tablename": "admin_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_admin_notifications_created_at ON public.admin_notifications USING btree (created_at DESC)",
+      "indexname": "idx_admin_notifications_created_at",
+      "schemaname": "public",
+      "tablename": "admin_notifications",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX integrations_checkout_providers_pkey ON public.integrations_checkout_providers USING btree (id)",
+      "indexname": "integrations_checkout_providers_pkey",
+      "schemaname": "public",
+      "tablename": "integrations_checkout_providers",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_catalog_sync_queue_tenant_id ON public.catalog_sync_queue USING btree (tenant_id)",
+      "indexname": "idx_catalog_sync_queue_tenant_id",
+      "schemaname": "public",
+      "tablename": "catalog_sync_queue",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX catalog_sync_queue_pkey ON public.catalog_sync_queue USING btree (id)",
+      "indexname": "catalog_sync_queue_pkey",
+      "schemaname": "public",
+      "tablename": "catalog_sync_queue",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX user_roles_pkey ON public.user_roles USING btree (id)",
+      "indexname": "user_roles_pkey",
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX user_roles_user_id_role_key ON public.user_roles USING btree (user_id, role)",
+      "indexname": "user_roles_user_id_role_key",
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)",
+      "indexname": "customers_pkey",
+      "schemaname": "public",
+      "tablename": "customers",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX product_variants_pkey ON public.product_variants USING btree (id)",
+      "indexname": "product_variants_pkey",
+      "schemaname": "public",
+      "tablename": "product_variants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_variants_bling_id ON public.product_variants USING btree (bling_variant_id) WHERE (bling_variant_id IS NOT NULL)",
+      "indexname": "idx_variants_bling_id",
+      "schemaname": "public",
+      "tablename": "product_variants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_variants_product_id ON public.product_variants USING btree (product_id) WHERE (is_active = true)",
+      "indexname": "idx_product_variants_product_id",
+      "schemaname": "public",
+      "tablename": "product_variants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE INDEX idx_product_variants_tenant_id ON public.product_variants USING btree (tenant_id)",
+      "indexname": "idx_product_variants_tenant_id",
+      "schemaname": "public",
+      "tablename": "product_variants",
+      "tablespace": null
+    },
+    {
+      "indexdef": "CREATE UNIQUE INDEX idx_product_variants_tenant_bling_variant_unique ON public.product_variants USING btree (tenant_id, bling_variant_id) WHERE (bling_variant_id IS NOT NULL)",
+      "indexname": "idx_product_variants_tenant_bling_variant_unique",
+      "schemaname": "public",
+      "tablename": "product_variants",
+      "tablespace": null
+    }
+  ],
+  "triggers": [
+    {
+      "definition": "CREATE TRIGGER update_banners_updated_at BEFORE UPDATE ON public.banners FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "banners"
+    },
+    {
+      "definition": "CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON public.categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "categories"
+    },
+    {
+      "definition": "CREATE TRIGGER update_coupons_updated_at BEFORE UPDATE ON public.coupons FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "coupons"
+    },
+    {
+      "definition": "CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "customers"
+    },
+    {
+      "definition": "CREATE TRIGGER update_highlight_banners_updated_at BEFORE UPDATE ON public.highlight_banners FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "highlight_banners"
+    },
+    {
+      "definition": "CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "orders"
+    },
+    {
+      "definition": "CREATE TRIGGER update_product_reviews_updated_at BEFORE UPDATE ON public.product_reviews FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "product_reviews"
+    },
+    {
+      "definition": "CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "products"
+    },
+    {
+      "definition": "CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "profiles"
+    },
+    {
+      "definition": "CREATE TRIGGER update_store_settings_updated_at BEFORE UPDATE ON public.store_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "store_settings"
+    },
+    {
+      "definition": "CREATE TRIGGER update_abandoned_carts_updated_at BEFORE UPDATE ON public.abandoned_carts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "abandoned_carts"
+    },
+    {
+      "definition": "CREATE TRIGGER update_email_automations_updated_at BEFORE UPDATE ON public.email_automations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "email_automations"
+    },
+    {
+      "definition": "CREATE TRIGGER check_admin_creation BEFORE INSERT ON public.user_roles FOR EACH ROW EXECUTE FUNCTION prevent_unauthorized_admin_creation()",
+      "function": "prevent_unauthorized_admin_creation",
+      "table": "user_roles"
+    },
+    {
+      "definition": "CREATE TRIGGER update_home_sections_updated_at BEFORE UPDATE ON public.home_sections FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "home_sections"
+    },
+    {
+      "definition": "CREATE TRIGGER update_features_bar_updated_at BEFORE UPDATE ON public.features_bar FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "features_bar"
+    },
+    {
+      "definition": "CREATE TRIGGER update_payment_methods_display_updated_at BEFORE UPDATE ON public.payment_methods_display FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "payment_methods_display"
+    },
+    {
+      "definition": "CREATE TRIGGER update_security_seals_updated_at BEFORE UPDATE ON public.security_seals FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "security_seals"
+    },
+    {
+      "definition": "CREATE TRIGGER update_page_contents_updated_at BEFORE UPDATE ON public.page_contents FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "page_contents"
+    },
+    {
+      "definition": "CREATE TRIGGER update_stock_notifications_updated_at BEFORE UPDATE ON public.stock_notifications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "stock_notifications"
+    },
+    {
+      "definition": "CREATE TRIGGER update_payment_pricing_config_updated_at BEFORE UPDATE ON public.payment_pricing_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "payment_pricing_config"
+    },
+    {
+      "definition": "CREATE TRIGGER update_help_articles_updated_at BEFORE UPDATE ON public.help_articles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "help_articles"
+    },
+    {
+      "definition": "CREATE TRIGGER update_social_links_updated_at BEFORE UPDATE ON public.social_links FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "social_links"
+    },
+    {
+      "definition": "CREATE TRIGGER update_bling_sync_config_updated_at BEFORE UPDATE ON public.bling_sync_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "bling_sync_config"
+    },
+    {
+      "definition": "CREATE TRIGGER update_site_theme_updated_at BEFORE UPDATE ON public.site_theme FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "site_theme"
+    },
+    {
+      "definition": "CREATE TRIGGER update_appmax_installations_updated_at BEFORE UPDATE ON public.appmax_installations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "appmax_installations"
+    },
+    {
+      "definition": "CREATE TRIGGER update_appmax_settings_updated_at BEFORE UPDATE ON public.appmax_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "appmax_settings"
+    },
+    {
+      "definition": "CREATE TRIGGER update_appmax_tokens_cache_updated_at BEFORE UPDATE ON public.appmax_tokens_cache FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "appmax_tokens_cache"
+    },
+    {
+      "definition": "CREATE TRIGGER update_homepage_testimonials_config_updated_at BEFORE UPDATE ON public.homepage_testimonials_config FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "homepage_testimonials_config"
+    },
+    {
+      "definition": "CREATE TRIGGER update_homepage_testimonials_updated_at BEFORE UPDATE ON public.homepage_testimonials FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "homepage_testimonials"
+    },
+    {
+      "definition": "CREATE TRIGGER update_home_page_sections_updated_at BEFORE UPDATE ON public.home_page_sections FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "home_page_sections"
+    },
+    {
+      "definition": "CREATE TRIGGER update_store_setup_updated_at BEFORE UPDATE ON public.store_setup FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "store_setup"
+    },
+    {
+      "definition": "CREATE TRIGGER on_new_order AFTER INSERT ON public.orders FOR EACH ROW EXECUTE FUNCTION notify_new_order()",
+      "function": "notify_new_order",
+      "table": "orders"
+    },
+    {
+      "definition": "CREATE TRIGGER on_new_review AFTER INSERT ON public.product_reviews FOR EACH ROW EXECUTE FUNCTION notify_new_review()",
+      "function": "notify_new_review",
+      "table": "product_reviews"
+    },
+    {
+      "definition": "CREATE TRIGGER on_zero_stock AFTER UPDATE ON public.product_variants FOR EACH ROW EXECUTE FUNCTION notify_zero_stock()",
+      "function": "notify_zero_stock",
+      "table": "product_variants"
+    },
+    {
+      "definition": "CREATE TRIGGER set_order_number BEFORE INSERT ON public.orders FOR EACH ROW EXECUTE FUNCTION generate_order_number()",
+      "function": "generate_order_number",
+      "table": "orders"
+    },
+    {
+      "definition": "CREATE TRIGGER update_integrations_checkout_updated_at BEFORE UPDATE ON public.integrations_checkout FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "integrations_checkout"
+    },
+    {
+      "definition": "CREATE TRIGGER update_integrations_checkout_providers_updated_at BEFORE UPDATE ON public.integrations_checkout_providers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "integrations_checkout_providers"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_validate_order_total BEFORE INSERT OR UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION validate_order_total_positive()",
+      "function": "validate_order_total_positive",
+      "table": "orders"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_validate_order_item BEFORE INSERT OR UPDATE ON public.order_items FOR EACH ROW EXECUTE FUNCTION validate_order_item_quantity()",
+      "function": "validate_order_item_quantity",
+      "table": "order_items"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_validate_payment_amount BEFORE INSERT OR UPDATE ON public.payments FOR EACH ROW EXECUTE FUNCTION validate_payment_amount()",
+      "function": "validate_payment_amount",
+      "table": "payments"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_validate_stock_nonneg BEFORE INSERT OR UPDATE ON public.product_variants FOR EACH ROW EXECUTE FUNCTION validate_stock_nonneg()",
+      "function": "validate_stock_nonneg",
+      "table": "product_variants"
+    },
+    {
+      "definition": "CREATE TRIGGER update_blog_settings_updated_at BEFORE UPDATE ON public.blog_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "blog_settings"
+    },
+    {
+      "definition": "CREATE TRIGGER update_blog_posts_updated_at BEFORE UPDATE ON public.blog_posts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "function": "update_updated_at_column",
+      "table": "blog_posts"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_user_tenants_on_admin_member_insert AFTER INSERT ON public.admin_members FOR EACH ROW EXECUTE FUNCTION fn_user_tenants_on_admin_member_insert()",
+      "function": "fn_user_tenants_on_admin_member_insert",
+      "table": "admin_members"
+    },
+    {
+      "definition": "CREATE TRIGGER trg_prevent_sensitive_order_updates BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION prevent_sensitive_order_updates()",
+      "function": "prevent_sensitive_order_updates",
+      "table": "orders"
+    }
+  ]
+}

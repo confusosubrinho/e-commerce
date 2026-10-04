@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, ComponentType } from 'react';
+import { lazy, Suspense, ComponentType } from 'react';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { BannerCarousel } from '@/components/store/BannerCarousel';
@@ -9,8 +9,6 @@ import { useHomeSections } from '@/hooks/useHomeSections';
 import { useHomePageSections } from '@/hooks/useHomePageSections';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
-import { trackSession } from '@/lib/utmTracker';
-import { useTenant } from '@/hooks/useTenant';
 
 const HighlightBanners = lazy(() =>
   import('@/components/store/HighlightBanners').then((m) => ({ default: m.HighlightBanners }))
@@ -90,11 +88,6 @@ const SECTION_COMPONENTS: Record<string, ComponentType<any>> = {
 const Index = () => {
   const { data: pagesSections, isLoading } = useHomePageSections();
   const { data: settings } = useStoreSettingsPublic();
-  const { tenantId } = useTenant();
-
-  useEffect(() => {
-    trackSession(tenantId);
-  }, [tenantId]);
 
   const storeName = settings?.store_name || 'Vanessa Lima Shoes';
   const seoTitle = `${storeName} — Calçados Femininos em Couro Legítimo`;

@@ -338,259 +338,6 @@ export type Database = {
           },
         ]
       }
-      appmax_handshake_logs: {
-        Row: {
-          created_at: string
-          environment: string
-          error_stack: string | null
-          external_key: string | null
-          headers: Json | null
-          http_status: number | null
-          id: string
-          message: string
-          ok: boolean
-          payload: Json | null
-          request_id: string | null
-          stage: string
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          environment: string
-          error_stack?: string | null
-          external_key?: string | null
-          headers?: Json | null
-          http_status?: number | null
-          id?: string
-          message: string
-          ok?: boolean
-          payload?: Json | null
-          request_id?: string | null
-          stage: string
-          tenant_id?: string
-        }
-        Update: {
-          created_at?: string
-          environment?: string
-          error_stack?: string | null
-          external_key?: string | null
-          headers?: Json | null
-          http_status?: number | null
-          id?: string
-          message?: string
-          ok?: boolean
-          payload?: Json | null
-          request_id?: string | null
-          stage?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appmax_handshake_logs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      appmax_installations: {
-        Row: {
-          app_id: string
-          authorize_token: string | null
-          created_at: string
-          environment: string
-          external_id: string | null
-          external_key: string
-          id: string
-          last_error: string | null
-          merchant_client_id: string | null
-          merchant_client_secret: string | null
-          merchant_client_secret_encrypted: string | null
-          status: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          app_id: string
-          authorize_token?: string | null
-          created_at?: string
-          environment?: string
-          external_id?: string | null
-          external_key: string
-          id?: string
-          last_error?: string | null
-          merchant_client_id?: string | null
-          merchant_client_secret?: string | null
-          merchant_client_secret_encrypted?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          app_id?: string
-          authorize_token?: string | null
-          created_at?: string
-          environment?: string
-          external_id?: string | null
-          external_key?: string
-          id?: string
-          last_error?: string | null
-          merchant_client_id?: string | null
-          merchant_client_secret?: string | null
-          merchant_client_secret_encrypted?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appmax_installations_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      appmax_logs: {
-        Row: {
-          created_at: string
-          id: string
-          level: string
-          message: string
-          meta: Json | null
-          scope: string
-          tenant_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          level?: string
-          message: string
-          meta?: Json | null
-          scope?: string
-          tenant_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          level?: string
-          message?: string
-          meta?: Json | null
-          scope?: string
-          tenant_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appmax_logs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      appmax_settings: {
-        Row: {
-          app_id: string | null
-          base_api_url: string | null
-          base_auth_url: string | null
-          base_portal_url: string | null
-          callback_url: string | null
-          client_id: string | null
-          client_secret: string | null
-          client_secret_encrypted: string | null
-          created_at: string
-          environment: string
-          healthcheck_url: string | null
-          id: string
-          is_active: boolean
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          app_id?: string | null
-          base_api_url?: string | null
-          base_auth_url?: string | null
-          base_portal_url?: string | null
-          callback_url?: string | null
-          client_id?: string | null
-          client_secret?: string | null
-          client_secret_encrypted?: string | null
-          created_at?: string
-          environment?: string
-          healthcheck_url?: string | null
-          id?: string
-          is_active?: boolean
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          app_id?: string | null
-          base_api_url?: string | null
-          base_auth_url?: string | null
-          base_portal_url?: string | null
-          callback_url?: string | null
-          client_id?: string | null
-          client_secret?: string | null
-          client_secret_encrypted?: string | null
-          created_at?: string
-          environment?: string
-          healthcheck_url?: string | null
-          id?: string
-          is_active?: boolean
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appmax_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      appmax_tokens_cache: {
-        Row: {
-          access_token_encrypted: string | null
-          created_at: string
-          environment: string
-          expires_at: string | null
-          id: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          access_token_encrypted?: string | null
-          created_at?: string
-          environment: string
-          expires_at?: string | null
-          id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          access_token_encrypted?: string | null
-          created_at?: string
-          environment?: string
-          expires_at?: string | null
-          id?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appmax_tokens_cache_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       banners: {
         Row: {
           created_at: string
@@ -643,221 +390,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "banners_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bling_sync_config: {
-        Row: {
-          created_at: string
-          first_import_done: boolean
-          id: string
-          import_new_products: boolean
-          merge_by_sku: boolean
-          sync_descriptions: boolean
-          sync_dimensions: boolean
-          sync_images: boolean
-          sync_prices: boolean
-          sync_sku_gtin: boolean
-          sync_stock: boolean
-          sync_titles: boolean
-          sync_variant_active: boolean
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          first_import_done?: boolean
-          id?: string
-          import_new_products?: boolean
-          merge_by_sku?: boolean
-          sync_descriptions?: boolean
-          sync_dimensions?: boolean
-          sync_images?: boolean
-          sync_prices?: boolean
-          sync_sku_gtin?: boolean
-          sync_stock?: boolean
-          sync_titles?: boolean
-          sync_variant_active?: boolean
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          first_import_done?: boolean
-          id?: string
-          import_new_products?: boolean
-          merge_by_sku?: boolean
-          sync_descriptions?: boolean
-          sync_dimensions?: boolean
-          sync_images?: boolean
-          sync_prices?: boolean
-          sync_sku_gtin?: boolean
-          sync_stock?: boolean
-          sync_titles?: boolean
-          sync_variant_active?: boolean
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bling_sync_config_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bling_sync_runs: {
-        Row: {
-          created_at: string
-          error_details: Json | null
-          errors_count: number | null
-          finished_at: string | null
-          id: string
-          processed_count: number | null
-          started_at: string
-          tenant_id: string | null
-          trigger_type: string
-          updated_count: number | null
-        }
-        Insert: {
-          created_at?: string
-          error_details?: Json | null
-          errors_count?: number | null
-          finished_at?: string | null
-          id?: string
-          processed_count?: number | null
-          started_at?: string
-          tenant_id?: string | null
-          trigger_type?: string
-          updated_count?: number | null
-        }
-        Update: {
-          created_at?: string
-          error_details?: Json | null
-          errors_count?: number | null
-          finished_at?: string | null
-          id?: string
-          processed_count?: number | null
-          started_at?: string
-          tenant_id?: string | null
-          trigger_type?: string
-          updated_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bling_sync_runs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bling_webhook_events: {
-        Row: {
-          bling_product_id: number | null
-          created_at: string
-          event_id: string
-          event_type: string
-          id: string
-          last_error: string | null
-          payload: Json
-          processed_at: string | null
-          received_at: string
-          retries: number
-          status: string
-          tenant_id: string
-        }
-        Insert: {
-          bling_product_id?: number | null
-          created_at?: string
-          event_id: string
-          event_type: string
-          id?: string
-          last_error?: string | null
-          payload?: Json
-          processed_at?: string | null
-          received_at?: string
-          retries?: number
-          status?: string
-          tenant_id?: string
-        }
-        Update: {
-          bling_product_id?: number | null
-          created_at?: string
-          event_id?: string
-          event_type?: string
-          id?: string
-          last_error?: string | null
-          payload?: Json
-          processed_at?: string | null
-          received_at?: string
-          retries?: number
-          status?: string
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bling_webhook_events_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bling_webhook_logs: {
-        Row: {
-          bling_product_id: number | null
-          created_at: string
-          event_id: string | null
-          event_type: string
-          id: string
-          payload_meta: Json | null
-          processing_time_ms: number | null
-          reason: string | null
-          received_at: string
-          result: string
-          status_code: number | null
-          tenant_id: string | null
-        }
-        Insert: {
-          bling_product_id?: number | null
-          created_at?: string
-          event_id?: string | null
-          event_type?: string
-          id?: string
-          payload_meta?: Json | null
-          processing_time_ms?: number | null
-          reason?: string | null
-          received_at?: string
-          result?: string
-          status_code?: number | null
-          tenant_id?: string | null
-        }
-        Update: {
-          bling_product_id?: number | null
-          created_at?: string
-          event_id?: string | null
-          event_type?: string
-          id?: string
-          payload_meta?: Json | null
-          processing_time_ms?: number | null
-          reason?: string | null
-          received_at?: string
-          result?: string
-          status_code?: number | null
-          tenant_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bling_webhook_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1087,59 +619,6 @@ export type Database = {
           },
         ]
       }
-      catalog_sync_runs: {
-        Row: {
-          created_at: string
-          created_products: number | null
-          created_skus: number | null
-          error_details: Json | null
-          errors_count: number | null
-          finished_at: string | null
-          id: string
-          skipped_inactive: number | null
-          started_at: string
-          status: string
-          tenant_id: string | null
-          updated_skus: number | null
-        }
-        Insert: {
-          created_at?: string
-          created_products?: number | null
-          created_skus?: number | null
-          error_details?: Json | null
-          errors_count?: number | null
-          finished_at?: string | null
-          id?: string
-          skipped_inactive?: number | null
-          started_at?: string
-          status?: string
-          tenant_id?: string | null
-          updated_skus?: number | null
-        }
-        Update: {
-          created_at?: string
-          created_products?: number | null
-          created_skus?: number | null
-          error_details?: Json | null
-          errors_count?: number | null
-          finished_at?: string | null
-          id?: string
-          skipped_inactive?: number | null
-          started_at?: string
-          status?: string
-          tenant_id?: string | null
-          updated_skus?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "catalog_sync_runs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       categories: {
         Row: {
           banner_image_url: string | null
@@ -1157,7 +636,6 @@ export type Database = {
           slug: string
           tenant_id: string
           updated_at: string
-          yampi_category_id: number | null
         }
         Insert: {
           banner_image_url?: string | null
@@ -1175,7 +653,6 @@ export type Database = {
           slug: string
           tenant_id?: string
           updated_at?: string
-          yampi_category_id?: number | null
         }
         Update: {
           banner_image_url?: string | null
@@ -1193,7 +670,6 @@ export type Database = {
           slug?: string
           tenant_id?: string
           updated_at?: string
-          yampi_category_id?: number | null
         }
         Relationships: [
           {
@@ -1230,7 +706,6 @@ export type Database = {
           tenant_id: string | null
           total_amount: number
           updated_at: string
-          yampi_link_id: string | null
         }
         Insert: {
           correlation_id?: string | null
@@ -1249,7 +724,6 @@ export type Database = {
           tenant_id?: string | null
           total_amount?: number
           updated_at?: string
-          yampi_link_id?: string | null
         }
         Update: {
           correlation_id?: string | null
@@ -1268,7 +742,6 @@ export type Database = {
           tenant_id?: string | null
           total_amount?: number
           updated_at?: string
-          yampi_link_id?: string | null
         }
         Relationships: [
           {
@@ -1276,53 +749,6 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      checkout_settings: {
-        Row: {
-          active_provider: string
-          channel: string
-          enabled: boolean
-          environment: string
-          experience: string
-          id: string
-          notes: string | null
-          tenant_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          active_provider?: string
-          channel?: string
-          enabled?: boolean
-          environment?: string
-          experience?: string
-          id?: string
-          notes?: string | null
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          active_provider?: string
-          channel?: string
-          enabled?: boolean
-          environment?: string
-          experience?: string
-          id?: string
-          notes?: string | null
-          tenant_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "checkout_settings_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -2263,120 +1689,6 @@ export type Database = {
           },
         ]
       }
-      integrations_checkout: {
-        Row: {
-          enabled: boolean
-          fallback_to_native: boolean
-          id: string
-          provider: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          enabled?: boolean
-          fallback_to_native?: boolean
-          id?: string
-          provider?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          enabled?: boolean
-          fallback_to_native?: boolean
-          id?: string
-          provider?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "integrations_checkout_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      integrations_checkout_providers: {
-        Row: {
-          config: Json
-          created_at: string
-          display_name: string
-          id: string
-          is_active: boolean
-          provider: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          config?: Json
-          created_at?: string
-          display_name: string
-          id?: string
-          is_active?: boolean
-          provider: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Update: {
-          config?: Json
-          created_at?: string
-          display_name?: string
-          id?: string
-          is_active?: boolean
-          provider?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "integrations_checkout_providers_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      integrations_checkout_test_logs: {
-        Row: {
-          created_at: string
-          id: string
-          message: string
-          payload_preview: Json | null
-          provider: string
-          status: string
-          tenant_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message: string
-          payload_preview?: Json | null
-          provider: string
-          status?: string
-          tenant_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message?: string
-          payload_preview?: Json | null
-          provider?: string
-          status?: string
-          tenant_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "integrations_checkout_test_logs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       inventory_movements: {
         Row: {
           created_at: string
@@ -2604,7 +1916,6 @@ export type Database = {
           total_price: number
           unit_price: number
           variant_info: string | null
-          yampi_sku_id: number | null
         }
         Insert: {
           created_at?: string
@@ -2621,7 +1932,6 @@ export type Database = {
           total_price: number
           unit_price: number
           variant_info?: string | null
-          yampi_sku_id?: number | null
         }
         Update: {
           created_at?: string
@@ -2638,7 +1948,6 @@ export type Database = {
           total_price?: number
           unit_price?: number
           variant_info?: string | null
-          yampi_sku_id?: number | null
         }
         Relationships: [
           {
@@ -2676,7 +1985,6 @@ export type Database = {
           access_token: string | null
           appmax_customer_id: string | null
           appmax_order_id: string | null
-          bling_order_id: number | null
           cart_id: string | null
           checkout_session_id: string | null
           coupon_code: string | null
@@ -2720,14 +2028,11 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
-          yampi_created_at: string | null
-          yampi_order_number: string | null
         }
         Insert: {
           access_token?: string | null
           appmax_customer_id?: string | null
           appmax_order_id?: string | null
-          bling_order_id?: number | null
           cart_id?: string | null
           checkout_session_id?: string | null
           coupon_code?: string | null
@@ -2771,14 +2076,11 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          yampi_created_at?: string | null
-          yampi_order_number?: string | null
         }
         Update: {
           access_token?: string | null
           appmax_customer_id?: string | null
           appmax_order_id?: string | null
-          bling_order_id?: number | null
           cart_id?: string | null
           checkout_session_id?: string | null
           coupon_code?: string | null
@@ -2822,8 +2124,6 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          yampi_created_at?: string | null
-          yampi_order_number?: string | null
         }
         Relationships: [
           {
@@ -3359,10 +2659,6 @@ export type Database = {
       product_variants: {
         Row: {
           base_price: number | null
-          bling_last_match_type: string | null
-          bling_last_sync_decision: string | null
-          bling_last_sync_source: string | null
-          bling_variant_id: number | null
           color: string | null
           color_hex: string | null
           created_at: string
@@ -3377,14 +2673,9 @@ export type Database = {
           sku: string | null
           stock_quantity: number
           tenant_id: string
-          yampi_sku_id: number | null
         }
         Insert: {
           base_price?: number | null
-          bling_last_match_type?: string | null
-          bling_last_sync_decision?: string | null
-          bling_last_sync_source?: string | null
-          bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
           created_at?: string
@@ -3399,14 +2690,9 @@ export type Database = {
           sku?: string | null
           stock_quantity?: number
           tenant_id?: string
-          yampi_sku_id?: number | null
         }
         Update: {
           base_price?: number | null
-          bling_last_match_type?: string | null
-          bling_last_sync_decision?: string | null
-          bling_last_sync_source?: string | null
-          bling_variant_id?: number | null
           color?: string | null
           color_hex?: string | null
           created_at?: string
@@ -3421,7 +2707,6 @@ export type Database = {
           sku?: string | null
           stock_quantity?: number
           tenant_id?: string
-          yampi_sku_id?: number | null
         }
         Relationships: [
           {
@@ -3444,10 +2729,6 @@ export type Database = {
         Row: {
           age_group: string | null
           base_price: number
-          bling_last_error: string | null
-          bling_last_synced_at: string | null
-          bling_product_id: number | null
-          bling_sync_status: string | null
           brand: string | null
           category_id: string | null
           condition: string | null
@@ -3478,15 +2759,10 @@ export type Database = {
           video_url: string | null
           weight: number | null
           width: number | null
-          yampi_product_id: number | null
         }
         Insert: {
           age_group?: string | null
           base_price: number
-          bling_last_error?: string | null
-          bling_last_synced_at?: string | null
-          bling_product_id?: number | null
-          bling_sync_status?: string | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
@@ -3517,15 +2793,10 @@ export type Database = {
           video_url?: string | null
           weight?: number | null
           width?: number | null
-          yampi_product_id?: number | null
         }
         Update: {
           age_group?: string | null
           base_price?: number
-          bling_last_error?: string | null
-          bling_last_synced_at?: string | null
-          bling_product_id?: number | null
-          bling_sync_status?: string | null
           brand?: string | null
           category_id?: string | null
           condition?: string | null
@@ -3556,7 +2827,6 @@ export type Database = {
           video_url?: string | null
           weight?: number | null
           width?: number | null
-          yampi_product_id?: number | null
         }
         Relationships: [
           {
@@ -3782,85 +3052,6 @@ export type Database = {
           },
         ]
       }
-      stock_notifications: {
-        Row: {
-          created_at: string
-          desired_price: number | null
-          email: string | null
-          honeypot: string | null
-          id: string
-          is_notified: boolean
-          notified_at: string | null
-          product_id: string | null
-          shopify_product_id: string | null
-          shopify_variant_id: string | null
-          status: string
-          tenant_id: string
-          updated_at: string
-          variant_id: string | null
-          variant_info: string | null
-          whatsapp: string | null
-        }
-        Insert: {
-          created_at?: string
-          desired_price?: number | null
-          email?: string | null
-          honeypot?: string | null
-          id?: string
-          is_notified?: boolean
-          notified_at?: string | null
-          product_id?: string | null
-          shopify_product_id?: string | null
-          shopify_variant_id?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-          variant_id?: string | null
-          variant_info?: string | null
-          whatsapp?: string | null
-        }
-        Update: {
-          created_at?: string
-          desired_price?: number | null
-          email?: string | null
-          honeypot?: string | null
-          id?: string
-          is_notified?: boolean
-          notified_at?: string | null
-          product_id?: string | null
-          shopify_product_id?: string | null
-          shopify_variant_id?: string | null
-          status?: string
-          tenant_id?: string
-          updated_at?: string
-          variant_id?: string | null
-          variant_info?: string | null
-          whatsapp?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_notifications_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_notifications_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_notifications_variant_id_fkey"
-            columns: ["variant_id"]
-            isOneToOne: false
-            referencedRelation: "product_variants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       store_settings: {
         Row: {
           address: string | null
@@ -3868,12 +3059,6 @@ export type Database = {
           appmax_access_token: string | null
           appmax_callback_path: string | null
           appmax_environment: string | null
-          bling_access_token: string | null
-          bling_client_id: string | null
-          bling_client_secret: string | null
-          bling_refresh_token: string | null
-          bling_store_id: string | null
-          bling_token_expires_at: string | null
           body_code: string | null
           cash_discount: number | null
           cnpj: string | null
@@ -3928,12 +3113,6 @@ export type Database = {
           appmax_access_token?: string | null
           appmax_callback_path?: string | null
           appmax_environment?: string | null
-          bling_access_token?: string | null
-          bling_client_id?: string | null
-          bling_client_secret?: string | null
-          bling_refresh_token?: string | null
-          bling_store_id?: string | null
-          bling_token_expires_at?: string | null
           body_code?: string | null
           cash_discount?: number | null
           cnpj?: string | null
@@ -3988,12 +3167,6 @@ export type Database = {
           appmax_access_token?: string | null
           appmax_callback_path?: string | null
           appmax_environment?: string | null
-          bling_access_token?: string | null
-          bling_client_id?: string | null
-          bling_client_secret?: string | null
-          bling_refresh_token?: string | null
-          bling_store_id?: string | null
-          bling_token_expires_at?: string | null
           body_code?: string | null
           cash_discount?: number | null
           cnpj?: string | null
@@ -4326,81 +3499,8 @@ export type Database = {
           },
         ]
       }
-      variation_value_map: {
-        Row: {
-          created_at: string
-          id: string
-          tenant_id: string
-          type: string
-          updated_at: string
-          value: string
-          yampi_value_id: number | null
-          yampi_variation_id: number | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          tenant_id?: string
-          type: string
-          updated_at?: string
-          value: string
-          yampi_value_id?: number | null
-          yampi_variation_id?: number | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          tenant_id?: string
-          type?: string
-          updated_at?: string
-          value?: string
-          yampi_value_id?: number | null
-          yampi_variation_id?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "variation_value_map_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
-      checkout_providers_public: {
-        Row: {
-          checkout_mode: string | null
-          is_active: boolean | null
-          provider: string | null
-          publishable_key: string | null
-          tenant_id: string | null
-        }
-        Insert: {
-          checkout_mode?: never
-          is_active?: boolean | null
-          provider?: string | null
-          publishable_key?: never
-          tenant_id?: string | null
-        }
-        Update: {
-          checkout_mode?: never
-          is_active?: boolean | null
-          provider?: string | null
-          publishable_key?: never
-          tenant_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "integrations_checkout_providers_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       store_settings_public: {
         Row: {
           address: string | null
@@ -4538,16 +3638,10 @@ export type Database = {
       }
     }
     Functions: {
-      cancel_order_return_stock: { Args: { p_order_id: string }; Returns: Json }
       check_login_rate_limit: { Args: { p_email: string }; Returns: boolean }
       cleanup_orphan_orders: { Args: never; Returns: undefined }
       commerce_health: { Args: never; Returns: Json }
       commerce_health_lists: { Args: never; Returns: Json }
-      decrement_stock: {
-        Args: { p_quantity: number; p_variant_id: string }
-        Returns: Json
-      }
-      expire_checkout_sessions: { Args: never; Returns: number }
       get_current_tenant_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -4559,10 +3653,6 @@ export type Database = {
       increment_coupon_uses: {
         Args: { p_coupon_id: string }
         Returns: undefined
-      }
-      increment_stock: {
-        Args: { p_quantity: number; p_variant_id: string }
-        Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }

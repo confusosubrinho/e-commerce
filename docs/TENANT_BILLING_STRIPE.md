@@ -1,3 +1,5 @@
+> Estado atual (2026-10-04): `checkout-stripe-webhook` processa somente assinaturas da plataforma. O checkout comercial local foi removido; a vitrine redireciona o carrinho Shopify ao checkout externo. O endpoint usa `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` do ambiente e não configurações comerciais do banco. As instruções abaixo que citam pagamentos da loja são históricas.
+
 # Billing dos Lojistas (Stripe Billing)
 
 Cobrança de assinaturas dos tenants (lojistas) via Stripe Billing. O checkout do consumidor final continua usando o fluxo existente (Checkout Session / Payment Intent); este documento trata apenas da **cobrança da plataforma aos lojistas**.

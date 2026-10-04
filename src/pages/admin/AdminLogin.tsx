@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, Lock, AlertTriangle } from 'lucide-react';
-import { useStoreSettings } from '@/hooks/useProducts';
+import { useStoreSettings } from '@/hooks/useStoreContent';
 import { useTenant } from '@/hooks/useTenant';
 import logoFallback from '@/assets/logo.png';
 

@@ -79,16 +79,11 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const { data: integrationStatus } = useQuery({
     queryKey: ['setup-integrations'],
     queryFn: async () => {
-      const [appmax, instagram, shipping] = await Promise.all([
-        supabase.from('appmax_settings').select('client_id').limit(1).maybeSingle(),
+      const [instagram] = await Promise.all([
         supabase.from('instagram_videos').select('id', { count: 'exact' }).limit(1),
-        supabase.from('store_settings').select('shipping_regions').limit(1).maybeSingle(),
       ]);
       return {
-        appmax: !!appmax.data?.client_id,
-        bling: !!(currentSettings as Record<string, unknown>)?.bling_client_id,
         instagram: (instagram.count || 0) > 0,
-        shipping: !!(shipping.data?.shipping_regions),
       };
     },
     enabled: step === 4,
@@ -435,10 +430,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
               </div>
               <div className="space-y-3">
                 {[
-                  { icon: '💳', name: 'Pagamentos (Appmax)', ok: integrationStatus?.appmax },
-                  { icon: '📦', name: 'ERP (Bling)', ok: integrationStatus?.bling },
                   { icon: '📸', name: 'Feed do Instagram', ok: integrationStatus?.instagram },
-                  { icon: '🚚', name: 'Frete', ok: integrationStatus?.shipping },
                 ].map(item => (
                   <div key={item.name} className="flex items-center gap-3 p-3 rounded-lg border">
                     <span className="text-2xl">{item.icon}</span>
@@ -463,7 +455,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
               <div className="text-6xl animate-bounce">🎉</div>
               <div>
                 <h2 className="text-2xl font-bold">Tudo pronto!</h2>
-                <p className="text-sm text-muted-foreground mt-1">Sua loja está configurada e pronta para receber produtos.</p>
+                <p className="text-sm text-muted-foreground mt-1">Seu site está configurado. Gerencie os produtos na Shopify.</p>
               </div>
               <div className="text-left w-full max-w-sm space-y-2">
                 <div className="flex items-center gap-2 text-sm">

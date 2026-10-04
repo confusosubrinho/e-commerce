@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Loader2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { resolveImageUrl } from '@/lib/imageUrl';
-import { useSearchPreviewProducts } from '@/hooks/useProducts';
+import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { formatPrice } from '@/lib/formatters';
 
 const DEBOUNCE_MS = 400;
@@ -32,7 +32,8 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data: results = [], isLoading, isFetched } = useSearchPreviewProducts(debouncedQuery);
+  const { data: edges, isLoading, isFetched } = useShopifyProducts({ first: 6, query: debouncedQuery, sortKey: 'RELEVANCE', enabled: debouncedQuery.length >= 2 });
+  const results = useMemo(() => edges?.map(({ node }) => node) ?? [], [edges]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -80,7 +81,7 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
           const product = results[highlightedIndex];
           setIsOpen(false);
           setQuery('');
-          navigate(`/produto/${product.slug}`);
+          navigate(`/produto/${product.handle}`);
         }
         break;
       case 'Escape':
@@ -144,14 +145,16 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
         <div className="absolute top-full left-0 right-0 mt-2 bg-background border rounded-lg shadow-xl z-50 max-h-[400px] overflow-y-auto" role="listbox">
           <div className="p-2">
             {results.map((product, index) => {
-              const primaryImage = product.images?.find(img => img.is_primary) || product.images?.[0];
-              const hasDiscount = product.sale_price && product.sale_price < product.base_price;
+              const primaryImage = product.images.edges[0]?.node;
+              const price = Number(product.priceRange.minVariantPrice.amount);
+              const compareAt = Number(product.compareAtPriceRange?.minVariantPrice.amount ?? 0);
+              const hasDiscount = compareAt > price;
 
               return (
                 <Link
                   key={product.id}
                   id={`search-result-${index}`}
-                  to={`/produto/${product.slug}`}
+                  to={`/produto/${product.handle}`}
                   onClick={() => {
                     setIsOpen(false);
                     setQuery('');
@@ -164,26 +167,26 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
                 >
                   <img
                     src={resolveImageUrl(primaryImage?.url)}
-                    alt={product.name}
+                    alt={product.title}
                     className="w-14 h-14 rounded-lg object-cover"
                     loading="lazy"
                     decoding="async"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm line-clamp-1">{product.name}</p>
+                    <p className="font-medium text-sm line-clamp-1">{product.title}</p>
                     <div className="flex items-center gap-2 mt-1">
                       {hasDiscount ? (
                         <>
                           <span className="text-xs line-through text-muted-foreground">
-                            {formatPrice(Number(product.base_price))}
+                            {formatPrice(compareAt || price)}
                           </span>
                           <span className="text-sm font-bold text-primary">
-                            {formatPrice(Number(product.sale_price))}
+                            {formatPrice(price)}
                           </span>
                         </>
                       ) : (
                         <span className="text-sm font-medium">
-                          {formatPrice(Number(product.base_price))}
+                          {formatPrice(compareAt || price)}
                         </span>
                       )}
                     </div>

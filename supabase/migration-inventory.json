@@ -1,0 +1,1549 @@
+{
+  "source": "sojrvsbqkrbxoymlwtii",
+  "destination": "incrfwanfvnrebztvffd",
+  "status": "review_required_before_import",
+  "notes": [
+    "Static .from calls only; dynamic tables, RPCs, policy and trigger dependencies require review.",
+    "No data, users, secrets or files exported by this script.",
+    "Legacy runtime references must be removed or redesigned before excluding their tables.",
+    "Snapshot keys can include editorial categories; they do not imply restoring catalog synchronization."
+  ],
+  "tables": [
+    {
+      "table": "abandoned_carts",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "abandoned_carts_tenant_id_fkey",
+          "table": "abandoned_carts",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "admin_audit_log",
+      "snapshot": false,
+      "codeReferences": [
+        "src/lib/auditLogger.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "admin_audit_log_tenant_id_fkey",
+          "table": "admin_audit_log",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id)",
+          "name": "admin_audit_log_user_id_fkey",
+          "table": "admin_audit_log",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "admin_members",
+      "snapshot": false,
+      "codeReferences": [
+        "src/hooks/useAdminRole.ts",
+        "src/pages/admin/AdminLayout.tsx",
+        "src/pages/admin/Team.tsx",
+        "supabase/functions/_shared/auth.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (invited_by) REFERENCES auth.users(id)",
+          "name": "admin_members_invited_by_fkey",
+          "table": "admin_members",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "admin_members_tenant_id_fkey",
+          "table": "admin_members",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+          "name": "admin_members_user_id_fkey",
+          "table": "admin_members",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "admin_notifications",
+      "snapshot": false,
+      "codeReferences": [
+        "src/hooks/useNotifications.ts",
+        "src/pages/admin/Notifications.tsx"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "admin_notifications_tenant_id_fkey",
+          "table": "admin_notifications",
+          "type": "f"
+        }
+      ],
+      "policyCount": 1
+    },
+    {
+      "table": "announcement_bar",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/HeaderCustomizer.tsx",
+        "src/components/store/AnnouncementBar.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "announcement_bar_tenant_id_fkey",
+          "table": "announcement_bar",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "app_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "app_logs_tenant_id_fkey",
+          "table": "app_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "appmax_handshake_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "appmax_handshake_logs_tenant_id_fkey",
+          "table": "appmax_handshake_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "appmax_installations",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "appmax_installations_tenant_id_fkey",
+          "table": "appmax_installations",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "appmax_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "appmax_logs_tenant_id_fkey",
+          "table": "appmax_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "appmax_settings",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "appmax_settings_tenant_id_fkey",
+          "table": "appmax_settings",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "appmax_tokens_cache",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "appmax_tokens_cache_tenant_id_fkey",
+          "table": "appmax_tokens_cache",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "banners",
+      "snapshot": true,
+      "codeReferences": [
+        "src/hooks/useStoreContent.ts",
+        "src/lib/preloadLcp.ts",
+        "src/pages/admin/Banners.tsx",
+        "src/pages/admin/MediaGallery.tsx",
+        "src/pages/admin/Personalization.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "banners_tenant_id_fkey",
+          "table": "banners",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "bling_sync_config",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "bling_sync_config_tenant_id_fkey",
+          "table": "bling_sync_config",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "bling_sync_runs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "bling_sync_runs_tenant_id_fkey",
+          "table": "bling_sync_runs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "bling_webhook_events",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "bling_webhook_events_tenant_id_fkey",
+          "table": "bling_webhook_events",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "bling_webhook_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "bling_webhook_logs_tenant_id_fkey",
+          "table": "bling_webhook_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "blog_posts",
+      "snapshot": true,
+      "codeReferences": [
+        "src/hooks/useBlog.ts",
+        "src/pages/admin/BlogAdmin.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "blog_posts_tenant_id_fkey",
+          "table": "blog_posts",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "blog_settings",
+      "snapshot": true,
+      "codeReferences": [
+        "src/hooks/useBlog.ts",
+        "src/pages/admin/BlogAdmin.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "blog_settings_tenant_id_fkey",
+          "table": "blog_settings",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "buy_together_products",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "buy_together_products_product_id_fkey",
+          "table": "buy_together_products",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (related_product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "buy_together_products_related_product_id_fkey",
+          "table": "buy_together_products",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "buy_together_products_tenant_id_fkey",
+          "table": "buy_together_products",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "catalog_sync_queue",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "catalog_sync_queue_product_id_fkey",
+          "table": "catalog_sync_queue",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "catalog_sync_queue_tenant_id_fkey",
+          "table": "catalog_sync_queue",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE CASCADE",
+          "name": "catalog_sync_queue_variant_id_fkey",
+          "table": "catalog_sync_queue",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "catalog_sync_runs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "catalog_sync_runs_tenant_id_fkey",
+          "table": "catalog_sync_runs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "categories",
+      "snapshot": true,
+      "codeReferences": [
+        "supabase/functions/seo-sitemap/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (parent_category_id) REFERENCES categories(id) ON DELETE SET NULL",
+          "name": "categories_parent_category_id_fkey",
+          "table": "categories",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "categories_tenant_id_fkey",
+          "table": "categories",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "checkout_providers_public",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [],
+      "policyCount": 0
+    },
+    {
+      "table": "checkout_sessions",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL",
+          "name": "checkout_sessions_order_id_fkey",
+          "table": "checkout_sessions",
+          "type": "f"
+        }
+      ],
+      "policyCount": 1
+    },
+    {
+      "table": "checkout_settings",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "checkout_settings_tenant_id_fkey",
+          "table": "checkout_settings",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "cleanup_runs",
+      "snapshot": false,
+      "codeReferences": [
+        "supabase/functions/cron-cleanup-logs/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "cleanup_runs_tenant_id_fkey",
+          "table": "cleanup_runs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "contact_messages",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "contact_messages_tenant_id_fkey",
+          "table": "contact_messages",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "coupon_uses",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE",
+          "name": "coupon_uses_coupon_id_fkey",
+          "table": "coupon_uses",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL",
+          "name": "coupon_uses_order_id_fkey",
+          "table": "coupon_uses",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "coupon_uses_tenant_id_fkey",
+          "table": "coupon_uses",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "coupons",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (applicable_category_id) REFERENCES categories(id) ON DELETE SET NULL",
+          "name": "coupons_applicable_category_id_fkey",
+          "table": "coupons",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "coupons_tenant_id_fkey",
+          "table": "coupons",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "customers",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "customers_tenant_id_fkey",
+          "table": "customers",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL",
+          "name": "customers_user_id_fkey",
+          "table": "customers",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "email_automation_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (automation_id) REFERENCES email_automations(id)",
+          "name": "email_automation_logs_automation_id_fkey",
+          "table": "email_automation_logs",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "email_automation_logs_tenant_id_fkey",
+          "table": "email_automation_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "email_automations",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "email_automations_tenant_id_fkey",
+          "table": "email_automations",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "error_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "error_logs_tenant_id_fkey",
+          "table": "error_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "favorites",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "favorites_product_id_fkey",
+          "table": "favorites",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "favorites_tenant_id_fkey",
+          "table": "favorites",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+          "name": "favorites_user_id_fkey",
+          "table": "favorites",
+          "type": "f"
+        }
+      ],
+      "policyCount": 5
+    },
+    {
+      "table": "features_bar",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/FeaturesBarManager.tsx",
+        "src/components/store/FeaturesBar.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "features_bar_tenant_id_fkey",
+          "table": "features_bar",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "help_articles",
+      "snapshot": true,
+      "codeReferences": [
+        "src/hooks/useHelpArticle.ts",
+        "src/pages/admin/HelpEditor.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "help_articles_tenant_id_fkey",
+          "table": "help_articles",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "highlight_banners",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/store/HighlightBanners.tsx",
+        "src/pages/admin/HighlightBanners.tsx",
+        "src/pages/admin/MediaGallery.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "highlight_banners_tenant_id_fkey",
+          "table": "highlight_banners",
+          "type": "f"
+        }
+      ],
+      "policyCount": 5
+    },
+    {
+      "table": "home_page_sections",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/HomePageBuilder.tsx",
+        "src/hooks/useHomePageSections.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "home_page_sections_tenant_id_fkey",
+          "table": "home_page_sections",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "home_sections",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/HomeSectionsManager.tsx",
+        "src/hooks/useHomeSections.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL",
+          "name": "home_sections_category_id_fkey",
+          "table": "home_sections",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "home_sections_tenant_id_fkey",
+          "table": "home_sections",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "homepage_testimonials",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/TestimonialsManager.tsx",
+        "src/components/store/CustomerTestimonials.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL",
+          "name": "homepage_testimonials_product_id_fkey",
+          "table": "homepage_testimonials",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "homepage_testimonials_tenant_id_fkey",
+          "table": "homepage_testimonials",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "homepage_testimonials_config",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/TestimonialsManager.tsx",
+        "src/components/store/CustomerTestimonials.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "homepage_testimonials_config_tenant_id_fkey",
+          "table": "homepage_testimonials_config",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "instagram_videos",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/SetupWizard.tsx",
+        "src/components/store/InstagramFeed.tsx",
+        "src/pages/admin/Personalization.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL",
+          "name": "instagram_videos_product_id_fkey",
+          "table": "instagram_videos",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "instagram_videos_tenant_id_fkey",
+          "table": "instagram_videos",
+          "type": "f"
+        }
+      ],
+      "policyCount": 5
+    },
+    {
+      "table": "integrations_checkout",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "integrations_checkout_tenant_id_fkey",
+          "table": "integrations_checkout",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "integrations_checkout_providers",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "integrations_checkout_providers_tenant_id_fkey",
+          "table": "integrations_checkout_providers",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "integrations_checkout_test_logs",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "integrations_checkout_test_logs_tenant_id_fkey",
+          "table": "integrations_checkout_test_logs",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "inventory_movements",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL",
+          "name": "inventory_movements_order_id_fkey",
+          "table": "inventory_movements",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "inventory_movements_tenant_id_fkey",
+          "table": "inventory_movements",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE CASCADE",
+          "name": "inventory_movements_variant_id_fkey",
+          "table": "inventory_movements",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "log_daily_stats",
+      "snapshot": false,
+      "codeReferences": [
+        "supabase/functions/cron-cleanup-logs/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "log_daily_stats_tenant_id_fkey",
+          "table": "log_daily_stats",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "login_attempts",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/admin/AdminLogin.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "login_attempts_tenant_id_fkey",
+          "table": "login_attempts",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "newsletter_subscribers",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "newsletter_subscribers_tenant_id_fkey",
+          "table": "newsletter_subscribers",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "order_events",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "name": "order_events_order_id_fkey",
+          "table": "order_events",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "order_events_tenant_id_fkey",
+          "table": "order_events",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "order_items",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/RastreioPage.tsx"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "name": "order_items_order_id_fkey",
+          "table": "order_items",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL",
+          "name": "order_items_product_id_fkey",
+          "table": "order_items",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (product_variant_id) REFERENCES product_variants(id) ON DELETE SET NULL",
+          "name": "order_items_product_variant_id_fkey",
+          "table": "order_items",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "order_items_tenant_id_fkey",
+          "table": "order_items",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "orders",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/MyAccount.tsx",
+        "src/pages/OrderConfirmation.tsx",
+        "src/pages/RastreioPage.tsx"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL",
+          "name": "orders_customer_id_fkey",
+          "table": "orders",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "orders_tenant_id_fkey",
+          "table": "orders",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL",
+          "name": "orders_user_id_fkey",
+          "table": "orders",
+          "type": "f"
+        }
+      ],
+      "policyCount": 5
+    },
+    {
+      "table": "page_contents",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/PagesEditor.tsx",
+        "src/hooks/usePageContent.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "page_contents_tenant_id_fkey",
+          "table": "page_contents",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "payment_methods_display",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/FooterCustomizer.tsx",
+        "src/components/store/Footer.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "payment_methods_display_tenant_id_fkey",
+          "table": "payment_methods_display",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "payment_pricing_audit_log",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/admin/PricingSettings.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (config_id) REFERENCES payment_pricing_config(id)",
+          "name": "payment_pricing_audit_log_config_id_fkey",
+          "table": "payment_pricing_audit_log",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "payment_pricing_audit_log_tenant_id_fkey",
+          "table": "payment_pricing_audit_log",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "payment_pricing_config",
+      "snapshot": true,
+      "codeReferences": [
+        "src/lib/pricingEngine.ts",
+        "src/pages/admin/PricingSettings.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "payment_pricing_config_tenant_id_fkey",
+          "table": "payment_pricing_config",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (updated_by) REFERENCES auth.users(id)",
+          "name": "payment_pricing_config_updated_by_fkey",
+          "table": "payment_pricing_config",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "payments",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE",
+          "name": "payments_order_id_fkey",
+          "table": "payments",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "payments_tenant_id_fkey",
+          "table": "payments",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "product_change_log",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (changed_by) REFERENCES auth.users(id)",
+          "name": "product_change_log_changed_by_fkey",
+          "table": "product_change_log",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "product_change_log_product_id_fkey",
+          "table": "product_change_log",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "product_change_log_tenant_id_fkey",
+          "table": "product_change_log",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "product_characteristics",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "product_characteristics_product_id_fkey",
+          "table": "product_characteristics",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "product_characteristics_tenant_id_fkey",
+          "table": "product_characteristics",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "product_images",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/admin/MediaGallery.tsx"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "product_images_product_id_fkey",
+          "table": "product_images",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (product_variant_id) REFERENCES product_variants(id) ON DELETE SET NULL",
+          "name": "product_images_product_variant_id_fkey",
+          "table": "product_images",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "product_images_tenant_id_fkey",
+          "table": "product_images",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "product_reviews",
+      "snapshot": false,
+      "codeReferences": [
+        "src/components/store/ProductReviews.tsx"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "product_reviews_product_id_fkey",
+          "table": "product_reviews",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "product_reviews_tenant_id_fkey",
+          "table": "product_reviews",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL",
+          "name": "product_reviews_user_id_fkey",
+          "table": "product_reviews",
+          "type": "f"
+        }
+      ],
+      "policyCount": 6
+    },
+    {
+      "table": "product_variants",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "product_variants_product_id_fkey",
+          "table": "product_variants",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "product_variants_tenant_id_fkey",
+          "table": "product_variants",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "products",
+      "snapshot": false,
+      "codeReferences": [
+        "src/components/admin/TestimonialsManager.tsx",
+        "src/pages/admin/MediaGallery.tsx",
+        "src/pages/admin/Personalization.tsx",
+        "supabase/functions/seo-sitemap/index.ts"
+      ],
+      "disposition": "legacy_runtime_review",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL",
+          "name": "products_category_id_fkey",
+          "table": "products",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "products_tenant_id_fkey",
+          "table": "products",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "profiles",
+      "snapshot": false,
+      "codeReferences": [
+        "src/pages/MyAccount.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+          "name": "profiles_user_id_fkey",
+          "table": "profiles",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "rate_limit_log",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [],
+      "policyCount": 1
+    },
+    {
+      "table": "security_seals",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/FooterCustomizer.tsx",
+        "src/components/store/Footer.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "security_seals_tenant_id_fkey",
+          "table": "security_seals",
+          "type": "f"
+        }
+      ],
+      "policyCount": 3
+    },
+    {
+      "table": "site_theme",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/admin/SetupWizard.tsx",
+        "src/hooks/useSiteTheme.ts",
+        "src/pages/admin/ThemeEditor.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "site_theme_tenant_id_fkey",
+          "table": "site_theme",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "social_links",
+      "snapshot": true,
+      "codeReferences": [
+        "src/hooks/useSocialLinks.ts",
+        "src/pages/admin/SocialLinks.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "social_links_tenant_id_fkey",
+          "table": "social_links",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "stock_notifications",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE",
+          "name": "stock_notifications_product_id_fkey",
+          "table": "stock_notifications",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "stock_notifications_tenant_id_fkey",
+          "table": "stock_notifications",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE CASCADE",
+          "name": "stock_notifications_variant_id_fkey",
+          "table": "stock_notifications",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "store_settings",
+      "snapshot": false,
+      "codeReferences": [
+        "src/components/admin/HeaderCustomizer.tsx",
+        "src/components/admin/SetupWizard.tsx",
+        "src/pages/admin/CodeSettings.tsx",
+        "src/pages/admin/Settings.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "store_settings_tenant_id_fkey",
+          "table": "store_settings",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "store_settings_public",
+      "snapshot": true,
+      "codeReferences": [
+        "src/components/store/VersionChecker.tsx",
+        "src/hooks/useStoreContact.ts",
+        "src/hooks/useStoreContent.ts",
+        "src/pages/OrderConfirmation.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [],
+      "policyCount": 0
+    },
+    {
+      "table": "store_setup",
+      "snapshot": false,
+      "codeReferences": [
+        "src/components/admin/SetupWizard.tsx",
+        "src/pages/admin/AdminLayout.tsx"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "store_setup_tenant_id_fkey",
+          "table": "store_setup",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    },
+    {
+      "table": "stripe_webhook_events",
+      "snapshot": false,
+      "codeReferences": [
+        "supabase/functions/checkout-stripe-webhook/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "stripe_webhook_events_tenant_id_fkey",
+          "table": "stripe_webhook_events",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "tenant_plans",
+      "snapshot": false,
+      "codeReferences": [
+        "supabase/functions/checkout-stripe-webhook/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [],
+      "policyCount": 2
+    },
+    {
+      "table": "tenants",
+      "snapshot": false,
+      "codeReferences": [
+        "src/hooks/useTenantPlan.ts",
+        "src/lib/tenant.ts",
+        "supabase/functions/checkout-stripe-webhook/index.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (plan_id) REFERENCES tenant_plans(id) ON DELETE SET NULL",
+          "name": "tenants_plan_id_fkey",
+          "table": "tenants",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "traffic_sessions",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "traffic_sessions_tenant_id_fkey",
+          "table": "traffic_sessions",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "user_roles",
+      "snapshot": false,
+      "codeReferences": [
+        "src/hooks/useAdminRole.ts",
+        "src/pages/admin/AdminLayout.tsx",
+        "src/pages/admin/AdminLogin.tsx",
+        "supabase/functions/_shared/auth.ts"
+      ],
+      "disposition": "candidate_to_migrate",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+          "name": "user_roles_user_id_fkey",
+          "table": "user_roles",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "user_tenants",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE",
+          "name": "user_tenants_tenant_id_fkey",
+          "table": "user_tenants",
+          "type": "f"
+        },
+        {
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+          "name": "user_tenants_user_id_fkey",
+          "table": "user_tenants",
+          "type": "f"
+        }
+      ],
+      "policyCount": 2
+    },
+    {
+      "table": "variation_value_map",
+      "snapshot": false,
+      "codeReferences": [],
+      "disposition": "not_directly_referenced_review_dependencies",
+      "foreignKeys": [
+        {
+          "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id)",
+          "name": "variation_value_map_tenant_id_fkey",
+          "table": "variation_value_map",
+          "type": "f"
+        }
+      ],
+      "policyCount": 4
+    }
+  ],
+  "views": [
+    {
+      "name": "checkout_providers_public",
+      "referenced": false
+    },
+    {
+      "name": "store_settings_public",
+      "referenced": true
+    }
+  ]
+}

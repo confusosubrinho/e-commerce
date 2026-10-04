@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminHomeSections, HomeSection } from '@/hooks/useHomeSections';
 import { useDragReorder } from '@/hooks/useDragReorder';
@@ -12,8 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 
 const SOURCE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -62,7 +60,7 @@ interface FormData {
 }
 
 const defaultForm: FormData = {
-  title: '', subtitle: '', section_type: 'carousel', source_type: 'category',
+  title: '', subtitle: '', section_type: 'carousel', source_type: 'shopify_collection',
   category_id: '', product_ids: [], max_items: 10, is_active: true,
   show_view_all: true, view_all_link: '', dark_bg: false, card_bg: false,
   sort_order: 'newest', shopify_collection_handle: '', shopify_product_handles: '',
@@ -75,29 +73,6 @@ export function HomeSectionsManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editing, setEditing] = useState<HomeSection | null>(null);
   const [formData, setFormData] = useState<FormData>({ ...defaultForm });
-  const [productSearch, setProductSearch] = useState('');
-
-  const { data: categories } = useQuery({
-    queryKey: ['admin-categories-simple'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('categories').select('id, name').eq('is_active', true).order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const { data: allProducts } = useQuery({
-    queryKey: ['admin-products-for-sections'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('products').select('id, name, base_price, sale_price, is_active').eq('is_active', true).order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const filteredProducts = allProducts?.filter(p =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase())
-  ) || [];
 
   const reorderMutation = useMutation({
     mutationFn: async (reordered: HomeSection[]) => {
@@ -120,6 +95,8 @@ export function HomeSectionsManager() {
   const saveMutation = useMutation({
     mutationFn: async (data: FormData) => {
       const isAutoSource = AUTO_SOURCE_TYPES.includes(data.source_type);
+      if (data.source_type === 'shopify_collection' && !data.shopify_collection_handle.trim()) throw new Error('Informe o handle da coleção Shopify.');
+      if (data.source_type === 'shopify_manual' && !data.shopify_product_handles.trim()) throw new Error('Informe os handles dos produtos Shopify.');
       const shopifyHandles = data.shopify_product_handles
         .split(/[\n,]+/)
         .map(h => h.trim())
@@ -129,8 +106,8 @@ export function HomeSectionsManager() {
         subtitle: data.subtitle || null,
         section_type: data.section_type,
         source_type: data.source_type,
-        category_id: data.source_type === 'category' && data.category_id ? data.category_id : null,
-        product_ids: data.source_type === 'manual' ? data.product_ids : [],
+        category_id: null,
+        product_ids: [],
         max_items: data.max_items,
         is_active: data.is_active,
         show_view_all: true,
@@ -180,7 +157,7 @@ export function HomeSectionsManager() {
         title: section.title,
         subtitle: section.subtitle || '',
         section_type: section.section_type,
-        source_type: section.source_type,
+        source_type: ['category', 'manual'].includes(section.source_type) ? 'shopify_collection' : section.source_type,
         category_id: section.category_id || '',
         product_ids: section.product_ids || [],
         max_items: section.max_items,
@@ -197,17 +174,7 @@ export function HomeSectionsManager() {
       setEditing(null);
       setFormData({ ...defaultForm });
     }
-    setProductSearch('');
     setIsDialogOpen(true);
-  };
-
-  const toggleProduct = (productId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      product_ids: prev.product_ids.includes(productId)
-        ? prev.product_ids.filter(id => id !== productId)
-        : [...prev.product_ids, productId],
-    }));
   };
 
   return (
@@ -306,15 +273,13 @@ export function HomeSectionsManager() {
                 <SelectContent>
                   <SelectItem value="shopify_collection">Coleção Shopify (recomendado)</SelectItem>
                   <SelectItem value="shopify_manual">Vitrine manual (handles Shopify)</SelectItem>
-                  <SelectItem value="category">Por Categoria (legado)</SelectItem>
-                  <SelectItem value="featured">Destaques (legado)</SelectItem>
-                  <SelectItem value="new">Novidades (legado)</SelectItem>
-                  <SelectItem value="sale">Promoções (legado)</SelectItem>
-                  <SelectItem value="manual">Seleção Manual (legado)</SelectItem>
+                  <SelectItem value="featured">Destaques</SelectItem>
+                  <SelectItem value="new">Novidades</SelectItem>
+                  <SelectItem value="sale">Promoções</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Use as opções Shopify para puxar produtos diretamente do catálogo conectado. As opções "legado" usam o banco local e ficam vazias enquanto o catálogo for gerenciado pela Shopify.
+                Todas as vitrines usam produtos da Shopify.
               </p>
             </div>
 
@@ -344,42 +309,6 @@ export function HomeSectionsManager() {
                 <p className="text-xs text-muted-foreground">
                   Os produtos aparecem na vitrine na ordem informada.
                 </p>
-              </div>
-            )}
-
-            {formData.source_type === 'category' && (
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select value={formData.category_id || '_none'} onValueChange={(v) => setFormData({ ...formData, category_id: v === '_none' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_none">Todas</SelectItem>
-                    {categories?.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {formData.source_type === 'manual' && (
-              <div className="space-y-2">
-                <Label>Produtos ({formData.product_ids.length} selecionados)</Label>
-                <Input placeholder="Buscar produto..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
-                <ScrollArea className="h-48 border rounded-md p-2">
-                  {filteredProducts.map(p => (
-                    <label key={p.id} className="flex items-center gap-2 py-1.5 px-1 hover:bg-muted rounded cursor-pointer">
-                      <Checkbox
-                        checked={formData.product_ids.includes(p.id)}
-                        onCheckedChange={() => toggleProduct(p.id)}
-                      />
-                      <span className="text-sm truncate flex-1">{p.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        R$ {Number(p.sale_price || p.base_price).toFixed(2)}
-                      </span>
-                    </label>
-                  ))}
-                </ScrollArea>
               </div>
             )}
 

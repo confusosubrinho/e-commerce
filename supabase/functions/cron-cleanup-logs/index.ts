@@ -11,18 +11,9 @@ const corsHeaders = {
 // Use `days` for normal retention or `minutes` for short retention (e.g. error_logs)
 const RETENTION: Record<string, { days?: number; minutes?: number; dateCol: string }> = {
   app_logs:              { days: 15, dateCol: "created_at" },
-  appmax_logs:           { days: 30, dateCol: "created_at" },
-  bling_webhook_logs:    { days: 14, dateCol: "created_at" },
-  bling_sync_runs:       { days: 90, dateCol: "started_at" },
   login_attempts:        { days: 30, dateCol: "attempted_at" },
-  email_automation_logs: { days: 30, dateCol: "created_at" },
   error_logs:            { minutes: 10, dateCol: "created_at" },
-  traffic_sessions:      { days: 30, dateCol: "created_at" },
-  abandoned_carts:       { days: 90, dateCol: "created_at" },
   rate_limit_log:       { minutes: 120, dateCol: "created_at" },
-  order_events:          { days: 90, dateCol: "received_at" },
-  bling_webhook_events:  { days: 60, dateCol: "created_at" },
-  product_change_log:    { days: 180, dateCol: "changed_at" },
   payment_pricing_audit_log: { days: 180, dateCol: "changed_at" },
 };
 
@@ -30,8 +21,6 @@ const MAX_DELETE_PER_TABLE = 5000;
 
 const LEVEL_COL: Record<string, string> = {
   app_logs: "level",
-  appmax_logs: "level",
-  bling_webhook_logs: "result",
   error_logs: "severity",
 };
 
@@ -116,69 +105,6 @@ Deno.serve(async (req) => {
                   d.setDate(d.getDate() - (config.days ?? 0));
                   return d.toISOString();
                 })();
-
-          // Bug C: com SERVICE_ROLE_KEY, precisamos evitar apagar carrinhos de todos tenants.
-          // Para `abandoned_carts`, executa delete por tenant_id.
-          if (table === "abandoned_carts") {
-            const { data: tenants, error: tenantsErr } = await supabase
-              .from("tenants")
-              .select("id")
-              .limit(5000);
-
-            if (tenantsErr) {
-              errors.push(`Tenants load for abandoned_carts: ${tenantsErr.message}`);
-              results.push({ table, deleted: 0, consolidated: 0, error: tenantsErr.message });
-              continue;
-            }
-
-            let deletedSum = 0;
-            for (const t of tenants || []) {
-              const tenantId = (t as any).id as string | null;
-              if (!tenantId) continue;
-
-              const countQuery = supabase
-                .from(table as any)
-                .select("id", { count: "exact", head: true })
-                .lt(config.dateCol, cutoff)
-                .eq("tenant_id", tenantId)
-                .eq("recovered", false);
-
-              const { count, error: countErr } = await countQuery;
-              if (countErr) {
-                errors.push(`Count ${table} tenant ${tenantId}: ${countErr.message}`);
-                continue;
-              }
-
-              const toDelete = Math.min(count || 0, MAX_DELETE_PER_TABLE);
-              if (!isDryRun && toDelete > 0) {
-                const { data: idsToDelete } = await supabase
-                  .from(table as any)
-                  .select("id")
-                  .lt(config.dateCol, cutoff)
-                  .eq("tenant_id", tenantId)
-                  .eq("recovered", false)
-                  .limit(MAX_DELETE_PER_TABLE);
-
-                if (idsToDelete && idsToDelete.length > 0) {
-                  const ids = idsToDelete.map((r: any) => r.id);
-                  for (let i = 0; i < ids.length; i += 500) {
-                    const { error: delErr } = await supabase
-                      .from(table as any)
-                      .delete()
-                      .in("id", ids.slice(i, i + 500))
-                      .eq("tenant_id", tenantId);
-                    if (delErr) errors.push(`Delete ${table}: ${delErr.message}`);
-                  }
-                }
-              }
-
-              deletedSum += toDelete;
-            }
-
-            results.push({ table, deleted: deletedSum, consolidated: 0 });
-            totalDeleted += deletedSum;
-            continue;
-          }
 
           // Count records to delete
           let countQuery = supabase
@@ -384,39 +310,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Deduplicate bling_webhook_events
-        const { data: dupes } = await supabase
-          .from("bling_webhook_events" as any)
-          .select("event_id, id, created_at")
-          .order("created_at", { ascending: false })
-          .limit(5000);
-        if (dupes) {
-          const seen = new Set<string>();
-          let dupeCount = 0;
-          let currentBatch: string[] = [];
-          for (let i = 0, len = dupes.length; i < len; i++) {
-            const row = dupes[i];
-            if (seen.has(row.event_id)) {
-              dupeCount++;
-              if (!isDryRun) {
-                currentBatch.push(row.id);
-                if (currentBatch.length === 500) {
-                  await supabase.from("bling_webhook_events" as any).delete().in("id", currentBatch);
-                  currentBatch = [];
-                }
-              }
-            } else {
-              seen.add(row.event_id);
-            }
-          }
-          if (currentBatch.length > 0 && !isDryRun) {
-            await supabase.from("bling_webhook_events" as any).delete().in("id", currentBatch);
-          }
-          if (!isDryRun) {
-            totalDeleted += dupeCount;
-          }
-          results.push({ table: "bling_webhook_events_dedup", deleted: dupeCount, consolidated: 0 });
-        }
       } catch (err: any) {
         errors.push(`Weekly optimize: ${err.message}`);
       }

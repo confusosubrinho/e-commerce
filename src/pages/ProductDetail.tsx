@@ -17,14 +17,12 @@ import {
   shouldApplyPixDiscount,
   getInstallmentDisplay,
 } from '@/lib/pricingEngine';
-import { Bell, ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, Loader2, ShoppingBag } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { StickyAddToCart } from '@/components/store/StickyAddToCart';
-import { StockNotifyModal } from '@/components/store/StockNotifyModal';
-import { ProductReviews } from '@/components/store/ProductReviews';
 
 
 const ProductDetail = () => {
@@ -39,7 +37,6 @@ const ProductDetail = () => {
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
-  const [notifyOpen, setNotifyOpen] = useState(false);
   const [stickyVisible, setStickyVisible] = useState(false);
   const variantBlockRef = useRef<HTMLDivElement>(null);
   const buyButtonRef = useRef<HTMLDivElement>(null);
@@ -328,18 +325,6 @@ const ProductDetail = () => {
               )}
             </Button>
 
-            {selectedVariant && !selectedVariant.availableForSale && (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                className="w-full"
-                onClick={() => setNotifyOpen(true)}
-              >
-                <Bell className="w-4 h-4 mr-2" />
-                Avise-me quando voltar
-              </Button>
-            )}
           </div>
 
           {product.descriptionHtml && (
@@ -352,12 +337,6 @@ const ProductDetail = () => {
           )}
         </div>
       </div>
-
-      <FadeInOnScroll>
-        <div className="container-custom pb-12">
-          <ProductReviews productId={product.id} productName={product.title} isShopify />
-        </div>
-      </FadeInOnScroll>
 
       {(isLoadingRelated || (relatedProducts && relatedProducts.length > 0)) && (
         <FadeInOnScroll>
@@ -390,20 +369,7 @@ const ProductDetail = () => {
         visible={stickyVisible}
       />
 
-      <StockNotifyModal
-        open={notifyOpen}
-        onOpenChange={setNotifyOpen}
-        productId={product.id}
-        productName={product.title}
-        variantId={selectedVariant?.id}
-        variantInfo={
-          selectedVariant
-            ? selectedVariant.selectedOptions.map((o) => `${o.name}: ${o.value}`).join(' • ')
-            : undefined
-        }
-        currentPrice={price}
-        isShopify
-      />
+
     </StoreLayout>
   );
 };

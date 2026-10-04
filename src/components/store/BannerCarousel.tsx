@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useBanners } from '@/hooks/useProducts';
+import { useBanners } from '@/hooks/useStoreContent';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { resolveImageUrl } from '@/lib/imageUrl';
 

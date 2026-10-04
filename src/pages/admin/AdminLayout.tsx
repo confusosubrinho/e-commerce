@@ -1,20 +1,13 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
-import { AdminErrorIndicator } from '@/components/store/AdminErrorIndicator';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
   Users, 
-  Tags, 
   Settings, 
   LogOut,
   ChevronDown,
-  BarChart3,
-  PenSquare,
   Menu,
   Store,
-  Star,
   Search,
   Sun,
   Moon,
@@ -25,22 +18,11 @@ import {
   CreditCard,
   Bell,
   UserCog,
-  Activity,
   Code,
   HelpCircle,
-  Mail,
   Image,
-  Megaphone,
-  TrendingUp,
-  ShoppingBag,
-  Layers,
-  Globe,
-  BookOpen,
-  Wrench,
-  ClipboardList,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { 
@@ -65,7 +47,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import logoFallback from '@/assets/logo.png';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useStoreSettings } from '@/hooks/useProducts';
+import { useStoreSettings } from '@/hooks/useStoreContent';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { hasPermission } from '@/lib/permissions';
@@ -74,7 +56,6 @@ import { isAdminUrlHidden } from '@/config/admin';
 import { AdminAuthProvider, useAdminAuthProviderValue, useAdminSessionExpired } from '@/contexts/AdminAuthContext';
 
 const SetupWizard = lazy(() => import('@/components/admin/SetupWizard').then(m => ({ default: m.SetupWizard })));
-import { NotificationBell } from '@/components/admin/NotificationBell';
 import { GlobalSearch } from '@/components/admin/GlobalSearch';
 
 interface MenuItem {
@@ -96,55 +77,6 @@ const allMenuSections: MenuSection[] = [
     label: 'Geral',
     items: [
       { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
-      { 
-        title: 'Pedidos', 
-        icon: ShoppingBag,
-        permission: 'orders.read',
-        children: [
-          { title: 'Todos os Pedidos', url: '/admin/pedidos' },
-          { title: 'Carrinhos Abandonados', url: '/admin/carrinhos-abandonados' },
-        ]
-      },
-      { title: 'Clientes', url: '/admin/clientes', icon: Users, permission: 'customers.read' },
-    ],
-  },
-  {
-    label: 'Catálogo',
-    items: [
-      { 
-        title: 'Produtos', 
-        icon: Package,
-        children: [
-          { title: 'Todos os Produtos', url: '/admin/produtos' },
-          { title: 'Categorias', url: '/admin/categorias' },
-          { title: 'Avaliações', url: '/admin/avaliacoes', permission: 'reviews.read' },
-        ]
-      },
-      { title: 'Galeria de Mídia', url: '/admin/galeria', icon: Image },
-    ],
-  },
-  {
-    label: 'Crescimento',
-    items: [
-      { 
-        title: 'Analytics', 
-        icon: TrendingUp,
-        permission: 'analytics.read',
-        children: [
-          { title: 'Vendas', url: '/admin/vendas' },
-          { title: 'Tráfego & UTM', url: '/admin/trafego' },
-          { title: 'Registro Manual', url: '/admin/registro-manual' },
-        ]
-      },
-      { 
-        title: 'Marketing', 
-        icon: Megaphone,
-        permission: 'coupons.read',
-        children: [
-          { title: 'Cupons', url: '/admin/cupons' },
-          { title: 'Email Automações', url: '/admin/email-automations' },
-        ]
-      },
     ],
   },
   {
@@ -175,15 +107,6 @@ const allMenuSections: MenuSection[] = [
     label: 'Configurações',
     items: [
       { title: 'Geral', url: '/admin/configuracoes', icon: Settings, permission: 'settings.read' },
-      { 
-        title: 'Pagamentos', 
-        icon: CreditCard,
-        permission: 'settings.read',
-        children: [
-          { title: 'Checkout', url: '/admin/checkout-transparente' },
-          { title: 'Juros e Cartões', url: '/admin/precos' },
-        ]
-      },
       { title: 'Integrações', url: '/admin/integracoes', icon: Plug, permission: 'settings.read' },
       { title: 'Equipe & Acessos', url: '/admin/equipe', icon: UserCog, permission: 'team.read' },
       { title: 'Notificações', url: '/admin/notificacoes', icon: Bell },
@@ -192,10 +115,7 @@ const allMenuSections: MenuSection[] = [
   {
     label: 'Sistema',
     items: [
-      { title: 'Commerce Health', url: '/admin/commerce-health', icon: Activity, permission: 'settings.read' },
-      { title: 'Logs & Diagnóstico', url: '/admin/sistema', icon: Wrench, permission: 'settings.read' },
       { title: 'Código Externo', url: '/admin/configuracoes/codigo', icon: Code, permission: 'settings.read' },
-      { title: 'Conversões', url: '/admin/configuracoes/conversoes', icon: ClipboardList, permission: 'settings.read' },
       { title: 'Central de Ajuda', url: '/admin/ajuda', icon: HelpCircle },
       { title: 'Super Admin', url: '/admin/super', icon: Shield, permission: 'super_admin.access' },
     ],
@@ -206,21 +126,12 @@ const allMenuSections: MenuSection[] = [
 const allMenuItems: MenuItem[] = allMenuSections.flatMap(s => s.items);
 
 // Mobile bottom tab bar items
-const mobileTabItemsFull = [
-  { title: 'Home', url: '/admin', icon: LayoutDashboard },
-  { title: 'Produtos', url: '/admin/produtos', icon: Package },
-  { title: 'Pedidos', url: '/admin/pedidos', icon: ShoppingBag },
-  { title: 'Analytics', url: '/admin/vendas', icon: TrendingUp },
-];
-const mobileTabItemsShopify = [
+const mobileTabItems = [
   { title: 'Home', url: '/admin', icon: LayoutDashboard },
   { title: 'Aparência', url: '/admin/personalizacao', icon: Palette },
   { title: 'Páginas', url: '/admin/paginas', icon: FileText },
   { title: 'Mídia', url: '/admin/galeria', icon: Image },
 ];
-const mobileTabItems = mobileTabItemsFull.filter(t => !isAdminUrlHidden(t.url)).length === mobileTabItemsFull.length
-  ? mobileTabItemsFull
-  : mobileTabItemsShopify;
 
 function useFilteredMenu(): MenuSection[] {
   const { role, can } = useAdminRole();
@@ -710,7 +621,6 @@ export default function AdminLayout() {
               <MobileMenuSheet />
               <h1 className="text-sm font-semibold flex-1 truncate">{getPageTitle(location.pathname)}</h1>
               <DarkModeToggle isDark={isDark} toggle={toggleDark} />
-              <NotificationBell />
               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
                 <Link to="/" target="_blank">
                   <Store className="h-3.5 w-3.5 mr-1" />
@@ -721,7 +631,6 @@ export default function AdminLayout() {
             <main className="flex-1 p-3 pb-20 overflow-x-hidden">
               <Outlet />
             </main>
-            <AdminErrorIndicator />
             <MobileBottomBar />
           </div>
         </div>
@@ -746,7 +655,6 @@ export default function AdminLayout() {
                 }} />
                 <div className="flex-1" />
                 <DarkModeToggle isDark={isDark} toggle={toggleDark} />
-                <NotificationBell />
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/" target="_blank">Ver Loja</Link>
                 </Button>
@@ -754,7 +662,6 @@ export default function AdminLayout() {
               <main className="flex-1 p-6 bg-background overflow-auto">
                 <Outlet />
               </main>
-              <AdminErrorIndicator />
             </div>
           </div>
         </SidebarProvider>

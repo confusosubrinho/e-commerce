@@ -83,7 +83,6 @@ export function TestimonialsManager() {
   const [editingItem, setEditingItem] = useState<Testimonial | null>(null);
   const [formData, setFormData] = useState<FormData>({ customer_name: '', rating: 5, testimonial: '', photo_url: null, product_id: null });
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
 
   // Config
   const { data: config } = useQuery({
@@ -114,26 +113,13 @@ export function TestimonialsManager() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('homepage_testimonials')
-        .select('*, product:products(id, name, images:product_images(url, is_primary))')
+        .select('*')
         .order('display_order', { ascending: true });
       if (error) throw error;
       return (data as unknown as Testimonial[]) || [];
     },
   });
 
-  // Products for selector
-  const { data: products } = useQuery({
-    queryKey: ['admin-products-for-testimonials'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, base_price, sale_price, images:product_images(url, is_primary)')
-        .eq('is_active', true)
-        .order('name');
-      if (error) throw error;
-      return (data as unknown as Array<{ id: string; name: string; base_price: number; sale_price: number | null; images: ProductImage[] }>) || [];
-    },
-  });
 
   const { getDragProps } = useDragReorder({
     items: testimonials || [],
@@ -190,7 +176,7 @@ export function TestimonialsManager() {
   const resetForm = () => {
     setFormData({ customer_name: '', rating: 5, testimonial: '', photo_url: null, product_id: null });
     setEditingItem(null);
-    setProductSearch('');
+
   };
 
   const handleEdit = (item: Testimonial) => {
@@ -227,13 +213,6 @@ export function TestimonialsManager() {
     return primary?.url || images[0]?.url || null;
   };
 
-  const filteredProducts = products?.filter(p =>
-    productSearch.length > 0 &&
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) &&
-    p.id !== formData.product_id
-  ).slice(0, 15) || [];
-
-  const selectedProduct = formData.product_id ? products?.find(p => p.id === formData.product_id) : null;
 
   return (
     <div className="space-y-6">
@@ -405,49 +384,6 @@ export function TestimonialsManager() {
                       )}
                     </div>
                   </div>
-                </div>
-
-                {/* Product selector */}
-                <div>
-                  <Label>Produto que ela comprou e amou (opcional)</Label>
-                  {selectedProduct && (
-                    <div className="flex items-center gap-2 mt-2 p-2 rounded-md border bg-muted/30">
-                      {getProductImage(selectedProduct.images) && (
-                        <img src={getProductImage(selectedProduct.images)!} alt="" className="w-10 h-10 object-cover rounded" />
-                      )}
-                      <span className="text-sm flex-1 truncate">{selectedProduct.name}</span>
-                      <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setFormData(prev => ({ ...prev, product_id: null }))}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                  <Input
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="Buscar produto..."
-                    className="mt-2"
-                  />
-                  {filteredProducts.length > 0 && (
-                    <ScrollArea className="max-h-40 mt-1 border rounded-md">
-                      <div className="p-1">
-                        {filteredProducts.map(p => {
-                          const img = getProductImage(p.images);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className="flex items-center gap-2 w-full p-2 rounded hover:bg-muted text-left text-sm"
-                              onClick={() => { setFormData(prev => ({ ...prev, product_id: p.id })); setProductSearch(''); }}
-                            >
-                              {img ? <img src={img} alt="" className="w-8 h-8 object-cover rounded" /> : <div className="w-8 h-8 bg-muted rounded" />}
-                              <span className="flex-1 truncate">{p.name}</span>
-                              <span className="text-xs text-muted-foreground">R$ {Number(p.sale_price || p.base_price).toFixed(2)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
-                  )}
                 </div>
 
                 <div className="flex justify-end gap-2">
