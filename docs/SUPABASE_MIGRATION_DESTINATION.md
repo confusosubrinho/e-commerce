@@ -1,5 +1,40 @@
 # Destino da migração
 
+## Estado atual da publicação
+
+Frontend publicado no Lovable em https://vanessalimashoes.com.br/, usando o
+Supabase externo. Commit publicado: fd1669e7e2553afe5e1e4f4f47ff9e05c5f5e27a.
+URL e chave publishable públicas versionadas em src/config/supabase.public.json;
+vite.config.ts fixa esses valores no build, inclusive no Lovable.
+Nenhum segredo administrativo é incluído no frontend.
+
+- Destino: 38 tabelas públicas com RLS, incluindo os formulários newsletter e
+  contato adicionados após conferir as chamadas da interface. Inserções públicas
+  verificadas com ROLLBACK; leitura administrativa protegida.
+- Uma conta de administrador. Login real confirmado pela abertura do painel
+  local em /admin/personalizacao e carregamento das nove seções da home.
+- Site publicado: catálogo Shopify, variante e inclusão no carrinho verificados.
+  O script verify-published-backend.mjs confirmou o host novo e ausência do
+  host antigo nos scripts de entrada publicados; isso não é captura de todo
+  tráfego possível em todas as rotas.
+- 104 testes passaram; TypeScript e build passaram; mídia disponível 22/22.
+- Todos os jobs da origem desativados. Consulta cron.job confirmou zero ativos.
+  Isso não pausa a infraestrutura nem garante interrupção da cobrança do servidor.
+
+Pendências concretas:
+
+1. Desligar a infraestrutura Cloud antiga pelo painel Lovable. O navegador
+   apresentou falta de sessão/acesso; o usuário decidiu entrar depois. Não excluir
+   o projeto Lovable, frontend, domínio nem backups para encerrar esse backend.
+2. Checkout Yampi não aprovado: dois testes de Finalizar Compra terminaram no
+   checkout nativo Shopify, que exibiu "A loja não está aceitando pagamentos no
+   momento". Não houve compra. O código de redirecionamento protegido permanece
+   inalterado; investigar a resposta do endpoint público e integração Shopify/Yampi
+   antes de considerar o fluxo de pagamento validado.
+3. Reenviar as cinco mídias já indisponíveis na origem, descritas abaixo.
+
+As seções seguintes preservam o histórico da inspeção e da migração.
+
 Informado pelo usuário em 04/10/2026:
 
 - URL: https://incrfwanfvnrebztvffd.supabase.co
@@ -59,8 +94,8 @@ O registro acima descreve a inspeção inicial. Depois, com autorização do usu
   configurar segredos e webhook antes de ativar a função.
 - Preparadas .env.local e .env.migration.local com URL/chave pública novas,
   ambas ignoradas pelo Git. Removido fallback do cliente para o backend antigo
-  e o broker de sessão Lovable. A hospedagem publicada ainda precisa receber
-  a configuração nova e o build atualizado.
+  e o broker de sessão Lovable. Configuração pública versionada e build atualizado
+  já publicados, conforme estado atual acima.
 - Removidas chamadas de catálogo da galeria e do conteúdo de Instagram;
   retirados pedidos locais da conta e avaliações locais da página de produto.
   Confirmação antiga redireciona a rastreio, que usa código de envio externo.
@@ -74,21 +109,18 @@ O registro acima descreve a inspeção inicial. Depois, com autorização do usu
 - API anônima: configuração pública visível; perfis e papéis retornam zero
   registros. SQL sob papel authenticated confirmou is_admin e acesso ao
   store_settings; atualização de banner testada com ROLLBACK.
-- Todas as 36 tabelas com RLS; 22/22 arquivos acessíveis; signup bloqueado.
+- Todas as 38 tabelas atuais com RLS; 22/22 arquivos acessíveis; signup bloqueado.
 - Lint dos arquivos novos de galeria/rastreio/cliente passou.
 
-### Próximo passo para concluir a troca
+### Checklist de troca — situação atual
 
-1. Testar login real do administrador em http://127.0.0.1:8080/admin/login com
-   a senha existente. O hash foi preservado, mas a senha não foi solicitada
-   nem um login real foi executado pelo agente.
+1. Login real confirmado no painel local; senha não solicitada nem exposta.
 2. Frontend permanece hospedado no Lovable, conforme decisão do usuário.
-   Configurar no ambiente de build do Lovable VITE_SUPABASE_URL e
-   VITE_SUPABASE_PUBLISHABLE_KEY do destino e publicar o código atualizado.
-   .env.local ignorado pelo Git não configura automaticamente o Lovable.
+   Configuração do destino e publicação concluídas via configuração pública
+   versionada e Git. .env.local permanece ignorado pelo Git.
    Hospedagem e domínio atuais permanecem; não criar Vercel/Cloudflare Pages.
-3. Verificar login, admin, mídia e checkout no domínio publicado; conferir que
-   não existem chamadas ao backend antigo. Só depois desativar Cloud de origem.
+3. Vitrine, carrinho e mídia verificados. Login/admin confirmados localmente.
+   Checkout apresentou a pendência acima. Infraestrutura Cloud ainda não pausada.
 
 Os arquivos .migration-private incluem dados pessoais e hashes de senha e
 não devem ser enviados ao Git, frontend, hospedagem estática ou terceiros.

@@ -103,3 +103,10 @@ Dados, arquivos e autenticação preservados. Banco ainda ativo. Não foram remo
 - Consultas SELECT realizadas no projeto acima: pg_database_size, pg_stat_user_tables, cron.job, agregados de cron.job_run_details, storage.objects e supabase_migrations.schema_migrations. Nenhuma consulta retornou dados de clientes ou segredos.
 
 Limites: detalhamento em créditos obtido pela imagem enviada pelo usuário; sem conversão monetária, métricas de bytes transferidos, tamanho da instância ou logs HTTP das funções. A maior parte do consumo é Database server; ainda não há atribuição por consulta/job nem comprovação do tamanho da instância.
+## Atualização após publicação no Supabase externo
+
+Frontend permanece no Lovable; versão publicada aponta para incrfwanfvnrebztvffd.
+Todos os jobs de cron da origem foram desativados e a contagem de jobs ativos
+confirmada como zero. A infraestrutura Cloud antiga continua provisionada:
+interromper os jobs não encerra a cobrança do servidor. O desligamento pelo painel
+ficou pendente porque o usuário decidiu autenticar no Lovable posteriormente.
