@@ -22,7 +22,7 @@ const ADMIN_WRITE_TABLES = new Set([...SNAPSHOT_TABLES, 'store_settings']);
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '');
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
-const REMOTE_SNAPSHOT_URL = `${SUPABASE_URL}/storage/v1/object/public/site-content/content-snapshot.json`;
+export const REMOTE_SNAPSHOT_URL =`${SUPABASE_URL}/storage/v1/object/public/site-content/content-snapshot.json`;
 const REMOTE_TIMEOUT_MS = 2500;
 const PUBLISH_DEBOUNCE_MS = 1500;
 

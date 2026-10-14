@@ -440,7 +440,7 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
                         {item.ok ? '✅ Configurado' : '⚠️ Não configurado'}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => navigate('/admin/integracoes')}>
+                    <Button variant="outline" size="sm" onClick={() => navigate('/admin/personalizacao')}>
                       Configurar
                     </Button>
                   </div>

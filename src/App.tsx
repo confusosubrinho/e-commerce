@@ -60,14 +60,11 @@ const Personalization = lazy(() => lazyRetry(() => import("./pages/admin/Persona
 const HighlightBanners = lazy(() => lazyRetry(() => import("./pages/admin/HighlightBanners")));
 const Settings = lazy(() => lazyRetry(() => import("./pages/admin/Settings")));
 const CodeSettings = lazy(() => lazyRetry(() => import("./pages/admin/CodeSettings")));
-const Integrations = lazy(() => lazyRetry(() => import("./pages/admin/Integrations")));
 const MediaGallery = lazy(() => lazyRetry(() => import("./pages/admin/MediaGallery")));
-const PricingSettings = lazy(() => lazyRetry(() => import("./pages/admin/PricingSettings")));
 const HelpEditor = lazy(() => lazyRetry(() => import("./pages/admin/HelpEditor")));
 const SocialLinks = lazy(() => lazyRetry(() => import("./pages/admin/SocialLinks")));
 const PagesAdmin = lazy(() => lazyRetry(() => import("./pages/admin/PagesAdmin")));
 const ThemeEditor = lazy(() => lazyRetry(() => import("./pages/admin/ThemeEditor")));
-const Notifications = lazy(() => lazyRetry(() => import("./pages/admin/Notifications")));
 const Team = lazy(() => lazyRetry(() => import("./pages/admin/Team")));
 const SuperAdmin = lazy(() => lazyRetry(() => import("./pages/admin/SuperAdmin")));
 const BlogAdmin = lazy(() => lazyRetry(() => import("./pages/admin/BlogAdmin")));
@@ -238,16 +235,13 @@ const App = () => {
                 <Route path="banners" element={<Banners />} />
                 <Route path="personalizacao" element={<Personalization />} />
                 <Route path="banners-destaque" element={<HighlightBanners />} />
-                <Route path="integracoes" element={<Integrations />} />
                 <Route path="configuracoes" element={<Settings />} />
                 <Route path="configuracoes/codigo" element={<CodeSettings />} />
                 <Route path="galeria" element={<MediaGallery />} />
-                <Route path="precos" element={<PricingSettings />} />
                 <Route path="ajuda" element={<HelpEditor />} />
                 <Route path="redes-sociais" element={<SocialLinks />} />
                 <Route path="paginas" element={<PagesAdmin />} />
                 <Route path="tema" element={<ThemeEditor />} />
-                <Route path="notificacoes" element={<Notifications />} />
                 <Route path="equipe" element={<Team />} />
                 <Route path="super" element={<SuperAdmin />} />
                 <Route path="blog" element={<BlogAdmin />} />

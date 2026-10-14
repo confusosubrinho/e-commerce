@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, 
-  Users, 
-  Settings, 
+  LayoutDashboard,
+  Settings,
   LogOut,
   ChevronDown,
   Menu,
@@ -14,13 +13,11 @@ import {
   Shield,
   Palette,
   FileText,
-  Plug,
-  CreditCard,
-  Bell,
   UserCog,
   Code,
   HelpCircle,
   Image,
+  type LucideIcon,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -62,7 +59,7 @@ import { PublishSiteButton } from '@/components/admin/PublishSiteButton';
 interface MenuItem {
   title: string;
   url?: string;
-  icon: any;
+  icon: LucideIcon;
   permission?: string;
   badge?: string;
   children?: { title: string; url: string; permission?: string }[];
@@ -83,18 +80,20 @@ const allMenuSections: MenuSection[] = [
   {
     label: 'Conteúdo & Aparência',
     items: [
-      { 
-        title: 'Loja Online', 
+      {
+        title: 'Loja Online',
         icon: Palette,
         permission: 'personalization.read',
         children: [
           { title: 'Home Page', url: '/admin/personalizacao' },
+          { title: 'Banners', url: '/admin/banners' },
+          { title: 'Banners de Destaque', url: '/admin/banners-destaque' },
           { title: 'Tema Visual', url: '/admin/tema' },
           { title: 'Redes Sociais', url: '/admin/redes-sociais' },
         ]
       },
-      { 
-        title: 'Páginas', 
+      {
+        title: 'Páginas',
         icon: FileText,
         permission: 'personalization.read',
         children: [
@@ -102,15 +101,14 @@ const allMenuSections: MenuSection[] = [
           { title: 'Blog', url: '/admin/blog' },
         ]
       },
+      { title: 'Galeria de Mídia', url: '/admin/galeria', icon: Image, permission: 'personalization.read' },
     ],
   },
   {
     label: 'Configurações',
     items: [
       { title: 'Geral', url: '/admin/configuracoes', icon: Settings, permission: 'settings.read' },
-      { title: 'Integrações', url: '/admin/integracoes', icon: Plug, permission: 'settings.read' },
       { title: 'Equipe & Acessos', url: '/admin/equipe', icon: UserCog, permission: 'team.read' },
-      { title: 'Notificações', url: '/admin/notificacoes', icon: Bell },
     ],
   },
   {
@@ -524,7 +522,7 @@ export default function AdminLayout() {
   });
 
   useEffect(() => {
-    if (setupData && !(setupData as any).setup_completed) {
+    if (setupData && !setupData.setup_completed) {
       setShowWizard(true);
     }
   }, [setupData]);

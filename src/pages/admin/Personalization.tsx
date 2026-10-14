@@ -1,238 +1,26 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-const HighlightBannersAdmin = lazy(() => import('./HighlightBanners'));
 import { HomeSectionsManager } from '@/components/admin/HomeSectionsManager';
 import { HomePageBuilder } from '@/components/admin/HomePageBuilder';
-import { LayoutGrid, Tag, FileText, CreditCard, Sparkles, PanelTop, MessageSquareQuote, Layers } from 'lucide-react';
+import { LayoutGrid, CreditCard, Sparkles, PanelTop, MessageSquareQuote, Layers } from 'lucide-react';
 import { TestimonialsManager } from '@/components/admin/TestimonialsManager';
 import { FeaturesBarManager } from '@/components/admin/FeaturesBarManager';
 import { FooterCustomizer } from '@/components/admin/FooterCustomizer';
-import { PagesEditor } from '@/components/admin/PagesEditor';
 import { HeaderCustomizer } from '@/components/admin/HeaderCustomizer';
-import { useDragReorder } from '@/hooks/useDragReorder';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { AspectRatio } from '@/components/ui/aspect-ratio';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { compressImageToWebP } from '@/lib/imageCompressor';
 import { normalizeSupabaseMediaUrl } from '@/lib/imageUrl';
-import { Plus, Pencil, Trash2, GripVertical, Upload, Monitor, Smartphone, Video, Image as ImageIcon } from 'lucide-react';
-
-// ─── Banners Section (reuse logic from Banners page) ───
-
-
-interface Banner {
-  id: string;
-  title: string | null;
-  subtitle: string | null;
-  image_url: string;
-  mobile_image_url: string | null;
-  cta_text: string | null;
-  cta_url: string | null;
-  display_order: number;
-  is_active: boolean;
-}
-
-function BannersSection() {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const getErrorMessage = (error: unknown): string => {
-    if (error instanceof Error) return error.message;
-    return 'Erro inesperado';
-  };
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
-  const [uploading, setUploading] = useState<'desktop' | 'mobile' | null>(null);
-  const [formData, setFormData] = useState({
-    title: '', subtitle: '', image_url: '', mobile_image_url: '', cta_text: '', cta_url: '', is_active: true,
-  });
-
-  const { data: banners, isLoading } = useQuery({
-    queryKey: ['admin-banners'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('banners').select('*').order('display_order', { ascending: true });
-      if (error) throw error;
-      return data as Banner[];
-    },
-  });
-
-  const handleFileUpload = useCallback(async (file: File, type: 'desktop' | 'mobile') => {
-    setUploading(type);
-    try {
-      const { file: compressedFile, fileName } = await compressImageToWebP(file);
-      const { error: uploadError } = await supabase.storage.from('product-media').upload(fileName, compressedFile);
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from('product-media').getPublicUrl(fileName);
-      if (type === 'desktop') setFormData(prev => ({ ...prev, image_url: publicUrl }));
-      else setFormData(prev => ({ ...prev, mobile_image_url: publicUrl }));
-      toast({ title: 'Imagem enviada!' });
-    } catch (error: unknown) {
-      toast({ title: 'Erro ao enviar', description: getErrorMessage(error), variant: 'destructive' });
-    } finally { setUploading(null); }
-  }, [toast]);
-
-  const saveMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const bannerData = {
-        title: data.title || null, subtitle: data.subtitle || null,
-        image_url: data.image_url, mobile_image_url: data.mobile_image_url || null,
-        cta_text: data.cta_text || null, cta_url: data.cta_url || null,
-        is_active: data.is_active, display_order: editingBanner?.display_order || (banners?.length || 0),
-      };
-      if (editingBanner) {
-        const { error } = await supabase.from('banners').update(bannerData).eq('id', editingBanner.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('banners').insert(bannerData);
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-banners'] });
-      setIsDialogOpen(false); resetForm();
-      toast({ title: editingBanner ? 'Banner atualizado!' : 'Banner criado!' });
-    },
-    onError: (error: unknown) => toast({ title: 'Erro', description: getErrorMessage(error), variant: 'destructive' }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('banners').delete().eq('id', id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-banners'] });
-      toast({ title: 'Banner excluído!' });
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({ title: '', subtitle: '', image_url: '', mobile_image_url: '', cta_text: '', cta_url: '', is_active: true });
-    setEditingBanner(null);
-  };
-
-  const handleEdit = (banner: Banner) => {
-    setEditingBanner(banner);
-    setFormData({
-      title: banner.title || '', subtitle: banner.subtitle || '',
-      image_url: banner.image_url, mobile_image_url: banner.mobile_image_url || '',
-      cta_text: banner.cta_text || '', cta_url: banner.cta_url || '', is_active: banner.is_active,
-    });
-    setIsDialogOpen(true);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Banners da Página Inicial</h3>
-          <p className="text-sm text-muted-foreground">Carrossel principal do topo da loja</p>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-2" />Novo Banner</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader><DialogTitle>{editingBanner ? 'Editar Banner' : 'Novo Banner'}</DialogTitle></DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(formData); }} className="space-y-4">
-              <Tabs defaultValue="desktop">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="desktop"><Monitor className="h-4 w-4 mr-1" />Desktop</TabsTrigger>
-                  <TabsTrigger value="mobile"><Smartphone className="h-4 w-4 mr-1" />Mobile</TabsTrigger>
-                </TabsList>
-                <TabsContent value="desktop" className="space-y-3 mt-3">
-                  <Label>Imagem Desktop (1920x600) *</Label>
-                  <div className="flex gap-2">
-                    <Input value={formData.image_url} onChange={(e) => setFormData({ ...formData, image_url: e.target.value })} placeholder="URL ou upload" required />
-                    <label className="cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'desktop')} />
-                      <Button type="button" variant="outline" asChild><span><Upload className="h-4 w-4 mr-1" />{uploading === 'desktop' ? '...' : 'Upload'}</span></Button>
-                    </label>
-                  </div>
-                  {formData.image_url && <AspectRatio ratio={16/5} className="bg-muted rounded-lg overflow-hidden"><img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" /></AspectRatio>}
-                </TabsContent>
-                <TabsContent value="mobile" className="space-y-3 mt-3">
-                  <Label>Imagem Mobile (750x900)</Label>
-                  <div className="flex gap-2">
-                    <Input value={formData.mobile_image_url} onChange={(e) => setFormData({ ...formData, mobile_image_url: e.target.value })} placeholder="URL ou upload" />
-                    <label className="cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], 'mobile')} />
-                      <Button type="button" variant="outline" asChild><span><Upload className="h-4 w-4 mr-1" />{uploading === 'mobile' ? '...' : 'Upload'}</span></Button>
-                    </label>
-                  </div>
-                  {formData.mobile_image_url && <div className="max-w-[200px] mx-auto"><AspectRatio ratio={9/16} className="bg-muted rounded-lg overflow-hidden"><img src={formData.mobile_image_url} alt="Preview Mobile" className="w-full h-full object-cover" /></AspectRatio></div>}
-                </TabsContent>
-              </Tabs>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Título</Label><Input value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} /></div>
-                <div><Label>Subtítulo</Label><Input value={formData.subtitle} onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><Label>Texto do Botão</Label><Input value={formData.cta_text} onChange={(e) => setFormData({ ...formData, cta_text: e.target.value })} placeholder="Ver ofertas" /></div>
-                <div><Label>Link do Botão</Label><Input value={formData.cta_url} onChange={(e) => setFormData({ ...formData, cta_url: e.target.value })} placeholder="/outlet" /></div>
-              </div>
-              <div className="flex items-center gap-2"><Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} /><Label>Ativo</Label></div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button type="submit" disabled={saveMutation.isPending}>{saveMutation.isPending ? 'Salvando...' : 'Salvar'}</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {isLoading ? <p className="text-sm text-muted-foreground py-4">Carregando...</p> : banners?.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4">Nenhum banner cadastrado.</p>
-      ) : (
-        <div className="grid gap-3">
-          {banners?.map((banner) => (
-            <Card key={banner.id} className={!banner.is_active ? 'opacity-60' : ''}>
-              <CardContent className="p-3">
-                <div className="flex items-center gap-3">
-                  <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex gap-2 flex-shrink-0">
-                    <img src={banner.image_url} alt={banner.title || 'Banner'} className="h-16 w-28 object-cover rounded" />
-                    {banner.mobile_image_url && <img src={banner.mobile_image_url} alt="Mobile" className="h-16 w-10 object-cover rounded" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{banner.title || 'Sem título'}</p>
-                    {banner.cta_url && <p className="text-xs text-primary truncate">{banner.cta_url}</p>}
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(banner)}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Excluir banner?</AlertDialogTitle>
-                          <AlertDialogDescription>O banner "{banner.title || 'Sem título'}" será excluído permanentemente.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(banner.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import { Plus, Pencil, Trash2, GripVertical, Upload, Video } from 'lucide-react';
 
 // ─── Instagram Videos Section ───
 
@@ -640,49 +428,32 @@ function InstagramVideosSection() {
   );
 }
 
-// ─── Categories Order Section ───
-
-function CategoriesOrderSection() {
-  return <div className="space-y-4"><p>As categorias são coleções da Shopify. Configure os links e a ordem do menu no cabeçalho.</p><HeaderCustomizer /></div>;
-}
-
 export default function Personalization() {
+  const [searchParams] = useSearchParams();
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl sm:text-3xl font-bold">Personalização</h1>
-        <p className="text-sm text-muted-foreground">Gerencie banners, destaques, categorias e vídeos da página inicial</p>
+        <h1 className="text-xl sm:text-3xl font-bold">Home Page</h1>
+        <p className="text-sm text-muted-foreground">Organize as seções, o cabeçalho (menu de categorias), o rodapé e os vídeos da página inicial. Banners ficam no menu Banners.</p>
       </div>
 
-      <Tabs defaultValue="builder" className="space-y-4">
+      <Tabs defaultValue={searchParams.get('tab') ?? 'builder'} className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="builder" className="flex items-center gap-2"><Layers className="h-4 w-4" />Construtor</TabsTrigger>
-          <TabsTrigger value="header" className="flex items-center gap-2"><PanelTop className="h-4 w-4" />Header</TabsTrigger>
+          <TabsTrigger value="header" className="flex items-center gap-2"><PanelTop className="h-4 w-4" />Cabeçalho e categorias</TabsTrigger>
           <TabsTrigger value="secoes" className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" />Seções Produtos</TabsTrigger>
           <TabsTrigger value="recursos" className="flex items-center gap-2"><Sparkles className="h-4 w-4" />Recursos</TabsTrigger>
-          <TabsTrigger value="categorias" className="flex items-center gap-2"><Tag className="h-4 w-4" />Categorias</TabsTrigger>
-          <TabsTrigger value="banners" className="flex items-center gap-2"><ImageIcon className="h-4 w-4" />Banners</TabsTrigger>
-          <TabsTrigger value="destaques" className="flex items-center gap-2"><ImageIcon className="h-4 w-4" />Destaques</TabsTrigger>
           <TabsTrigger value="videos" className="flex items-center gap-2"><Video className="h-4 w-4" />Inspire-se</TabsTrigger>
           <TabsTrigger value="avaliacoes" className="flex items-center gap-2"><MessageSquareQuote className="h-4 w-4" />Avaliações</TabsTrigger>
           <TabsTrigger value="rodape" className="flex items-center gap-2"><CreditCard className="h-4 w-4" />Rodapé</TabsTrigger>
-          <TabsTrigger value="paginas" className="flex items-center gap-2"><FileText className="h-4 w-4" />Páginas</TabsTrigger>
         </TabsList>
         <TabsContent value="builder"><HomePageBuilder /></TabsContent>
         <TabsContent value="header"><HeaderCustomizer /></TabsContent>
         <TabsContent value="secoes"><HomeSectionsManager /></TabsContent>
         <TabsContent value="recursos"><FeaturesBarManager /></TabsContent>
-        <TabsContent value="categorias"><CategoriesOrderSection /></TabsContent>
-        <TabsContent value="banners"><BannersSection /></TabsContent>
-        <TabsContent value="destaques">
-          <Suspense fallback={<p className="text-sm text-muted-foreground py-4">Carregando...</p>}>
-            <HighlightBannersAdmin />
-          </Suspense>
-        </TabsContent>
         <TabsContent value="videos"><InstagramVideosSection /></TabsContent>
         <TabsContent value="avaliacoes"><TestimonialsManager /></TabsContent>
         <TabsContent value="rodape"><FooterCustomizer /></TabsContent>
-        <TabsContent value="paginas"><PagesEditor /></TabsContent>
       </Tabs>
     </div>
   );

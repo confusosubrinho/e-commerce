@@ -2,15 +2,12 @@
  * Super Admin — catálogo das integrações preservadas.
  * Acesso restrito a super_admin e owner.
  */
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { ExternalLink, Loader2, RefreshCw, Shield } from 'lucide-react';
+import { ExternalLink, Loader2, Shield } from 'lucide-react';
 import { useRequireSuperAdmin } from '@/hooks/useRequireSuperAdmin';
 
 const API_CATALOG = [
-  { name: 'Shopify', docs: null, purpose: 'Catálogo, estoque e operação comercial', functions: [] },
-  { name: 'Stripe Billing', docs: null, purpose: 'Assinaturas da plataforma', functions: ['checkout-stripe-webhook'] },
+  { name: 'Shopify', docs: null, purpose: 'Catálogo, estoque, preços, pagamentos e operação comercial', functions: [] },
 ];
 
 export default function SuperAdmin() {
@@ -72,14 +69,6 @@ export default function SuperAdmin() {
               </div>
             </div>
           ))}
-          <div className="pt-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/admin/integracoes">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Configurar integrações
-              </Link>
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>
