@@ -6,6 +6,7 @@ import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { startCheckout } from '@/config/checkout';
 import { PageSEO } from '@/components/seo/PageSEO';
+import { resolveImageUrl } from '@/lib/imageUrl';
 
 const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
@@ -15,6 +16,7 @@ const Cart = () => {
     const url = await startCheckout(
       items.map((i) => ({
         variantId: i.variantId,
+        productId: i.product.id,
         quantity: i.quantity,
         title: i.product.title,
         variantTitle: i.variantTitle,
@@ -50,7 +52,7 @@ const Cart = () => {
                 >
                   {item.product.image ? (
                     <img
-                      src={item.product.image.url}
+                      src={resolveImageUrl(item.product.image.url, { width: 192 })}
                       alt={item.product.title}
                       className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
                     />

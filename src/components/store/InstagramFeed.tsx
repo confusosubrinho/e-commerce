@@ -6,21 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { normalizeSupabaseMediaUrl, resolveImageUrl } from '@/lib/imageUrl';
 import { useHorizontalScrollAxisLock } from '@/hooks/useHorizontalScrollAxisLock';
+import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 
 interface InstagramVideo {
   id: string;
   video_url: string;
   thumbnail_url: string | null;
   username: string | null;
-  product_id: string | null;
+  product_handle?: string | null;
   display_order: number;
   is_active: boolean;
-  product?: {
-    id: string;
-    name: string;
-    slug: string;
-    images?: { url: string; is_primary: boolean }[];
-  } | null;
+}
+
+interface LinkedProduct {
+  name: string;
+  slug: string;
+  imageUrl?: string;
 }
 
 function normalizeMediaUrl(raw: string | null | undefined): string {
@@ -86,6 +87,19 @@ export function InstagramFeed() {
       return rows.filter((row) => normalizeVideoUrl(row.video_url).length > 0);
     },
   });
+
+  const linkedHandles = [...new Set((videos ?? []).map((v) => v.product_handle).filter((h): h is string => !!h))];
+  const { data: linkedShopifyProducts } = useShopifyProducts({
+    first: Math.max(linkedHandles.length, 1),
+    query: linkedHandles.map((h) => `handle:${h}`).join(' OR '),
+    enabled: linkedHandles.length > 0,
+  });
+  const productsByHandle = new Map<string, LinkedProduct>(
+    (linkedShopifyProducts ?? []).map(({ node }) => [
+      node.handle,
+      { name: node.title, slug: node.handle, imageUrl: node.images?.edges?.[0]?.node?.url },
+    ]),
+  );
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -301,7 +315,8 @@ export function InstagramFeed() {
             const thumbKey = `thumb-${video.id}`;
             const productImageKey = `product-${video.id}`;
             const isActive = index === activeIndex;
-            const productImage = video.product?.images?.find(i => i.is_primary)?.url || video.product?.images?.[0]?.url;
+            const product = video.product_handle ? productsByHandle.get(video.product_handle) : undefined;
+            const productImage = product?.imageUrl;
             const normalizedThumbUrl = normalizeImageUrl(video.thumbnail_url);
             const normalizedProductImage = normalizeImageUrl(productImage);
             const thumbAvailable = Boolean(normalizedThumbUrl) && !failedImageKeys[thumbKey];
@@ -424,19 +439,19 @@ export function InstagramFeed() {
                 </div>
 
                 {/* Product link below video */}
-                {video.product && (
+                {product && (
                   <Link
-                    to={`/produto/${video.product.slug}`}
+                    to={`/produto/${product.slug}`}
                     className={`mt-3 flex items-center gap-2 rounded-xl border bg-background p-2 transition-all ${
                       isActive ? 'border-zinc-300 shadow-sm' : 'border-zinc-200'
                     }`}
                     onClick={(e) => e.stopPropagation()}
-                    aria-label={`Ver produto ${video.product.name}`}
+                    aria-label={`Ver produto ${product.name}`}
                   >
                     {productImageAvailable && (
                       <img
                         src={normalizedProductImage}
-                        alt={video.product.name}
+                        alt={product.name}
                         className="w-10 h-10 rounded object-cover"
                         onError={(event) => {
                           setFailedImageKeys((prev) => ({ ...prev, [productImageKey]: true }));
@@ -446,7 +461,7 @@ export function InstagramFeed() {
                       />
                     )}
                     <span className="text-xs font-medium line-clamp-2 flex-1">
-                      {video.product.name}
+                      {product.name}
                     </span>
                   </Link>
                 )}

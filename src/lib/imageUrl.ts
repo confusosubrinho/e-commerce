@@ -174,8 +174,31 @@ export function resolveImageUrl(
   if (width > 0 && isTrayCdnUrl(url)) {
     return getTrayResizedUrl(url, width, options?.height);
   }
+  if (width > 0 && isShopifyCdnUrl(url)) {
+    return getShopifyResizedUrl(url, width);
+  }
 
   return url;
+}
+
+function isShopifyCdnUrl(url: string): boolean {
+  return url.startsWith('https://cdn.shopify.com/');
+}
+
+function getShopifyResizedUrl(url: string, width: number): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('width', String(Math.round(width)));
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** srcset com larguras redimensionadas pela CDN da Shopify; vazio para outras origens. */
+export function shopifySrcSet(url: string | null | undefined, widths: number[]): string | undefined {
+  if (!url || !isShopifyCdnUrl(url)) return undefined;
+  return widths.map((w) => `${getShopifyResizedUrl(url, w)} ${w}w`).join(', ');
 }
 
 /**

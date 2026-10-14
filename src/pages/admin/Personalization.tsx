@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useShopifyProducts } from '@/hooks/useShopifyProducts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -29,14 +31,9 @@ interface InstagramVideo {
   video_url: string;
   thumbnail_url: string | null;
   username: string | null;
-  product_id: string | null;
+  product_handle?: string | null;
   display_order: number | null;
   is_active: boolean | null;
-}
-
-interface ProductOption {
-  id: string;
-  name: string;
 }
 
 function InstagramVideosSection() {
@@ -49,8 +46,10 @@ function InstagramVideosSection() {
   const [failedListThumbIds, setFailedListThumbIds] = useState<Record<string, boolean>>({});
   const [fieldErrors, setFieldErrors] = useState<{ video_url?: string; thumbnail_url?: string }>({});
   const [formData, setFormData] = useState({
-    video_url: '', thumbnail_url: '', username: '', product_id: '', is_active: true,
+    video_url: '', thumbnail_url: '', username: '', product_handle: '', is_active: true,
   });
+  const { data: shopifyProducts } = useShopifyProducts({ first: 250, sortKey: 'TITLE' });
+  const productTitleByHandle = new Map((shopifyProducts ?? []).map((p) => [p.node.handle, p.node.title]));
 
   const getErrorMessage = (error: unknown): string => {
     if (error instanceof Error) return error.message;
@@ -242,14 +241,14 @@ function InstagramVideosSection() {
         video_url: string;
         thumbnail_url: string | null;
         username: string | null;
-        product_id: string | null;
+        product_handle: string | null;
         is_active: boolean;
         display_order: number | null;
       } = {
         video_url: normalizedVideoUrl,
         thumbnail_url: normalizedThumbUrl || null,
         username: data.username.replace(/^@+/, '').trim() || null,
-        product_id: data.product_id || null,
+        product_handle: data.product_handle || null,
         is_active: data.is_active,
         display_order: editingVideo?.display_order || (videos?.length || 0),
       };
@@ -283,7 +282,7 @@ function InstagramVideosSection() {
   });
 
   const resetForm = () => {
-    setFormData({ video_url: '', thumbnail_url: '', username: '', product_id: '', is_active: true });
+    setFormData({ video_url: '', thumbnail_url: '', username: '', product_handle: '', is_active: true });
     setFieldErrors({});
     setEditingVideo(null);
   };
@@ -292,7 +291,7 @@ function InstagramVideosSection() {
     setEditingVideo(video);
     setFormData({
       video_url: video.video_url, thumbnail_url: video.thumbnail_url || '',
-      username: video.username || '', product_id: video.product_id || '', is_active: video.is_active !== false,
+      username: video.username || '', product_handle: video.product_handle || '', is_active: video.is_active !== false,
     });
     setIsDialogOpen(true);
   };
@@ -365,6 +364,19 @@ function InstagramVideosSection() {
                 {fieldErrors.thumbnail_url && <p className="mt-1 text-xs text-destructive">{fieldErrors.thumbnail_url}</p>}
               </div>
               <div><Label>Username Instagram</Label><Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} placeholder="@usuario" className="mt-1" /></div>
+              <div>
+                <Label>Produto relacionado (opcional)</Label>
+                <Select value={formData.product_handle || 'none'} onValueChange={(value) => setFormData({ ...formData, product_handle: value === 'none' ? '' : value })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {(shopifyProducts ?? []).map(({ node }) => (
+                      <SelectItem key={node.handle} value={node.handle}>{node.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">Aparece abaixo do vídeo com link para a página do produto.</p>
+              </div>
               <div className="flex items-center gap-2"><Switch checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} /><Label>Ativo</Label></div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
@@ -398,7 +410,7 @@ function InstagramVideosSection() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{video.username ? `@${video.username}` : 'Sem username'}</p>
-                    <p className="text-xs text-muted-foreground truncate">{video.video_url}</p>
+                    <p className="text-xs text-muted-foreground truncate">{video.product_handle ? `Produto: ${productTitleByHandle.get(video.product_handle) ?? video.product_handle}` : video.video_url}</p>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(video)}><Pencil className="h-3.5 w-3.5" /></Button>

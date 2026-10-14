@@ -8,13 +8,7 @@
 
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-
-const BASE_URL = 'https://vanessalimashoes.com.br';
-
-const SHOPIFY_API_VERSION = '2025-07';
-const SHOPIFY_STORE_PERMANENT_DOMAIN = 'vanessalima-o6a1s.myshopify.com';
-const SHOPIFY_STOREFRONT_TOKEN = '3b50111b61aab29fb14f6ccfa3eb821c';
-const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
+import { SITE_URL, fetchAll } from './shopify-storefront';
 
 interface SitemapEntry {
   path: string;
@@ -66,24 +60,6 @@ const COLLECTIONS_QUERY = `
   }
 `;
 
-async function storefront<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
-  try {
-    const res = await fetch(SHOPIFY_STOREFRONT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Storefront-Access-Token': SHOPIFY_STOREFRONT_TOKEN,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { data?: T };
-    return json.data ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function xmlEscape(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -94,80 +70,34 @@ function xmlEscape(value: string): string {
 }
 
 async function fetchProducts(): Promise<SitemapEntry[]> {
-  const entries: SitemapEntry[] = [];
-  let cursor: string | null = null;
-
-  for (let page = 0; page < 20; page++) {
-    const data = await storefront<{
-      products: {
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        edges: {
-          node: {
-            handle: string;
-            title: string;
-            updatedAt: string;
-            featuredImage: { url: string } | null;
-          };
-        }[];
-      };
-    }>(PRODUCTS_QUERY, { cursor });
-
-    if (!data?.products) break;
-
-    for (const { node } of data.products.edges) {
-      entries.push({
-        path: `/produto/${node.handle}`,
-        lastmod: node.updatedAt,
-        changefreq: 'weekly',
-        priority: '0.9',
-        image: node.featuredImage?.url
-          ? { loc: node.featuredImage.url, title: node.title }
-          : undefined,
-      });
-    }
-
-    if (!data.products.pageInfo.hasNextPage) break;
-    cursor = data.products.pageInfo.endCursor;
-  }
-
-  return entries;
+  const nodes = await fetchAll<{ handle: string; title: string; updatedAt: string; featuredImage: { url: string } | null }>(
+    PRODUCTS_QUERY,
+    'products',
+  );
+  return nodes.map((node) => ({
+    path: `/produto/${node.handle}`,
+    lastmod: node.updatedAt,
+    changefreq: 'weekly',
+    priority: '0.9',
+    image: node.featuredImage?.url ? { loc: node.featuredImage.url, title: node.title } : undefined,
+  }));
 }
 
 async function fetchCollections(): Promise<SitemapEntry[]> {
-  const entries: SitemapEntry[] = [];
-  let cursor: string | null = null;
-
-  for (let page = 0; page < 10; page++) {
-    const data = await storefront<{
-      collections: {
-        pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        edges: { node: { handle: string; updatedAt: string } }[];
-      };
-    }>(COLLECTIONS_QUERY, { cursor });
-
-    if (!data?.collections) break;
-
-    for (const { node } of data.collections.edges) {
-      entries.push({
-        path: `/categoria/${node.handle}`,
-        lastmod: node.updatedAt,
-        changefreq: 'weekly',
-        priority: '0.7',
-      });
-    }
-
-    if (!data.collections.pageInfo.hasNextPage) break;
-    cursor = data.collections.pageInfo.endCursor;
-  }
-
-  return entries;
+  const nodes = await fetchAll<{ handle: string; updatedAt: string }>(COLLECTIONS_QUERY, 'collections', 10);
+  return nodes.map((node) => ({
+    path: `/categoria/${node.handle}`,
+    lastmod: node.updatedAt,
+    changefreq: 'weekly',
+    priority: '0.7',
+  }));
 }
 
 function generateSitemap(entries: SitemapEntry[]): string {
   const urls = entries.map((e) =>
     [
       '  <url>',
-      `    <loc>${xmlEscape(BASE_URL + e.path)}</loc>`,
+      `    <loc>${xmlEscape(SITE_URL + e.path)}</loc>`,
       e.lastmod ? `    <lastmod>${new Date(e.lastmod).toISOString()}</lastmod>` : null,
       e.changefreq ? `    <changefreq>${e.changefreq}</changefreq>` : null,
       e.priority ? `    <priority>${e.priority}</priority>` : null,

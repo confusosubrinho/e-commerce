@@ -113,7 +113,7 @@ export function BannerCarousel() {
                     className="w-full h-full object-contain"
                     style={isMobile ? { maxHeight: '550px' } : { maxHeight: '600px' }}
                     loading={isFirst ? 'eager' : 'lazy'}
-                    fetchPriority={isFirst ? 'high' : 'auto'}
+                    {...{ fetchpriority: isFirst ? 'high' : 'auto' }}
                     decoding={isFirst ? 'sync' : 'async'}
                     width={w}
                     height={h}

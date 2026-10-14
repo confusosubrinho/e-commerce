@@ -23,6 +23,8 @@ import { PageSEO } from '@/components/seo/PageSEO';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { StickyAddToCart } from '@/components/store/StickyAddToCart';
+import { resolveImageUrl, shopifySrcSet } from '@/lib/imageUrl';
+import { shopifyNumericId, trackCommerce } from '@/lib/tracking';
 
 
 const ProductDetail = () => {
@@ -84,6 +86,17 @@ const ProductDetail = () => {
       ) || null
     );
   }, [product, selectedOptions]);
+
+  useEffect(() => {
+    if (!product) return;
+    const price = product.variants.edges[0]?.node.price;
+    trackCommerce('view_item', [{
+      id: shopifyNumericId(product.id),
+      name: product.title,
+      price: price ? parseFloat(price.amount) : 0,
+    }], price?.currencyCode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   if (isLoading) {
     return (
@@ -155,6 +168,8 @@ const ProductDetail = () => {
     .trim()
     .slice(0, 160);
 
+  const brandName = product.vendor && !/^vanessalima-/i.test(product.vendor) ? product.vendor : 'Vanessa Lima Shoes';
+
   return (
     <StoreLayout>
       <PageSEO
@@ -169,7 +184,7 @@ const ProductDetail = () => {
           name: product.title,
           description: plainDescription || undefined,
           image: images.map((i) => i.url),
-          brand: product.vendor || undefined,
+          brand: { '@type': 'Brand', name: brandName },
           offers: selectedVariant
             ? {
                 '@type': 'Offer',
@@ -195,7 +210,9 @@ const ProductDetail = () => {
           <div className="aspect-square rounded-lg overflow-hidden bg-muted">
             {activeImage ? (
               <img
-                src={activeImage.url}
+                src={resolveImageUrl(activeImage.url, { width: 900 })}
+                srcSet={shopifySrcSet(activeImage.url, [480, 720, 900, 1200])}
+                sizes="(min-width: 768px) 50vw, 100vw"
                 alt={activeImage.altText || product.title}
                 className="w-full h-full object-cover"
               />
@@ -217,7 +234,7 @@ const ProductDetail = () => {
                   }`}
                   aria-label={`Imagem ${i + 1}`}
                 >
-                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  <img src={resolveImageUrl(img.url, { width: 128 })} alt="" className="w-full h-full object-cover" loading="lazy" />
                 </button>
               ))}
             </div>
@@ -227,11 +244,7 @@ const ProductDetail = () => {
         {/* Info + opções */}
         <div className="space-y-5">
           <div>
-            {product.vendor && (
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                {product.vendor}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">{brandName}</p>
             <h1 className="text-2xl md:text-3xl font-bold mt-1">{product.title}</h1>
           </div>
 

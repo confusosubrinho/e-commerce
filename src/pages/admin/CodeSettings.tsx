@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Code, Save, AlertTriangle, BarChart3 } from 'lucide-react';
 import type { StoreSettings } from '@/types/database';
+import { TRACKING_ID_FORMATS } from '@/lib/tracking';
 
 export default function CodeSettings() {
   const queryClient = useQueryClient();
@@ -69,14 +70,30 @@ export default function CodeSettings() {
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       toast({ title: 'Códigos salvos!' });
     },
-    onError: (error: any) => {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    onError: (error: unknown) => {
+      toast({ title: 'Erro ao salvar', description: error instanceof Error ? error.message : String(error), variant: 'destructive' });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    saveMutation.mutate(formData);
+    const data = {
+      ...formData,
+      google_analytics_id: formData.google_analytics_id?.trim().toUpperCase() || '',
+      facebook_pixel_id: formData.facebook_pixel_id?.trim() || '',
+      tiktok_pixel_id: formData.tiktok_pixel_id?.trim().toUpperCase() || '',
+    };
+    const invalid = [
+      data.google_analytics_id && !TRACKING_ID_FORMATS.googleAnalytics.test(data.google_analytics_id) && 'Google Analytics (use o ID G-XXXXXXXXXX)',
+      data.facebook_pixel_id && !TRACKING_ID_FORMATS.facebookPixel.test(data.facebook_pixel_id) && 'Pixel da Meta (somente números)',
+      data.tiktok_pixel_id && !TRACKING_ID_FORMATS.tiktokPixel.test(data.tiktok_pixel_id) && 'Pixel do TikTok (letras maiúsculas e números)',
+    ].filter(Boolean);
+    if (invalid.length) {
+      toast({ title: 'ID em formato inválido', description: invalid.join('; '), variant: 'destructive' });
+      return;
+    }
+    setFormData(data);
+    saveMutation.mutate(data);
   };
 
   if (isLoading) {
@@ -93,8 +110,10 @@ export default function CodeSettings() {
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Códigos inseridos aqui serão adicionados a todas as páginas da loja. 
-          Certifique-se de que os códigos estão corretos para não afetar o funcionamento do site.
+          Pixels e códigos são carregados em todas as páginas da loja, mas só para visitantes que clicarem em
+          “Aceitar” no aviso de cookies (LGPD). Visualizações de página, produto visto, adicionar ao carrinho e
+          início de checkout são enviados automaticamente. Scripts externos nos códigos Head/Body só funcionam se o
+          domínio estiver liberado na política de segurança do site (Google, Meta e TikTok já estão).
         </AlertDescription>
       </Alert>
 
@@ -123,7 +142,7 @@ export default function CodeSettings() {
                   <Input
                     value={formData.google_analytics_id}
                     onChange={(e) => setFormData({ ...formData, google_analytics_id: e.target.value })}
-                    placeholder="G-XXXXXXXXXX ou UA-XXXXXXX-X"
+                    placeholder="G-XXXXXXXXXX"
                   />
                   <p className="text-xs text-muted-foreground">
                     Encontre seu ID em Google Analytics → Administrador → Propriedade → ID da medição

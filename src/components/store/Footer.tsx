@@ -8,6 +8,8 @@ import { useStoreContact, formatPhone } from '@/hooks/useStoreContact';
 import { sanitizeHtml } from '@/lib/sanitizeHtml';
 import { FeedbackPreferencesDialog } from './FeedbackPreferencesDialog';
 import { useBlogSettings } from '@/hooks/useBlog';
+import { SHOPIFY_ACCOUNT_URL } from '@/lib/shopify/client';
+import { setConsent } from '@/lib/tracking';
 
 interface PaymentMethod {
   id: string;
@@ -112,12 +114,17 @@ export function Footer() {
             <ul className="space-y-2.5 text-sm text-secondary-foreground/80">
               <li><Link to="/faq" className="hover:text-primary transition-colors">Perguntas Frequentes</Link></li>
               <li><Link to="/como-comprar" className="hover:text-primary transition-colors">Como Comprar</Link></li>
-              <li><Link to="/conta" className="hover:text-primary transition-colors">Minha Conta</Link></li>
+              <li><a href={SHOPIFY_ACCOUNT_URL} className="hover:text-primary transition-colors">Minha Conta</a></li>
               <li><Link to="/formas-pagamento" className="hover:text-primary transition-colors">Formas de Pagamento</Link></li>
               <li><Link to="/rastreio" className="hover:text-primary transition-colors">Rastrear Pedido</Link></li>
               <li><Link to="/mais-vendidos" className="hover:text-primary transition-colors">Mais Vendidos</Link></li>
               <li>
                 <FeedbackPreferencesDialog />
+              </li>
+              <li>
+                <button type="button" onClick={() => setConsent(null)} className="hover:text-primary transition-colors">
+                  Preferências de cookies
+                </button>
               </li>
             </ul>
           </div>

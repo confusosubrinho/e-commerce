@@ -166,7 +166,7 @@ export function SearchPreview({ onSearch, onFocus, className }: SearchPreviewPro
                   aria-selected={index === highlightedIndex}
                 >
                   <img
-                    src={resolveImageUrl(primaryImage?.url)}
+                    src={resolveImageUrl(primaryImage?.url, { width: 112 })}
                     alt={product.title}
                     className="w-14 h-14 rounded-lg object-cover"
                     loading="lazy"

@@ -4,6 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { visualizer } from "rollup-plugin-visualizer";
 import supabasePublic from "./src/config/supabase.public.json";
+import { socialPrerender } from "./scripts/social-prerender";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -22,6 +23,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
+    socialPrerender(),
     process.env.ANALYZE_BUNDLE === "1" && (visualizer({ filename: "dist/stats.html", gzipSize: true, brotliSize: true }) as PluginOption),
   ].filter(Boolean),
   resolve: {

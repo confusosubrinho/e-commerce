@@ -34,10 +34,10 @@ function lazyRetry<T extends { default: React.ComponentType }>(
 const ProductDetail = lazy(() => lazyRetry(() => import("./pages/ProductDetail")));
 const CategoryPage = lazy(() => lazyRetry(() => import("./pages/CategoryPage")));
 const SizePage = lazy(() => lazyRetry(() => import("./pages/SizePage")));
-const Auth = lazy(() => lazyRetry(() => import("./pages/Auth")));
 const Cart = lazy(() => lazyRetry(() => import("./pages/Cart")));
 const Checkout = lazy(() => lazyRetry(() => import("./pages/Checkout")));
-const MyAccount = lazy(() => lazyRetry(() => import("./pages/MyAccount")));
+const AccountRedirect = lazy(() => lazyRetry(() => import("./pages/AccountRedirect").then((m) => ({ default: m.ShopifyAccountRedirect }))));
+const AuthLanding = lazy(() => lazyRetry(() => import("./pages/AccountRedirect").then((m) => ({ default: m.AuthLanding }))));
 const RastreioPage = lazy(() => lazyRetry(() => import("./pages/RastreioPage")));
 const FavoritesPage = lazy(() => lazyRetry(() => import("./pages/FavoritesPage")));
 const SearchPage = lazy(() => lazyRetry(() => import("./pages/SearchPage")));
@@ -76,6 +76,7 @@ const CheckoutReturn = lazy(() => lazyRetry(() => import("./pages/CheckoutReturn
 // Lazy load non-critical floating components
 const WhatsAppFloat = lazy(() => lazyRetry(() => import("./components/store/WhatsAppFloat").then(m => ({ default: m.WhatsAppFloat }))));
 const CookieConsent = lazy(() => lazyRetry(() => import("./components/store/CookieConsent").then(m => ({ default: m.CookieConsent }))));
+const TrackingManager = lazy(() => lazyRetry(() => import("./components/store/TrackingManager").then(m => ({ default: m.TrackingManager }))));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -183,6 +184,7 @@ const App = () => {
           <Suspense fallback={null}>
             <WhatsAppFloat />
             <CookieConsent />
+            <TrackingManager />
           </Suspense>
           <ScrollToTop />
           <VersionChecker />
@@ -193,8 +195,8 @@ const App = () => {
               <Route path="/produto/:handle" element={<ProductDetail />} />
               <Route path="/product/:handle" element={<ProductDetail />} />
               <Route path="/categoria/:slug" element={<CategoryPage />} />
-              <Route path="/conta" element={<MyAccount />} />
-              <Route path="/auth" element={<Auth />} />
+              <Route path="/conta" element={<AccountRedirect />} />
+              <Route path="/auth" element={<AuthLanding />} />
               <Route path="/carrinho" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/checkout/start" element={<CheckoutStart />} />

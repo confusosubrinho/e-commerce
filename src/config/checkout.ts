@@ -1,4 +1,5 @@
 import { SHOPIFY_STORE_PERMANENT_DOMAIN } from '@/lib/shopify/client';
+import { shopifyNumericId, trackCommerce } from '@/lib/tracking';
 
 export const YAMPI_CHECKOUT_BASE_URL = 'https://seguro.vanessalimashoes.com.br/';
 const YAMPI_PUBLIC_CART_ENDPOINT = 'https://api.dooki.com.br/v2/public/shopify/cart';
@@ -7,6 +8,7 @@ const DEFAULT_CHECKOUT_PROVIDER = YAMPI_CHECKOUT_PROVIDER;
 
 export interface CartLineForCheckout {
   variantId: string; // GID: gid://shopify/ProductVariant/12345
+  productId?: string;
   quantity: number;
   title?: string;
   variantTitle?: string;
@@ -191,6 +193,13 @@ async function resolveYampiCheckoutUrl(lines: CartLineForCheckout[]): Promise<st
 }
 
 export async function startCheckout(lines: CartLineForCheckout[]): Promise<string> {
+  trackCommerce('begin_checkout', lines.map((l) => ({
+    id: shopifyNumericId(l.productId ?? l.variantId),
+    name: l.title ?? 'Produto',
+    price: Number.parseFloat(l.price ?? '0') || 0,
+    quantity: l.quantity,
+  })));
+
   if (DEFAULT_CHECKOUT_PROVIDER === YAMPI_CHECKOUT_PROVIDER) {
     try {
       const yampiUrl = await resolveYampiCheckoutUrl(lines);

@@ -7,6 +7,7 @@ import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { startCheckout } from '@/config/checkout';
+import { resolveImageUrl } from '@/lib/imageUrl';
 
 interface Props {
   /** Renderiza o trigger interno (default true). Se false, controle via `open`/`onOpenChange`. */
@@ -36,6 +37,7 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
     const url = await startCheckout(
       items.map((i) => ({
         variantId: i.variantId,
+        productId: i.product.id,
         quantity: i.quantity,
         title: i.product.title,
         variantTitle: i.variantTitle,
@@ -92,7 +94,7 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
                   <div key={item.variantId} className="flex gap-3 border-b pb-3">
                     {item.product.image ? (
                       <img
-                        src={item.product.image.url}
+                        src={resolveImageUrl(item.product.image.url, { width: 128 })}
                         alt={item.product.title}
                         className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
                       />

@@ -7,15 +7,3 @@ enable_signup = false
 
 [functions.cron-cleanup-logs]
 verify_jwt = false
-
-[functions.seo-sitemap]
-verify_jwt = false
-
-[functions.seo-robots]
-verify_jwt = false
-
-[functions.checkout-stripe-webhook]
-verify_jwt = false
-
-[functions.seo-generate]
-verify_jwt = false

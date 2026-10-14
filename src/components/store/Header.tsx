@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 
 import { useShopifyCollections } from '@/hooks/useShopifyCollections';
 import { ShopifyCartDrawer } from '@/components/shopify/ShopifyCartDrawer';
+import { SHOPIFY_ACCOUNT_URL } from '@/lib/shopify/client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useStoreSettingsPublic } from '@/hooks/useStoreContact';
 import defaultLogo from '@/assets/logo.png';
@@ -186,10 +187,10 @@ export function Header() {
                       <Heart className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm">Favoritos</span>
                     </Link>
-                    <Link to="/conta" className="flex items-center gap-3 py-3 px-3 hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
+                    <a href={SHOPIFY_ACCOUNT_URL} className="flex items-center gap-3 py-3 px-3 hover:bg-muted rounded-lg transition-colors">
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm">Minha Conta</span>
-                    </Link>
+                    </a>
                     <Link to="/atendimento" className="flex items-center gap-3 py-3 px-3 hover:bg-muted rounded-lg transition-colors" onClick={() => setMobileMenuOpen(false)}>
                       <HelpCircle className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm">Atendimento</span>
@@ -283,15 +284,15 @@ export function Header() {
               )}
             </div>
 
-            <Link to="/conta" className="hidden md:flex items-center gap-1.5 text-sm hover:text-primary transition-colors px-2 py-1.5 rounded-md hover:bg-muted" title="Minha Conta">
+            <a href={SHOPIFY_ACCOUNT_URL} className="hidden md:flex items-center gap-1.5 text-sm hover:text-primary transition-colors px-2 py-1.5 rounded-md hover:bg-muted" title="Minha Conta">
               <User className="h-5 w-5" />
               <span className="font-medium hidden lg:inline">Conta</span>
-            </Link>
+            </a>
 
             {/* Mobile icons */}
-            <Link to="/conta" className="md:hidden flex items-center justify-center w-10 h-10 min-w-[44px] min-h-[44px]">
+            <a href={SHOPIFY_ACCOUNT_URL} className="md:hidden flex items-center justify-center w-10 h-10 min-w-[44px] min-h-[44px]" aria-label="Minha Conta">
               <User className="h-5 w-5" />
-            </Link>
+            </a>
 
             {/* Cart - Shopify */}
             <ShopifyCartDrawer />

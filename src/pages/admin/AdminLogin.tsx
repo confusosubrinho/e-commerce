@@ -13,6 +13,7 @@ import { Shield, Lock, AlertTriangle } from 'lucide-react';
 import { useStoreSettings } from '@/hooks/useStoreContent';
 import { useTenant } from '@/hooks/useTenant';
 import logoFallback from '@/assets/logo.png';
+import { isPasswordRecoveryLanding } from '@/lib/authRecovery';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -39,14 +40,69 @@ export default function AdminLogin() {
   const [totpCode, setTotpCode] = useState('');
   const [pendingFactorId, setPendingFactorId] = useState<string | null>(null);
   const totpInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<'login' | 'forgot' | 'recovery'>(isPasswordRecoveryLanding ? 'recovery' : 'login');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
 
   useEffect(() => {
-    checkExistingSession();
+    if (!isPasswordRecoveryLanding) checkExistingSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setMode('recovery');
+    });
+    return () => subscription.unsubscribe();
   }, []);
+
+  const handleForgotPassword = async () => {
+    const email = forgotEmail.trim();
+    if (!z.string().email().safeParse(email).success) {
+      toast({ title: 'Digite um email válido', variant: 'destructive' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) {
+        toast({ title: 'Não foi possível enviar o email', description: error.message, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Verifique seu email', description: 'Se o email tiver acesso ao painel, você receberá um link para criar uma nova senha.' });
+      setMode('login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSetNewPassword = async () => {
+    if (newPassword.length < 8) {
+      toast({ title: 'A senha deve ter no mínimo 8 caracteres', variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: 'As senhas não coincidem', variant: 'destructive' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast({ title: 'Não foi possível salvar a senha', description: error.message, variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Senha atualizada' });
+      setMode('login');
+      navigate('/admin/login', { replace: true });
+      await checkExistingSession();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Lockout countdown timer
   useEffect(() => {
@@ -212,7 +268,13 @@ export default function AdminLogin() {
             Painel Administrativo
           </CardTitle>
           <CardDescription>
-            {showTOTP ? 'Verificação em duas etapas' : 'Faça login para acessar'}
+            {showTOTP
+              ? 'Verificação em duas etapas'
+              : mode === 'recovery'
+                ? 'Crie uma nova senha'
+                : mode === 'forgot'
+                  ? 'Recuperar acesso'
+                  : 'Faça login para acessar'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -263,6 +325,33 @@ export default function AdminLogin() {
                 Voltar ao login
               </Button>
             </div>
+          ) : mode === 'recovery' ? (
+            <form onSubmit={(e) => { e.preventDefault(); handleSetNewPassword(); }} className="space-y-4">
+              <div>
+                <Label htmlFor="new-password">Nova senha</Label>
+                <Input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                <Input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Salvando...' : 'Salvar nova senha'}
+              </Button>
+            </form>
+          ) : mode === 'forgot' ? (
+            <form onSubmit={(e) => { e.preventDefault(); handleForgotPassword(); }} className="space-y-4">
+              <div>
+                <Label htmlFor="forgot-email">Email</Label>
+                <Input id="forgot-email" type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Enviando...' : 'Enviar link de recuperação'}
+              </Button>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => setMode('login')}>
+                Voltar ao login
+              </Button>
+            </form>
           ) : (
             <>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -279,7 +368,12 @@ export default function AdminLogin() {
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="password">Senha</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Senha</Label>
+                    <button type="button" className="text-xs text-primary hover:underline" onClick={() => setMode('forgot')}>
+                      Esqueci minha senha
+                    </button>
+                  </div>
                   <Input
                     id="password"
                     type="password"

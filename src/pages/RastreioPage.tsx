@@ -4,6 +4,7 @@ import { PageSEO } from '@/components/seo/PageSEO';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useStoreSettingsPublic, getWhatsAppNumber } from '@/hooks/useStoreContact';
+import { SHOPIFY_ACCOUNT_URL } from '@/lib/shopify/client';
 
 export default function RastreioPage() {
   const [code, setCode] = useState('');
@@ -13,7 +14,8 @@ export default function RastreioPage() {
     <PageSEO title="Rastrear pedido | Vanessa Lima Shoes" path="/rastreio" noindex />
     <div className="container-custom py-12 max-w-2xl space-y-6">
       <h1 className="text-3xl font-bold">Rastreie seu pedido</h1>
-      <p className="text-muted-foreground">Use o código de rastreio recebido por email após o envio. Consulte a confirmação enviada pelo checkout para os detalhes da compra.</p>
+      <p className="text-muted-foreground">Use o código de rastreio recebido por email após o envio. Para ver o status e os detalhes das suas compras, entre em Minha Conta.</p>
+      <Button asChild><a href={SHOPIFY_ACCOUNT_URL}>Ver meus pedidos</a></Button>
       <form className="flex gap-3" onSubmit={event => { event.preventDefault(); if (code.trim()) window.open('https://www.linkcorreios.com.br/?id=' + encodeURIComponent(code.trim()), '_blank', 'noopener,noreferrer'); }}>
         <Input aria-label="Código de rastreio" placeholder="Código de rastreio" value={code} onChange={event => setCode(event.target.value)} required />
         <Button type="submit">Rastrear</Button>

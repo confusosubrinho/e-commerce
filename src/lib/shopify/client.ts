@@ -4,7 +4,8 @@ export const SHOPIFY_API_VERSION = '2025-07';
 export const SHOPIFY_STORE_PERMANENT_DOMAIN = 'vanessalima-o6a1s.myshopify.com';
 export const SHOPIFY_STOREFRONT_TOKEN = '3b50111b61aab29fb14f6ccfa3eb821c';
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_ADMIN_URL = `https://admin.shopify.com/store/${SHOPIFY_STORE_PERMANENT_DOMAIN.replace('.myshopify.com', '')}`;
+export const SHOPIFY_ACCOUNT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/account`;
+export const SHOPIFY_ADMIN_URL =`https://admin.shopify.com/store/${SHOPIFY_STORE_PERMANENT_DOMAIN.replace('.myshopify.com', '')}`;
 
 interface StorefrontResponse<T = unknown> {
   data?: T;

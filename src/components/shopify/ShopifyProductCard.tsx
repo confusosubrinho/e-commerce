@@ -13,6 +13,7 @@ import {
 } from '@/lib/pricingEngine';
 import { usePricingConfig } from '@/hooks/usePricingConfig';
 import type { ShopifyProduct } from '@/lib/shopify/types';
+import { resolveImageUrl, shopifySrcSet } from '@/lib/imageUrl';
 
 interface Props {
   product: ShopifyProduct;
@@ -109,7 +110,9 @@ export function ShopifyProductCard({ product }: Props) {
       <div className="relative aspect-square overflow-hidden bg-muted">
         {primaryImage ? (
           <img
-            src={primaryImage.url}
+            src={resolveImageUrl(primaryImage.url, { width: 540 })}
+            srcSet={shopifySrcSet(primaryImage.url, [360, 540, 720])}
+            sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 48vw"
             alt={primaryImage.altText || node.title}
             className={`w-full h-full object-cover transition-all duration-500 ${
               secondaryImage ? 'group-hover:opacity-0' : 'group-hover:scale-110'
@@ -124,9 +127,11 @@ export function ShopifyProductCard({ product }: Props) {
         )}
         {secondaryImage && (
           <img
-            src={secondaryImage.url}
+            src={resolveImageUrl(secondaryImage.url, { width: 540 })}
+            srcSet={shopifySrcSet(secondaryImage.url, [360, 540, 720])}
+            sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 48vw"
             alt={`${node.title} - foto alternativa`}
-            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            className="absolute inset-0 hidden md:block w-full h-full object-cover opacity-0 transition-opacity duration-300 group-hover:opacity-100"
             loading="lazy"
             decoding="async"
           />

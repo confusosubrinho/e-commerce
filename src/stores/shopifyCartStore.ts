@@ -10,6 +10,7 @@ import { storefrontApiRequest } from '@/lib/shopify/client';
 import { CART_QUERY } from '@/lib/shopify/queries';
 import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import type { ShopifyMoney, ShopifyProductNode } from '@/lib/shopify/types';
+import { shopifyNumericId, trackCommerce } from '@/lib/tracking';
 
 export interface ShopifyCartItem {
   lineId: string | null;
@@ -100,7 +101,15 @@ export const useShopifyCartStore = create<ShopifyCartStore>()(
           console.error('Shopify cart addItem failed', err);
         } finally {
           set({ isLoading: false });
-          if (added) useCartDrawerStore.getState().open();
+          if (added) {
+            useCartDrawerStore.getState().open();
+            trackCommerce('add_to_cart', [{
+              id: shopifyNumericId(item.product.id),
+              name: item.product.title,
+              price: parseFloat(item.price.amount),
+              quantity: item.quantity,
+            }], item.price.currencyCode);
+          }
         }
       },
 
