@@ -57,6 +57,7 @@ import { AdminAuthProvider, useAdminAuthProviderValue, useAdminSessionExpired } 
 
 const SetupWizard = lazy(() => import('@/components/admin/SetupWizard').then(m => ({ default: m.SetupWizard })));
 import { GlobalSearch } from '@/components/admin/GlobalSearch';
+import { PublishSiteButton } from '@/components/admin/PublishSiteButton';
 
 interface MenuItem {
   title: string;
@@ -621,6 +622,7 @@ export default function AdminLayout() {
               <MobileMenuSheet />
               <h1 className="text-sm font-semibold flex-1 truncate">{getPageTitle(location.pathname)}</h1>
               <DarkModeToggle isDark={isDark} toggle={toggleDark} />
+              <PublishSiteButton compact />
               <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" asChild>
                 <Link to="/" target="_blank">
                   <Store className="h-3.5 w-3.5 mr-1" />
@@ -655,6 +657,7 @@ export default function AdminLayout() {
                 }} />
                 <div className="flex-1" />
                 <DarkModeToggle isDark={isDark} toggle={toggleDark} />
+                <PublishSiteButton />
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/" target="_blank">Ver Loja</Link>
                 </Button>
