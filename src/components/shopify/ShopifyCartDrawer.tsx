@@ -6,7 +6,7 @@ import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import { formatCurrency } from '@/lib/pricingEngine';
-import { startCheckout } from '@/config/checkout';
+import { useYampiCheckout } from '@/hooks/useYampiCheckout';
 import { resolveImageUrl } from '@/lib/imageUrl';
 
 interface Props {
@@ -33,23 +33,7 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
     if (isOpen) syncCart();
   }, [isOpen, syncCart]);
 
-  const handleCheckout = async () => {
-    const url = await startCheckout(
-      items.map((i) => ({
-        variantId: i.variantId,
-        productId: i.product.id,
-        quantity: i.quantity,
-        title: i.product.title,
-        variantTitle: i.variantTitle,
-        price: i.price.amount,
-        requiresShipping: true,
-      }))
-    );
-
-    setIsOpen(false);
-    window.location.href = url;
-  };
-
+  const { handleCheckout, isRedirecting, checkoutError } = useYampiCheckout(() => setIsOpen(false));
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       {withTrigger && (
@@ -160,17 +144,18 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
                 onClick={handleCheckout}
                 className="w-full"
                 size="sm"
-                disabled={isLoading || isSyncing || items.length === 0}
+                disabled={isLoading || isSyncing || isRedirecting || items.length === 0}
               >
-                {isLoading || isSyncing ? (
+                {isLoading || isSyncing || isRedirecting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
                     <ExternalLink className="w-4 h-4 mr-2" />
-                    Finalizar Compra
+                    {checkoutError ? 'Tentar novamente' : 'Finalizar Compra'}
                   </>
                 )}
               </Button>
+              {checkoutError && <p role="alert" className="text-sm text-destructive">{checkoutError}</p>}
               <Button
                 variant="outline"
                 className="w-full"

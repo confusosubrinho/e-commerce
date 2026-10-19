@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import Cart from '@/pages/Cart';
 import CheckoutStart from '@/pages/CheckoutStart';
+import * as checkout from '@/config/checkout';
 
 vi.mock('@/components/store/StoreLayout', () => ({ StoreLayout: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/components/seo/PageSEO', () => ({ PageSEO: () => null }));
@@ -17,8 +18,43 @@ beforeEach(() => {
   localStorage.clear();
   useShopifyCartStore.setState({ items: [], cartId: null, checkoutUrl: null, isLoading: false, isSyncing: false });
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe('Carrinho Shopify', () => {
+  it('preserva os itens, mostra erro e permite tentar novamente quando a Yampi falha', async () => {
+    const start = vi.spyOn(checkout, 'startCheckout').mockRejectedValue(new Error('offline'));
+    const items = [{
+      lineId: 'line-1', variantId: 'gid://shopify/ProductVariant/123', variantTitle: '38',
+      product: { id: 'gid://shopify/Product/1', title: 'Bota Teste', handle: 'bota-teste' },
+      price: { amount: '100.00', currencyCode: 'BRL' }, quantity: 2,
+      selectedOptions: [{ name: 'Tamanho', value: '38' }],
+    }];
+    useShopifyCartStore.setState({ items });
+    renderCart();
+    fireEvent.click(screen.getByRole('button', { name: /finalizar compra/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(checkout.CHECKOUT_UNAVAILABLE_MESSAGE);
+    expect(useShopifyCartStore.getState().items).toEqual(items);
+    expect(start).toHaveBeenCalledWith([expect.objectContaining({ productId: items[0].product.id, variantId: items[0].variantId, quantity: 2 })]);
+    fireEvent.click(screen.getByRole('button', { name: /tentar novamente/i }));
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    await screen.findByRole('alert');
+  });
+
+  it('bloqueia novo clique enquanto o checkout é preparado', () => {
+    const start = vi.spyOn(checkout, 'startCheckout').mockReturnValue(new Promise(() => {}));
+    useShopifyCartStore.setState({ items: [{
+      lineId: 'line-1', variantId: 'gid://shopify/ProductVariant/123', variantTitle: '38',
+      product: { id: 'gid://shopify/Product/1', title: 'Bota Teste', handle: 'bota-teste' },
+      price: { amount: '100', currencyCode: 'BRL' }, quantity: 1, selectedOptions: [],
+    }] });
+    renderCart();
+    const button = screen.getByRole('button', { name: /finalizar compra/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
   it('permite voltar à loja quando o carrinho está vazio', () => {
     renderCart();
     expect(screen.getByText('Seu carrinho está vazio')).toBeInTheDocument();

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
 import { formatCurrency } from '@/lib/pricingEngine';
-import { startCheckout } from '@/config/checkout';
+import { useYampiCheckout } from '@/hooks/useYampiCheckout';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { resolveImageUrl } from '@/lib/imageUrl';
 
@@ -12,22 +12,7 @@ const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
   const totalPrice = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
 
-  const handleCheckout = async () => {
-    const url = await startCheckout(
-      items.map((i) => ({
-        variantId: i.variantId,
-        productId: i.product.id,
-        quantity: i.quantity,
-        title: i.product.title,
-        variantTitle: i.variantTitle,
-        price: i.price.amount,
-        requiresShipping: true,
-      }))
-    );
-
-    window.location.href = url;
-  };
-
+  const { handleCheckout, isRedirecting, checkoutError } = useYampiCheckout();
   return (
     <StoreLayout>
       <PageSEO title="Meu carrinho | Vanessa Lima Shoes" path="/carrinho" noindex />
@@ -118,16 +103,17 @@ const Cart = () => {
               <Button
                 onClick={handleCheckout}
                 className="w-full"
-                disabled={isLoading || isSyncing || items.length === 0}
+                disabled={isLoading || isSyncing || isRedirecting || items.length === 0}
               >
-                {isLoading || isSyncing ? (
+                {isLoading || isSyncing || isRedirecting ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <ExternalLink className="w-4 h-4 mr-2" /> Finalizar Compra
+                    <ExternalLink className="w-4 h-4 mr-2" /> {checkoutError ? 'Tentar novamente' : 'Finalizar Compra'}
                   </>
                 )}
               </Button>
+              {checkoutError && <p role="alert" className="text-sm text-destructive">{checkoutError}</p>}
               <p className="text-[11px] text-muted-foreground text-center">
                 Frete e cupons são calculados no checkout seguro.
               </p>

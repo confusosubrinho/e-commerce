@@ -3,8 +3,7 @@ import { shopifyNumericId, trackCommerce } from '@/lib/tracking';
 
 export const YAMPI_CHECKOUT_BASE_URL = 'https://seguro.vanessalimashoes.com.br/';
 const YAMPI_PUBLIC_CART_ENDPOINT = 'https://api.dooki.com.br/v2/public/shopify/cart';
-const YAMPI_CHECKOUT_PROVIDER = 'yampi';
-const DEFAULT_CHECKOUT_PROVIDER = YAMPI_CHECKOUT_PROVIDER;
+export const CHECKOUT_UNAVAILABLE_MESSAGE = 'Não foi possível abrir o checkout da Yampi. Seu carrinho foi mantido. Tente novamente.';
 
 export interface CartLineForCheckout {
   variantId: string; // GID: gid://shopify/ProductVariant/12345
@@ -21,41 +20,6 @@ export interface CartLineForCheckout {
 function extractNumericVariantId(gid: string): string | null {
   const match = gid.match(/(\d+)(?:\?.*)?$/);
   return match ? match[1] : null;
-}
-
-/**
- * Monta o URL de cart permalink LEGADO do Shopify, que aciona o app Yampi.
- * Formato: https://loja.myshopify.com/cart/VARIANT_ID:QTY,VARIANT_ID:QTY
- */
-export function buildShopifyLegacyCartUrl(lines: CartLineForCheckout[]): string | null {
-  const segments = lines
-    .map((l) => {
-      const id = extractNumericVariantId(l.variantId);
-      if (!id || l.quantity <= 0) return null;
-      return `${id}:${l.quantity}`;
-    })
-    .filter((s): s is string => !!s);
-
-  if (segments.length === 0) return null;
-
-  return `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/cart/${segments.join(',')}`;
-}
-
-/**
- * Retorna a URL final para iniciar o checkout, priorizando o fluxo Yampi.
- * Se houver itens, gera o permalink legado do Shopify (Yampi app intercepta).
- * Caso contrário, redireciona direto para o domínio Yampi como fallback.
- *
- * O `shopifyCheckoutUrl` (novo checkout) é IGNORADO de propósito — ele
- * pula a página de carrinho legada e o app Yampi não consegue interceptar.
- */
-export function resolveCheckoutUrl(
-  _shopifyCheckoutUrl: string | null | undefined,
-  lines: CartLineForCheckout[] = []
-): string {
-  const legacyCartUrl = buildShopifyLegacyCartUrl(lines);
-  if (legacyCartUrl) return legacyCartUrl;
-  return YAMPI_CHECKOUT_BASE_URL;
 }
 
 interface YampiCartPayloadItem {
@@ -171,43 +135,63 @@ async function resolveYampiCheckoutUrl(lines: CartLineForCheckout[]): Promise<st
   const cartPayload = buildYampiCartPayload(lines);
   if (!cartPayload) return null;
 
-  const response = await fetch(YAMPI_PUBLIC_CART_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    },
-    body: JSON.stringify({
-      shop: window.location.hostname,
-      shopify_internal_domain: SHOPIFY_STORE_PERMANENT_DOMAIN,
-      cart_payload: cartPayload,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(YAMPI_PUBLIC_CART_ENDPOINT, {
+      signal: controller.signal,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({
+        shop: window.location.hostname,
+        shopify_internal_domain: SHOPIFY_STORE_PERMANENT_DOMAIN,
+        cart_payload: cartPayload,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Yampi checkout HTTP ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Yampi checkout HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as YampiCartResponse;
+    for (const candidate of [data.checkout_direct_url, data.url]) {
+      if (!candidate) continue;
+      try {
+        const url = new URL(candidate);
+        if (url.origin === new URL(YAMPI_CHECKOUT_BASE_URL).origin && url.pathname.startsWith('/checkout')) {
+          return url.href;
+        }
+      } catch {
+        // Uma URL inválida não autoriza trocar o checkout pela Shopify.
+      }
+    }
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const data = (await response.json()) as YampiCartResponse;
-  return data.checkout_direct_url || data.url || null;
 }
 
 export async function startCheckout(lines: CartLineForCheckout[]): Promise<string> {
-  trackCommerce('begin_checkout', lines.map((l) => ({
-    id: shopifyNumericId(l.productId ?? l.variantId),
-    name: l.title ?? 'Produto',
-    price: Number.parseFloat(l.price ?? '0') || 0,
-    quantity: l.quantity,
-  })));
-
-  if (DEFAULT_CHECKOUT_PROVIDER === YAMPI_CHECKOUT_PROVIDER) {
-    try {
-      const yampiUrl = await resolveYampiCheckoutUrl(lines);
-      if (yampiUrl) return yampiUrl;
-    } catch (error) {
-      console.warn('[checkout] Falha ao criar carrinho Yampi, usando fallback:', error);
-    }
+  if (lines.length === 0) throw new Error(CHECKOUT_UNAVAILABLE_MESSAGE);
+  try {
+    trackCommerce('begin_checkout', lines.map((l) => ({
+      id: shopifyNumericId(l.productId ?? l.variantId),
+      name: l.title ?? 'Produto',
+      price: Number.parseFloat(l.price ?? '0') || 0,
+      quantity: l.quantity,
+    })));
+  } catch (error) {
+    console.warn('[checkout] Falha no rastreamento:', error);
   }
 
-  return resolveCheckoutUrl(null, lines);
+  try {
+    const yampiUrl = await resolveYampiCheckoutUrl(lines);
+    if (yampiUrl) return yampiUrl;
+  } catch (error) {
+    console.warn('[checkout] Falha ao criar carrinho Yampi:', error);
+  }
+  throw new Error(CHECKOUT_UNAVAILABLE_MESSAGE);
 }

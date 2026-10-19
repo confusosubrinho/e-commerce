@@ -11,6 +11,13 @@ com produto e quantidade mapeados. `Cart.tsx` e `ShopifyCartDrawer.tsx` já pass
 com `active: false` ainda pode trazer uma URL válida; esse indicador sozinho
 não deve impedir o redirecionamento.
 
+O fallback de permalink Shopify foi removido após novo relato de desvio. Agora
+somente URLs do checkout `seguro.vanessalimashoes.com.br` são aceitas. Falhas de
+rede, timeout e respostas sem URL mantêm os itens e exibem “Tentar novamente”
+no carrinho e no drawer; o botão bloqueia cliques repetidos durante a chamada.
+O checkout novo foi aberto manualmente no site publicado com Bota Cozy / Preto /
+38, quantidade 1, total R$ 164,50, sem informar dados pessoais nem fazer pagamento.
+
 > Estado atual: a **terceira etapa** abaixo prevalece sobre as dependências
 > preservadas nas duas primeiras etapas. Por nova autorização, Yampi ficou
 > somente no redirecionamento público do carrinho.

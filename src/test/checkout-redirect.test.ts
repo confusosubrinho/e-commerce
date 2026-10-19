@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { startCheckout, resolveCheckoutUrl, buildShopifyLegacyCartUrl, YAMPI_CHECKOUT_BASE_URL } from '@/config/checkout';
+import { startCheckout, CHECKOUT_UNAVAILABLE_MESSAGE } from '@/config/checkout';
 import { SHOPIFY_STORE_PERMANENT_DOMAIN } from '@/lib/shopify/client';
 
 const lines = [{ variantId: 'gid://shopify/ProductVariant/12345', productId: 'gid://shopify/Product/98765', quantity: 2, title: 'Bota', variantTitle: '38', price: '100.50' }];
@@ -29,19 +29,24 @@ describe('redirecionamento preservado do carrinho', () => {
     expect(url.searchParams.get('product_option_id[0]')).toBe('777');
     expect(url.searchParams.get('quantity[0]')).toBe('2');
   });
-  it('mantém o permalink Shopify quando a API externa falha', async () => {
+  it('não desvia para Shopify quando a API externa falha', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
-    expect(await startCheckout(lines)).toBe(`https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/cart/12345:2`);
+    await expect(startCheckout(lines)).rejects.toThrow(CHECKOUT_UNAVAILABLE_MESSAGE);
   });
-  it('mantém o fallback quando a API responde erro HTTP', async () => {
+  it('não desvia para Shopify quando a API responde erro HTTP', async () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
-    expect(await startCheckout(lines)).toBe(buildShopifyLegacyCartUrl(lines));
+    await expect(startCheckout(lines)).rejects.toThrow(CHECKOUT_UNAVAILABLE_MESSAGE);
   });
-  it('ignora o checkout nativo Shopify para manter a integração externa', () => {
-    expect(resolveCheckoutUrl('https://checkout.shopify.com/nativo', lines)).toBe(buildShopifyLegacyCartUrl(lines));
+  it('não desvia para Shopify quando a Yampi não retorna URL', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ active: false, url: null, checkout_direct_url: '' }), { status: 200 }));
+    await expect(startCheckout(lines)).rejects.toThrow(CHECKOUT_UNAVAILABLE_MESSAGE);
   });
-  it('não chama a API com carrinho vazio e retorna o domínio seguro', async () => {
-    expect(await startCheckout([])).toBe(YAMPI_CHECKOUT_BASE_URL);
+  it.each(['https://checkout.shopify.com/nativo', 'https://vanessalima-o6a1s.myshopify.com/cart/12345:2', 'javascript:alert(1)'])('recusa destino diferente do checkout Yampi: %s', async (url) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ checkout_direct_url: url }), { status: 200 }));
+    await expect(startCheckout(lines)).rejects.toThrow(CHECKOUT_UNAVAILABLE_MESSAGE);
+  });
+  it('não chama a API nem abre checkout vazio', async () => {
+    await expect(startCheckout([])).rejects.toThrow(CHECKOUT_UNAVAILABLE_MESSAGE);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
