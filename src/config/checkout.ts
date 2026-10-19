@@ -138,7 +138,7 @@ function buildYampiCartPayload(lines: CartLineForCheckout[]): YampiCartPayload |
         final_line_price: priceInCents * quantity,
         sku: line.sku ?? '',
         vendor: 'Vanessa Lima Shoes',
-        product_id: 0,
+        product_id: Number(extractNumericVariantId(line.productId ?? '') ?? 0),
         requires_shipping: line.requiresShipping ?? true,
         grams: 0,
       };

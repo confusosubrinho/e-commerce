@@ -1,5 +1,16 @@
 # Operação da loja na Shopify — limpeza de 2026-10-04
 
+## Correção do redirecionamento em 2026-10-19
+
+O payload da API pública Yampi deve incluir o ID numérico real do produto Shopify
+em `cart_payload.items[].product_id`, além do ID da variante. O código enviava
+`0` nesse campo: a API respondia HTTP 200, mas sem URL, levando ao fallback
+Shopify. Com o ID real, a mesma variante retornou o checkout no domínio seguro
+com produto e quantidade mapeados. `Cart.tsx` e `ShopifyCartDrawer.tsx` já passam
+`productId`; `checkout.ts` agora o converte para o campo da Yampi. Uma resposta
+com `active: false` ainda pode trazer uma URL válida; esse indicador sozinho
+não deve impedir o redirecionamento.
+
 > Estado atual: a **terceira etapa** abaixo prevalece sobre as dependências
 > preservadas nas duas primeiras etapas. Por nova autorização, Yampi ficou
 > somente no redirecionamento público do carrinho.
