@@ -1,0 +1,14 @@
+BEGIN;
+SET LOCAL ROLE anon;
+SELECT public.submit_restock_request('{"name":"Teste tecnico temporario","email":"qa-restock-synthetic@example.com","whatsapp":"11999990000","product_id":"gid://shopify/Product/1","variant_id":"gid://shopify/ProductVariant/2","product_handle":"teste-tecnico","product_title":"Teste tecnico","variant_title":"38","consent":true}'::jsonb);
+SELECT public.submit_restock_request('{"name":"Teste tecnico temporario","email":"qa-restock-synthetic@example.com","whatsapp":"11999990000","product_id":"gid://shopify/Product/1","variant_id":"gid://shopify/ProductVariant/2","product_handle":"teste-tecnico","product_title":"Teste tecnico","variant_title":"38","consent":true}'::jsonb);
+RESET ROLE;
+DO $$ BEGIN IF (SELECT count(*) FROM public.restock_requests WHERE email = 'qa-restock-synthetic@example.com') <> 1 THEN RAISE EXCEPTION 'deduplication failed'; END IF; END $$;
+SELECT set_config('request.jwt.claim.sub', (SELECT user_id::text FROM public.user_roles WHERE role = 'admin' LIMIT 1), true);
+SET LOCAL ROLE authenticated;
+DO $$ BEGIN IF (SELECT count(*) FROM public.restock_requests WHERE email = 'qa-restock-synthetic@example.com') <> 1 THEN RAISE EXCEPTION 'admin access failed'; END IF; END $$;
+UPDATE public.restock_requests SET status = 'notified', notified_at = now(), notified_via = 'whatsapp' WHERE email = 'qa-restock-synthetic@example.com';
+RESET ROLE;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM public.restock_requests WHERE email = 'qa-restock-synthetic@example.com' AND status = 'notified') THEN RAISE EXCEPTION 'admin update failed'; END IF; END $$;
+ROLLBACK;
+SELECT count(*) AS persisted_test_rows FROM public.restock_requests WHERE email = 'qa-restock-synthetic@example.com';
