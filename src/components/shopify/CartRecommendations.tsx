@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Loader2, Plus, Truck } from 'lucide-react';
 import { useShopifyProducts } from '@/hooks/useShopifyProducts';
@@ -61,6 +61,7 @@ function SuggestedProduct({ product, price, onNavigate }: { product: ShopifyProd
 }
 
 export function CartRecommendations({ subtotal, active, onNavigate }: { subtotal: number; active: boolean; onNavigate: () => void }) {
+  const headingId = useId();
   const { data: settings } = useStoreSettingsPublic();
   const items = useShopifyCartStore((s) => s.items);
   const progress = freeShippingProgress(subtotal, settings?.free_shipping_threshold);
@@ -76,8 +77,8 @@ export function CartRecommendations({ subtotal, active, onNavigate }: { subtotal
       <Progress value={progress.percent} className="h-2" aria-label="Progresso para o frete grátis" aria-valuenow={Math.round(progress.percent)} />
       <p className="text-xs text-muted-foreground">Condições de entrega confirmadas no checkout.</p>
     </div>
-    {!progress.reached && (isLoading || suggestions.length > 0) && <section aria-labelledby="cart-suggestions-title">
-      <h3 id="cart-suggestions-title" className="text-sm font-semibold">Complete seu pedido</h3>
+    {!progress.reached && (isLoading || suggestions.length > 0) && <section aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-sm font-semibold">Complete seu pedido</h3>
       <p className="mt-1 text-xs text-muted-foreground">Combine com suas escolhas e chegue ao frete grátis.</p>
       {isLoading ? <Skeleton className="mt-3 h-24 w-full" /> : <div className="divide-y">{suggestions.map(({ product, price }) => <SuggestedProduct key={product.id} product={product} price={price} onNavigate={onNavigate} />)}</div>}
     </section>}

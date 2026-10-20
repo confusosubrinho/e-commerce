@@ -9,6 +9,7 @@ import * as checkout from '@/config/checkout';
 
 vi.mock('@/components/store/StoreLayout', () => ({ StoreLayout: ({ children }: { children: ReactNode }) => <div>{children}</div> }));
 vi.mock('@/components/seo/PageSEO', () => ({ PageSEO: () => null }));
+vi.mock('@/components/shopify/CartRecommendations', () => ({ CartRecommendations: ({ subtotal }: { subtotal: number }) => <div aria-label="Sugestões e meta de frete" data-subtotal={subtotal} /> }));
 
 function renderCart(entry = '/carrinho') {
   return render(<MemoryRouter initialEntries={[entry]}><Routes><Route path="/carrinho" element={<Cart />} /><Route path="/checkout/start" element={<CheckoutStart />} /></Routes></MemoryRouter>);
@@ -72,6 +73,7 @@ describe('Carrinho Shopify', () => {
     expect(screen.getByRole('link', { name: 'Bota Teste' })).toHaveAttribute('href', '/produto/bota-teste');
     expect(screen.getAllByText(/200,00/)).toHaveLength(2);
     expect(screen.getByRole('button', { name: /finalizar compra/i })).toBeEnabled();
+    expect(screen.getByLabelText('Sugestões e meta de frete')).toHaveAttribute('data-subtotal', '200');
     expect(screen.getByText('Frete e cupons são calculados no checkout seguro.')).toBeInTheDocument();
   });
 

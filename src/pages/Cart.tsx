@@ -7,6 +7,7 @@ import { formatCurrency } from '@/lib/pricingEngine';
 import { useYampiCheckout } from '@/hooks/useYampiCheckout';
 import { PageSEO } from '@/components/seo/PageSEO';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { CartRecommendations } from '@/components/shopify/CartRecommendations';
 
 const Cart = () => {
   const { items, isLoading, isSyncing, updateQuantity, removeItem } = useShopifyCartStore();
@@ -92,6 +93,9 @@ const Cart = () => {
                   </Button>
                 </div>
               ))}
+              <div className="pt-4">
+                <CartRecommendations subtotal={totalPrice} active onNavigate={() => undefined} />
+              </div>
             </div>
 
             <aside className="space-y-3 p-4 border rounded-lg bg-background h-fit sticky top-24">

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { StoreLayout } from '@/components/store/StoreLayout';
 import { ShopifyProductGrid } from '@/components/shopify/ShopifyProductGrid';
 import { CategoryFilters, type FilterState } from '@/components/store/CategoryFilters';
@@ -109,19 +110,20 @@ function applyFilters(products: ShopifyProduct[], filters: FilterState): Shopify
   return sorted;
 }
 
-const ProductListingPage = () => {
+const ProductListingContent = () => {
   const params = useParams<{ slug?: string; size?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const path = window.location.pathname;
+  const { pathname: path } = useLocation();
 
   const isCategoryRoute = path.startsWith('/categoria/') && !!params.slug;
   const isPromoRoute = path.startsWith('/promocoes');
 
-  const { data: collection, isLoading: loadingCollection } = useShopifyCollection(
+  const collectionQuery = useShopifyCollection(
     isCategoryRoute ? params.slug : undefined,
     48,
   );
+  const { data: collection, isLoading: loadingCollection } = collectionQuery;
 
   let query: string | undefined;
   let title = 'Produtos';
@@ -153,10 +155,12 @@ const ProductListingPage = () => {
   }
 
   const shouldLoadFallback = !isCategoryRoute || (!loadingCollection && !collection);
-  const { data: fallbackProducts, isLoading: loadingFallback } = useShopifyProducts({
+  const productsQuery = useShopifyProducts({
     first: params.size || isPromoRoute ? 100 : 48,
     query: isCategoryRoute && shouldLoadFallback ? `tag:${params.slug} OR product_type:${params.slug}` : query,
+    enabled: shouldLoadFallback,
   });
+  const { data: fallbackProducts, isLoading: loadingFallback } = productsQuery;
 
   const baseProducts: ShopifyProduct[] = isCategoryRoute && collection
     ? collection.products?.edges ?? []
@@ -223,7 +227,8 @@ const ProductListingPage = () => {
         ? params.slug.charAt(0).toUpperCase() + params.slug.slice(1).replace(/-/g, ' ')
         : title;
   const pageSubtitle = isCategoryRoute && collection ? collection.description || undefined : subtitle;
-  const isLoading = (isCategoryRoute && loadingCollection) || loadingFallback;
+  const isLoading = (isCategoryRoute && loadingCollection) || (shouldLoadFallback && loadingFallback);
+  const loadFailed = shouldLoadFallback && productsQuery.isError;
 
   return (
     <StoreLayout>
@@ -232,7 +237,11 @@ const ProductListingPage = () => {
         description={pageSubtitle || `Confira ${pageTitle.toLowerCase()} na Vanessa Lima Shoes.`}
         noindex={!!searchParams.get('q') || searchParams.toString().length > 0}
       />
-      <ShopifyProductGrid
+      {loadFailed ? <div className="container-custom py-12 text-center" role="alert">
+        <h1 className="text-2xl font-bold mb-3">{pageTitle}</h1>
+        <p className="text-muted-foreground mb-4">Não foi possível carregar os produtos. Tente novamente.</p>
+        <Button onClick={() => productsQuery.refetch()} disabled={productsQuery.isFetching}>Tentar novamente</Button>
+      </div> : <ShopifyProductGrid
         title={pageTitle}
         subtitle={pageSubtitle}
         products={visibleProducts}
@@ -262,9 +271,14 @@ const ProductListingPage = () => {
             onSizeClick={handleSizeNavigate}
           />
         }
-      />
+      />}
     </StoreLayout>
   );
+};
+
+const ProductListingPage = () => {
+  const location = useLocation();
+  return <ProductListingContent key={`${location.pathname}${location.search}`} />;
 };
 
 export default ProductListingPage;

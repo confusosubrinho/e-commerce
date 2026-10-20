@@ -15,6 +15,8 @@ Implementado em 20/10/2026.
   drawer aberto e meta pendente. Produtos já no carrinho e variantes esgotadas são
   excluídos; a ordenação prefere completar a meta com o menor excedente possível.
 - Quando há várias variantes, o comprador escolhe cor/tamanho antes de adicionar.
+  O mesmo componente de sugestões e contador também aparece em `/carrinho`, abaixo
+  dos itens, com atualização pelo subtotal atual e IDs acessíveis únicos por instância.
   Preço, quantidade e disponibilidade continuam controlados pela Shopify. O checkout
   permanece exclusivamente Yampi, sem fallback para pagamento Shopify.
 
