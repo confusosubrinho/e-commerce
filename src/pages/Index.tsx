@@ -90,9 +90,9 @@ const Index = () => {
   const { data: settings } = useStoreSettingsPublic();
 
   const storeName = settings?.store_name || 'Vanessa Lima Shoes';
-  const seoTitle = `${storeName} — Calçados Femininos em Couro Legítimo`;
+  const seoTitle = `${storeName} | Calçados Femininos Exclusivos`;
   const seoDescription =
-    'Calçados femininos em couro legítimo. Botas, tênis, mocassins, sandálias e mais. Frete grátis acima de R$399.';
+    'Calçados femininos exclusivos para valorizar seu estilo. Conheça nossas botas, tênis, mocassins, sandálias e muito mais. Frete grátis a partir de R$ 399.';
 
   return (
     <StoreLayout>
@@ -100,7 +100,7 @@ const Index = () => {
         title={seoTitle}
         description={seoDescription}
         path="/"
-        image={settings?.logo_url ?? settings?.header_logo_url ?? null}
+        image="https://vanessalimashoes.com.br/og-home-primavera-verao.webp"
         jsonLd={{
           '@context': 'https://schema.org',
           '@type': 'WebPage',
