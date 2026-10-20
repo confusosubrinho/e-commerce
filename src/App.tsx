@@ -54,6 +54,7 @@ const AtendimentoPage = lazy(() => lazyRetry(() => import("./pages/AtendimentoPa
 // Admin routes
 const AdminLayout = lazy(() => lazyRetry(() => import("./pages/admin/AdminLayout")));
 const AdminLogin = lazy(() => lazyRetry(() => import("./pages/admin/AdminLogin")));
+const RestockRequests = lazy(() => lazyRetry(() => import("./pages/admin/RestockRequests")));
 const Dashboard = lazy(() => lazyRetry(() => import("./pages/admin/Dashboard")));
 const Banners = lazy(() => lazyRetry(() => import("./pages/admin/Banners")));
 const Personalization = lazy(() => lazyRetry(() => import("./pages/admin/Personalization")));
@@ -155,7 +156,7 @@ function AppQueryProvider({ children }: { children: React.ReactNode }) {
         persister,
         maxAge: 1000 * 60 * 60 * 24,
         dehydrateOptions: {
-          shouldDehydrateQuery: (query) => query.queryKey[0] !== 'store-settings-public',
+          shouldDehydrateQuery: (query) => query.queryKey[0] !== 'store-settings-public' && query.meta?.persist !== false,
         },
       }}
     >
@@ -234,6 +235,7 @@ const App = () => {
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
+                <Route path="avisos-reposicao" element={<RestockRequests />} />
                 <Route path="banners" element={<Banners />} />
                 <Route path="personalizacao" element={<Personalization />} />
                 <Route path="banners-destaque" element={<HighlightBanners />} />

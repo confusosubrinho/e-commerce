@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
-import { Palette, FileText, Image, Settings, ExternalLink } from 'lucide-react';
+import { Palette, FileText, Image, Settings, ExternalLink, Bell } from 'lucide-react';
 import { SHOPIFY_ADMIN_URL } from '@/lib/shopify/client';
 
 const shortcuts = [
+  { title: 'Avisos de reposição', url: '/admin/avisos-reposicao', icon: Bell },
   { title: 'Home e vitrines', url: '/admin/personalizacao', icon: Palette },
   { title: 'Tema visual', url: '/admin/tema', icon: Palette },
   { title: 'Páginas institucionais', url: '/admin/paginas', icon: FileText },

@@ -254,6 +254,11 @@ export default function Settings() {
             </Card>
 
             <Card>
+              <CardHeader><CardTitle>Meta de frete grátis</CardTitle><CardDescription>Valor usado pelo contador e pelas sugestões no carrinho. Mantenha a mesma regra de frete configurada na Yampi.</CardDescription></CardHeader>
+              <CardContent className="flex flex-col gap-2"><Label htmlFor="free-shipping-goal">Compras a partir de (R$)</Label><Input id="free-shipping-goal" type="number" min="0" step="0.01" value={formData.free_shipping_threshold ?? 0} onChange={(e) => setFormData({ ...formData, free_shipping_threshold: Math.max(0, Number(e.target.value) || 0) })} /><p className="text-xs text-muted-foreground">Use 0 para ocultar a meta no carrinho. O benefício e as regiões atendidas são confirmados no checkout.</p></CardContent>
+            </Card>
+
+            <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <LayoutGrid className="h-5 w-5" />

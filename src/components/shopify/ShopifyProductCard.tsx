@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag, Eye } from 'lucide-react';
+import { Heart, ShoppingBag, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useShopifyFavoritesStore } from '@/stores/shopifyFavoritesStore';
 import { useShopifyCartStore } from '@/stores/shopifyCartStore';
@@ -170,13 +170,13 @@ export function ShopifyProductCard({ product }: Props) {
         {firstAvailableVariant && (
           <button
             type="button"
-            onClick={handleQuickAdd}
-            disabled={isLoading || isOutOfStock}
+            onClick={(event) => { if (!isOutOfStock) handleQuickAdd(event); }}
+            disabled={isLoading}
             className="absolute bottom-2 right-2 bg-primary text-primary-foreground p-2.5 rounded-full max-md:opacity-100 opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:bg-primary/90 shadow-lg btn-press disabled:opacity-50"
-            aria-label={isOutOfStock ? `Ver detalhes de ${node.title}` : `Adicionar ${node.title} ao carrinho`}
-            title={isOutOfStock ? 'Ver produto' : 'Comprar'}
+            aria-label={isOutOfStock ? `Pedir aviso de reposição de ${node.title}` : `Adicionar ${node.title} ao carrinho`}
+            title={isOutOfStock ? 'Avise-me quando chegar' : 'Comprar'}
           >
-            {isOutOfStock ? <Eye className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
+            {isOutOfStock ? <Bell className="h-4 w-4" /> : <ShoppingBag className="h-4 w-4" />}
           </button>
         )}
       </div>
@@ -185,6 +185,7 @@ export function ShopifyProductCard({ product }: Props) {
         <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2 text-sm leading-snug min-h-[2.5rem]">
           {node.title}
         </h3>
+        {isOutOfStock && <p className="mt-1 text-xs font-medium text-primary">Avise-me quando chegar</p>}
         <div className="mt-2 space-y-0.5">
           {hasDiscount ? (
             <>

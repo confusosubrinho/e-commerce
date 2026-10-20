@@ -10,6 +10,7 @@ interface StickyAddToCartProps {
   needsColor: boolean;
   needsSize: boolean;
   onAddToCart: () => void;
+  onRestock?: () => void;
   onScrollToVariant: () => void;
   visible: boolean;
 }
@@ -22,12 +23,14 @@ export function StickyAddToCart({
   needsColor,
   needsSize,
   onAddToCart,
+  onRestock,
   onScrollToVariant,
   visible,
 }: StickyAddToCartProps) {
   if (!visible) return null;
 
   const handleClick = () => {
+    if (!isInStock && onRestock) { onRestock(); return; }
     if (!hasSelectedVariant) {
       onScrollToVariant();
       return;
@@ -53,11 +56,11 @@ export function StickyAddToCart({
         </div>
         <Button
           onClick={handleClick}
-          disabled={!isInStock}
+          disabled={!isInStock && !onRestock}
           className="rounded-full h-12 px-5 text-sm font-semibold shrink-0"
         >
           {!isInStock
-            ? 'Indisponível'
+            ? onRestock ? 'Avise-me' : 'Indisponível'
             : !hasSelectedVariant
             ? missingLabel || 'Selecionar'
             : <><ShoppingBag className="h-4 w-4 mr-1.5" />Comprar</>}

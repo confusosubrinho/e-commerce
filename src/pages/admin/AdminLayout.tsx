@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Bell,
   Settings,
   LogOut,
   ChevronDown,
@@ -75,6 +76,7 @@ const allMenuSections: MenuSection[] = [
     label: 'Geral',
     items: [
       { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
+      { title: 'Avisos de reposição', url: '/admin/avisos-reposicao', icon: Bell, permission: 'customers.read' },
     ],
   },
   {

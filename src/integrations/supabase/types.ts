@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      restock_requests: {
+        Row: {
+          id: string
+          tenant_id: string
+          name: string
+          email: string
+          whatsapp: string
+          product_id: string
+          variant_id: string
+          product_handle: string
+          product_title: string
+          variant_title: string
+          status: "waiting" | "notified" | "cancelled"
+          created_at: string
+          consent_at: string
+          notified_at: string | null
+          notified_via: "whatsapp" | "email" | "other" | null
+          notes: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          name: string
+          email: string
+          whatsapp: string
+          product_id: string
+          variant_id: string
+          product_handle: string
+          product_title: string
+          variant_title: string
+          status?: "waiting" | "notified" | "cancelled"
+          created_at?: string
+          consent_at?: string
+          notified_at?: string | null
+          notified_via?: "whatsapp" | "email" | "other" | null
+          notes?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          name?: string
+          email?: string
+          whatsapp?: string
+          product_id?: string
+          variant_id?: string
+          product_handle?: string
+          product_title?: string
+          variant_title?: string
+          status?: "waiting" | "notified" | "cancelled"
+          created_at?: string
+          consent_at?: string
+          notified_at?: string | null
+          notified_via?: "whatsapp" | "email" | "other" | null
+          notes?: string
+        }
+        Relationships: []
+      }
       abandoned_carts: {
         Row: {
           cart_data: Json
@@ -3638,6 +3695,10 @@ export type Database = {
       }
     }
     Functions: {
+      submit_restock_request: {
+        Args: { p_data: Json }
+        Returns: undefined
+      }
       check_login_rate_limit: { Args: { p_email: string }; Returns: boolean }
       cleanup_orphan_orders: { Args: never; Returns: undefined }
       commerce_health: { Args: never; Returns: Json }

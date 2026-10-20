@@ -8,6 +8,7 @@ import { useCartDrawerStore } from '@/stores/cartDrawerStore';
 import { formatCurrency } from '@/lib/pricingEngine';
 import { useYampiCheckout } from '@/hooks/useYampiCheckout';
 import { resolveImageUrl } from '@/lib/imageUrl';
+import { CartRecommendations } from './CartRecommendations';
 
 interface Props {
   /** Renderiza o trigger interno (default true). Se false, controle via `open`/`onOpenChange`. */
@@ -133,6 +134,7 @@ export function ShopifyCartDrawer({ withTrigger = true, open, onOpenChange }: Pr
                   </div>
                 ))}
               </div>
+              <div className="mt-4"><CartRecommendations subtotal={totalPrice} active={isOpen} onNavigate={() => setIsOpen(false)} /></div>
             </div>
 
             <div className="border-t px-4 py-3 space-y-2 bg-background">

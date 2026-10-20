@@ -25,6 +25,7 @@ import { FadeInOnScroll } from '@/components/store/FadeInOnScroll';
 import { StickyAddToCart } from '@/components/store/StickyAddToCart';
 import { resolveImageUrl, shopifySrcSet } from '@/lib/imageUrl';
 import { shopifyNumericId, trackCommerce } from '@/lib/tracking';
+import { RestockRequestDialog } from '@/components/store/RestockRequestDialog';
 
 
 const ProductDetail = () => {
@@ -40,6 +41,7 @@ const ProductDetail = () => {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [stickyVisible, setStickyVisible] = useState(false);
+  const [restockOpen, setRestockOpen] = useState(false);
   const variantBlockRef = useRef<HTMLDivElement>(null);
   const buyButtonRef = useRef<HTMLDivElement>(null);
 
@@ -337,7 +339,7 @@ const ProductDetail = () => {
                 </>
               )}
             </Button>
-
+            {selectedVariant && !selectedVariant.availableForSale && <RestockRequestDialog key={selectedVariant.id} product={product} variant={selectedVariant} open={restockOpen} onOpenChange={setRestockOpen} />}
           </div>
 
           {product.descriptionHtml && (
@@ -376,6 +378,7 @@ const ProductDetail = () => {
           product.options.some((o) => o.name.toLowerCase() === 'tamanho')
         }
         onAddToCart={handleAdd}
+        onRestock={selectedVariant && !selectedVariant.availableForSale ? () => setRestockOpen(true) : undefined}
         onScrollToVariant={() =>
           variantBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
