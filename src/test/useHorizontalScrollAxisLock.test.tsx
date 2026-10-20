@@ -123,5 +123,25 @@ describe('useHorizontalScrollAxisLock', () => {
     expect(dispatchResult).toBe(true);
     expect(click.defaultPrevented).toBe(false);
   });
+
+  it('não captura o mouse no clique de um link; captura somente ao arrastar', () => {
+    render(<TouchHarness />);
+    const scroller = screen.getByTestId('scroller') as HTMLDivElement;
+    const link = screen.getByTestId('item');
+    const capture = vi.fn();
+    scroller.setPointerCapture = capture;
+    setScrollableMetrics(scroller, 300, 1200);
+
+    dispatchPointer(link, 'pointerdown', 180, 100);
+    expect(capture).not.toHaveBeenCalled();
+    dispatchPointer(link, 'pointerup', 180, 100);
+    expect(link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))).toBe(true);
+
+    dispatchPointer(link, 'pointerdown', 180, 100);
+    dispatchPointer(link, 'pointermove', 60, 98);
+    expect(capture).toHaveBeenCalledWith(1);
+    dispatchPointer(link, 'pointerup', 60, 98);
+    expect(link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))).toBe(false);
+  });
 });
 

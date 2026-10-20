@@ -6,8 +6,8 @@ import { useShopifyCollections } from '@/hooks/useShopifyCollections';
 import { resolveImageUrl } from '@/lib/imageUrl';
 
 export function CategoryGrid() {
-  const scrollRef = useHorizontalScrollAxisLock();
   const { data: collections, isLoading } = useShopifyCollections({ first: 20, productsPerCollection: 1 });
+  const scrollRef = useHorizontalScrollAxisLock(!isLoading);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {

@@ -11,7 +11,7 @@ type AxisLock = 'horizontal' | 'vertical' | null;
  * - Se o usuário deslizar mais na horizontal → só o carrossel/grid horizontal se move.
  * Resolve o bug no mobile em que o scroll vertical trava ao passar por seções com scroll horizontal.
  */
-export function useHorizontalScrollAxisLock() {
+export function useHorizontalScrollAxisLock(enabled = true) {
   const ref = useRef<HTMLDivElement>(null);
 
   const lock = useRef<AxisLock>(null);
@@ -33,7 +33,7 @@ export function useHorizontalScrollAxisLock() {
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !enabled) return;
     const previousTouchAction = el.style.touchAction;
     const previousSnapType = el.style.scrollSnapType;
     const previousScrollBehavior = el.style.scrollBehavior;
@@ -88,7 +88,6 @@ export function useHorizontalScrollAxisLock() {
       lastY.current = e.pageY;
       el.style.scrollSnapType = 'none';
       el.style.scrollBehavior = 'auto';
-      if (e.pointerType === 'mouse') el.setPointerCapture?.(e.pointerId);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -105,6 +104,7 @@ export function useHorizontalScrollAxisLock() {
       }
 
       if (lock.current === 'horizontal') {
+        if (!suppressClick.current) el.setPointerCapture?.(e.pointerId);
         e.preventDefault();
         if (Math.abs(totalX) >= AXIS_LOCK_THRESHOLD) suppressClick.current = true;
         const newScrollLeft = el.scrollLeft - deltaX;
@@ -114,7 +114,7 @@ export function useHorizontalScrollAxisLock() {
 
     const onPointerUp = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
-      el.releasePointerCapture?.(e.pointerId);
+      if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture?.(e.pointerId);
       pointerDragging.current = false;
       lock.current = null;
       restoreDraggingStyles();
@@ -153,7 +153,7 @@ export function useHorizontalScrollAxisLock() {
       el.removeEventListener('pointerleave', onPointerUp);
       el.removeEventListener('click', onClickCapture, true);
     };
-  }, [resolveLock]);
+  }, [resolveLock, enabled]);
 
   return ref;
 }
