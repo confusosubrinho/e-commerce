@@ -195,10 +195,12 @@ export default function SocialLinksPage() {
   };
 
   const handleReorder = async (reordered: SocialLink[]) => {
-    const updates = reordered.map((item, idx) =>
-      supabase.from('social_links').update({ sort_order: idx + 1 }).eq('id', item.id)
-    );
-    await Promise.all(updates);
+    const updates = reordered.map((item, idx) => ({
+      ...item,
+      sort_order: idx + 1
+    }));
+    const { error } = await supabase.from('social_links').upsert(updates);
+    if (error) throw error;
     invalidate();
   };
 
